@@ -1,5 +1,5 @@
 import React, { useState, useEffect } from 'react';
-import { LayoutDashboard, FileText, Network, ArrowLeft, Plus, Folder, File, CheckSquare, Bug as BugIcon, Trash2, HardDrive } from 'lucide-react';
+import { LayoutDashboard, FileText, Network, ArrowLeft, Plus, Folder, File, CheckSquare, Bug as BugIcon, Trash2, HardDrive, Download } from 'lucide-react';
 import Dashboard from './components/Dashboard';
 import FlowchartEditor from './components/FlowchartEditor';
 import DocEditor from './components/DocEditor';
@@ -9,7 +9,6 @@ import { Project, ViewState, ProjectFile, FileType, EditorProps } from './types'
 
 // --- UTILS ---
 
-// Convert Base64 back to Blob for file saving
 const base64ToBlob = (base64: string): Blob => {
   try {
       const arr = base64.split(',');
@@ -28,7 +27,7 @@ const base64ToBlob = (base64: string): Blob => {
   }
 };
 
-// Simple IndexedDB Wrapper for Web Mode
+// IndexedDB Wrapper for Web Mode Storage
 const IDB = {
     DB_NAME: 'devarchitect_db',
     STORE: 'projects',
@@ -63,7 +62,7 @@ const IDB = {
                 allReq.onsuccess = () => resolve(allReq.result);
                 allReq.onerror = () => reject(allReq.error);
             };
-            req.onerror = () => resolve([]); // Fallback to empty
+            req.onerror = () => resolve([]); 
         });
     },
     delete: function(id: string) {
@@ -94,13 +93,13 @@ const App: React.FC = () => {
   const [projects, setProjects] = useState<Project[]>([]);
   const [isLocalMode, setIsLocalMode] = useState(false);
   const [isLoaded, setIsLoaded] = useState(false);
-  const [directoryHandle, setDirectoryHandle] = useState<any>(null); // ROOT Workspace Handle
+  const [directoryHandle, setDirectoryHandle] = useState<any>(null);
   
   const [currentView, setCurrentView] = useState<ViewState>(ViewState.DASHBOARD);
   const [activeProjectId, setActiveProjectId] = useState<string | null>(null);
   const [activeFileId, setActiveFileId] = useState<string | null>(null);
 
-  // Initial Load (Web Mode uses IDB now)
+  // Initial Load
   useEffect(() => {
     if (!isLocalMode) {
         IDB.init().then(() => {
@@ -119,7 +118,6 @@ const App: React.FC = () => {
   // Auto-save (Web Mode)
   useEffect(() => {
     if (!isLocalMode && isLoaded && projects.length > 0) {
-        // Save only changed projects? For now save all to IDB individually
         projects.forEach(p => IDB.save(p));
     }
   }, [projects, isLocalMode, isLoaded]);
@@ -129,28 +127,24 @@ const App: React.FC = () => {
   const saveProjectToDisk = async (project: Project) => {
     if (!directoryHandle) return;
     try {
-        // 1. Create/Get Project Folder
         const folderName = `${project.name.replace(/[^a-z0-9]/gi, '_')}_${project.id}`;
         const projectDir = await directoryHandle.getDirectoryHandle(folderName, { create: true });
 
-        // 2. Save project.json (without the massive asset strings to keep it clean)
-        // We create a "lean" version for the JSON file
-        const leanProject = { ...project, assets: {} }; // Clear assets in JSON, they exist as files
+        // Save lean JSON (no assets inside JSON to save space)
+        const leanProject = { ...project, assets: {} }; 
         
         const fileHandle = await projectDir.getFileHandle('project.json', { create: true });
         const writable = await fileHandle.createWritable();
         await writable.write(JSON.stringify(leanProject, null, 2));
         await writable.close();
 
-        // 3. Save Assets to 'assets' subfolder
+        // Save Assets as real files
         if (project.assets && Object.keys(project.assets).length > 0) {
             const assetsDir = await projectDir.getDirectoryHandle('assets', { create: true });
             
             for (const [id, base64] of Object.entries(project.assets)) {
-                // Determine extension
                 const ext = base64.startsWith('data:image/png') ? 'png' : 'jpg';
                 const filename = `${id}.${ext}`;
-                
                 const assetFile = await assetsDir.getFileHandle(filename, { create: true });
                 const assetWriter = await assetFile.createWritable();
                 await assetWriter.write(base64ToBlob(base64));
@@ -187,20 +181,17 @@ const App: React.FC = () => {
           
           const loadedProjects: Project[] = [];
           
-          // Iterate over folders in the workspace
           // @ts-ignore
           for await (const entry of rootHandle.values()) {
               if (entry.kind === 'directory') {
                   try {
                       const projectDir = await rootHandle.getDirectoryHandle(entry.name);
-                      
-                      // Check for project.json
                       const jsonHandle = await projectDir.getFileHandle('project.json');
                       const jsonFile = await jsonHandle.getFile();
                       const jsonText = await jsonFile.text();
                       const projectData = JSON.parse(jsonText);
 
-                      // Load Assets from assets/ folder
+                      // Load Assets
                       const assetsMap: Record<string, string> = {};
                       try {
                         const assetsDir = await projectDir.getDirectoryHandle('assets');
@@ -213,32 +204,17 @@ const App: React.FC = () => {
                                     reader.onload = (e) => resolve(e.target?.result as string);
                                     reader.readAsDataURL(assetFile);
                                 });
-                                // Remove extension for ID mapping
                                 const id = assetEntry.name.split('.')[0];
                                 assetsMap[id] = base64;
                             }
                         }
-                      } catch (e) {
-                          // No assets folder, ignore
-                      }
+                      } catch (e) {}
 
                       projectData.assets = assetsMap;
                       loadedProjects.push(projectData);
-
-                  } catch (e) {
-                      // Not a project folder, skip
-                  }
-              } else if (entry.kind === 'file' && entry.name.endsWith('.json')) {
-                  // LEGACY SUPPORT: Single JSON files
-                  try {
-                    const file = await entry.getFile();
-                    const text = await file.text();
-                    const json = JSON.parse(text);
-                    if (json.id && json.files) loadedProjects.push(json);
-                  } catch(e) {}
+                  } catch (e) {}
               }
           }
-          
           setProjects(loadedProjects);
       } catch (err: any) {
           if (err.name === 'AbortError') return;
@@ -275,7 +251,19 @@ const App: React.FC = () => {
     }
   };
 
-  // Helper to update project state and persist
+  // FIXED EXPORT FUNCTION
+  const handleExportProject = (project: Project) => {
+    // We export the in-memory project object, which DOES contain all assets in the .assets property
+    // This allows the user to download a single self-contained JSON file even if using Local Mode
+    const dataStr = "data:text/json;charset=utf-8," + encodeURIComponent(JSON.stringify(project, null, 2));
+    const downloadAnchorNode = document.createElement('a');
+    downloadAnchorNode.setAttribute("href", dataStr);
+    downloadAnchorNode.setAttribute("download", `${project.name.replace(/\s+/g, '_')}_full_backup.json`);
+    document.body.appendChild(downloadAnchorNode);
+    downloadAnchorNode.click();
+    downloadAnchorNode.remove();
+  };
+
   const updateProjectState = (updatedProject: Project) => {
       setProjects(prev => prev.map(p => p.id === updatedProject.id ? updatedProject : p));
       if (isLocalMode) saveProjectToDisk(updatedProject);
@@ -289,7 +277,6 @@ const App: React.FC = () => {
         reader.onload = async (e) => {
             const base64 = e.target?.result as string;
             const assetId = crypto.randomUUID();
-            
             const project = projects.find(p => p.id === activeProjectId);
             if (project) {
                 const updatedProject = {
@@ -298,14 +285,13 @@ const App: React.FC = () => {
                     assets: { ...(project.assets || {}), [assetId]: base64 }
                 };
                 updateProjectState(updatedProject);
-                resolve(`asset://${assetId}`); // Return internal protocol
+                resolve(`asset://${assetId}`);
             }
         };
         reader.readAsDataURL(file);
     });
   };
 
-  // Standard File Operations
   const handleCreateFile = (type: FileType) => {
     if (!activeProjectId) return;
     const plugin = EDITOR_PLUGINS.find(p => p.type === type);
@@ -346,7 +332,6 @@ const App: React.FC = () => {
   const activeProject = projects.find(p => p.id === activeProjectId);
   const activeFile = activeProject?.files.find(f => f.id === activeFileId);
 
-  // Render Sidebar
   const renderSidebar = () => {
     if (currentView === ViewState.DASHBOARD || !activeProject) {
       return (
@@ -397,7 +382,7 @@ const App: React.FC = () => {
               projects={projects}
               onSelectProject={(id) => { setActiveProjectId(id); const p = projects.find(x => x.id === id); setActiveFileId(p?.files[0]?.id || null); setCurrentView(ViewState.PROJECT); }}
               onCreateProject={handleCreateProject}
-              onExportProject={(p) => { /* Basic export */ }}
+              onExportProject={handleExportProject} // FIXED: Passed the function here
               onDeleteProject={handleDeleteProject}
               onOpenWorkspace={handleOpenWorkspace}
               isLocalMode={isLocalMode}

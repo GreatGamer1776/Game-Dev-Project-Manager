@@ -1,5 +1,6 @@
 import React, { useState, useEffect } from 'react';
-import { LayoutDashboard, FileText, Network, ArrowLeft, Plus, Folder, File, CheckSquare, Bug as BugIcon, Trash2, HardDrive, Download } from 'lucide-react';
+import { LayoutDashboard, FileText, Network, ArrowLeft, Plus, Folder, File, CheckSquare, Bug as BugIcon, Trash2, HardDrive, Download, Upload } from 'lucide-react';
+import JSZip from 'jszip'; // NEW: Import JSZip
 import Dashboard from './components/Dashboard';
 import FlowchartEditor from './components/FlowchartEditor';
 import DocEditor from './components/DocEditor';
@@ -9,6 +10,7 @@ import { Project, ViewState, ProjectFile, FileType, EditorProps } from './types'
 
 // --- UTILS ---
 
+// Convert Base64 to Blob (for File System API)
 const base64ToBlob = (base64: string): Blob => {
   try {
       const arr = base64.split(',');
@@ -27,7 +29,7 @@ const base64ToBlob = (base64: string): Blob => {
   }
 };
 
-// IndexedDB Wrapper for Web Mode Storage
+// IndexedDB Wrapper (For Web Mode persistence)
 const IDB = {
     DB_NAME: 'devarchitect_db',
     STORE: 'projects',
@@ -130,7 +132,7 @@ const App: React.FC = () => {
         const folderName = `${project.name.replace(/[^a-z0-9]/gi, '_')}_${project.id}`;
         const projectDir = await directoryHandle.getDirectoryHandle(folderName, { create: true });
 
-        // Save lean JSON (no assets inside JSON to save space)
+        // Save lean JSON (no assets inside JSON)
         const leanProject = { ...project, assets: {} }; 
         
         const fileHandle = await projectDir.getFileHandle('project.json', { create: true });
@@ -138,7 +140,7 @@ const App: React.FC = () => {
         await writable.write(JSON.stringify(leanProject, null, 2));
         await writable.close();
 
-        // Save Assets as real files
+        // Save Assets
         if (project.assets && Object.keys(project.assets).length > 0) {
             const assetsDir = await projectDir.getDirectoryHandle('assets', { create: true });
             
@@ -169,7 +171,7 @@ const App: React.FC = () => {
   const handleOpenWorkspace = async () => {
       // @ts-ignore
       if (typeof window.showDirectoryPicker !== 'function') {
-        alert("Browser not supported. Please use Chrome/Edge on desktop.");
+        alert("Browser not supported. Please use Chrome, Edge, or Opera on desktop.");
         return;
       }
 
@@ -251,17 +253,34 @@ const App: React.FC = () => {
     }
   };
 
-  // FIXED EXPORT FUNCTION
-  const handleExportProject = (project: Project) => {
-    // We export the in-memory project object, which DOES contain all assets in the .assets property
-    // This allows the user to download a single self-contained JSON file even if using Local Mode
-    const dataStr = "data:text/json;charset=utf-8," + encodeURIComponent(JSON.stringify(project, null, 2));
-    const downloadAnchorNode = document.createElement('a');
-    downloadAnchorNode.setAttribute("href", dataStr);
-    downloadAnchorNode.setAttribute("download", `${project.name.replace(/\s+/g, '_')}_full_backup.json`);
-    document.body.appendChild(downloadAnchorNode);
-    downloadAnchorNode.click();
-    downloadAnchorNode.remove();
+  // --- ZIP EXPORT ---
+  const handleExportProject = async (project: Project) => {
+    const zip = new JSZip();
+    
+    // 1. Add project.json (Clean, no asset data strings)
+    const leanProject = { ...project, assets: {} }; 
+    zip.file("project.json", JSON.stringify(leanProject, null, 2));
+
+    // 2. Add Assets folder
+    const assetsFolder = zip.folder("assets");
+    if (project.assets && assetsFolder) {
+        Object.entries(project.assets).forEach(([id, base64]) => {
+            // Remove data URL prefix (data:image/png;base64,)
+            const data = base64.split(',')[1]; 
+            // Detect extension from header
+            const ext = base64.substring(base64.indexOf('/') + 1, base64.indexOf(';'));
+            assetsFolder.file(`${id}.${ext}`, data, {base64: true});
+        });
+    }
+
+    // 3. Generate & Download
+    const content = await zip.generateAsync({type:"blob"});
+    const url = window.URL.createObjectURL(content);
+    const a = document.createElement('a');
+    a.href = url;
+    a.download = `${project.name.replace(/\s+/g, '_')}.zip`;
+    a.click();
+    window.URL.revokeObjectURL(url);
   };
 
   const updateProjectState = (updatedProject: Project) => {
@@ -292,6 +311,7 @@ const App: React.FC = () => {
     });
   };
 
+  // File Operations
   const handleCreateFile = (type: FileType) => {
     if (!activeProjectId) return;
     const plugin = EDITOR_PLUGINS.find(p => p.type === type);
@@ -382,7 +402,7 @@ const App: React.FC = () => {
               projects={projects}
               onSelectProject={(id) => { setActiveProjectId(id); const p = projects.find(x => x.id === id); setActiveFileId(p?.files[0]?.id || null); setCurrentView(ViewState.PROJECT); }}
               onCreateProject={handleCreateProject}
-              onExportProject={handleExportProject} // FIXED: Passed the function here
+              onExportProject={handleExportProject} 
               onDeleteProject={handleDeleteProject}
               onOpenWorkspace={handleOpenWorkspace}
               isLocalMode={isLocalMode}

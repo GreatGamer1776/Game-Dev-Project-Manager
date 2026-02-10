@@ -1,7 +1,10 @@
-
-import React, { useState, useEffect } from 'react';
+import React, { useState, useEffect, useRef } from 'react';
 import ReactMarkdown from 'react-markdown';
-import { Save, Trash2 } from 'lucide-react';
+import { 
+  Save, Trash2, Bold, Italic, List, ListOrdered, 
+  Heading1, Heading2, Quote, Code, Image as ImageIcon, 
+  Eye, Columns, PenTool, Link as LinkIcon 
+} from 'lucide-react';
 
 interface DocEditorProps {
   initialContent: string;
@@ -9,9 +12,13 @@ interface DocEditorProps {
   fileName: string;
 }
 
+type ViewMode = 'edit' | 'preview' | 'split';
+
 const DocEditor: React.FC<DocEditorProps> = ({ initialContent, onSave, fileName }) => {
   const [content, setContent] = useState(initialContent);
-  const [activeTab, setActiveTab] = useState<'write' | 'preview'>('write');
+  const [viewMode, setViewMode] = useState<ViewMode>('split');
+  const textareaRef = useRef<HTMLTextAreaElement>(null);
+  const fileInputRef = useRef<HTMLInputElement>(null);
 
   // Sync content when file switches
   useEffect(() => {
@@ -24,63 +31,176 @@ const DocEditor: React.FC<DocEditorProps> = ({ initialContent, onSave, fileName 
     }
   };
 
+  // --- Formatting Logic ---
+
+  const insertText = (before: string, after: string = '') => {
+    const textarea = textareaRef.current;
+    if (!textarea) return;
+
+    const start = textarea.selectionStart;
+    const end = textarea.selectionEnd;
+    const previousText = textarea.value;
+    const selectedText = previousText.substring(start, end);
+
+    const newText = 
+      previousText.substring(0, start) +
+      before + selectedText + after +
+      previousText.substring(end);
+
+    setContent(newText);
+
+    // Reset cursor position after React re-render
+    setTimeout(() => {
+      textarea.focus();
+      textarea.setSelectionRange(
+        start + before.length,
+        end + before.length
+      );
+    }, 0);
+  };
+
+  const handleImageUpload = (e: React.ChangeEvent<HTMLInputElement>) => {
+    const file = e.target.files?.[0];
+    if (!file) return;
+
+    // Limit image size (optional recommendation: < 1MB for performance)
+    if (file.size > 1024 * 1024) {
+      if(!confirm("This image is large (>1MB). Embedding it might slow down the project file saving. Continue?")) {
+        return;
+      }
+    }
+
+    const reader = new FileReader();
+    reader.onload = (event) => {
+      const base64 = event.target?.result as string;
+      insertText(`\n![${file.name}](${base64})\n`);
+    };
+    reader.readAsDataURL(file);
+    
+    // Reset input so same file can be selected again
+    if (fileInputRef.current) fileInputRef.current.value = '';
+  };
+
+  // --- Toolbar Component ---
+
+  const ToolbarButton = ({ icon: Icon, onClick, title, active = false }: any) => (
+    <button
+      onClick={onClick}
+      className={`p-1.5 rounded-md transition-all ${
+        active 
+          ? 'bg-blue-600 text-white shadow-sm' 
+          : 'text-zinc-400 hover:text-zinc-200 hover:bg-zinc-800'
+      }`}
+      title={title}
+    >
+      <Icon className="w-4 h-4" />
+    </button>
+  );
+
   return (
     <div className="h-full flex flex-col bg-zinc-900">
-      {/* Toolbar */}
-      <div className="h-16 border-b border-zinc-800 flex items-center justify-between px-6 bg-zinc-900/50 backdrop-blur-sm sticky top-0 z-10">
+      {/* Header & Main Toolbar */}
+      <div className="h-14 border-b border-zinc-800 flex items-center justify-between px-4 bg-zinc-950/50 backdrop-blur-sm sticky top-0 z-20 shrink-0">
         <div className="flex items-center gap-4">
-           <h3 className="text-zinc-200 font-medium mr-4">{fileName}</h3>
-          <div className="flex bg-zinc-800 p-1 rounded-lg border border-zinc-700">
+           <h3 className="text-zinc-200 font-medium mr-2 truncate max-w-[150px]">{fileName}</h3>
+           
+           <div className="h-6 w-px bg-zinc-800 hidden sm:block"></div>
+
+           {/* Formatting Toolbar */}
+           <div className="flex items-center gap-0.5">
+              <ToolbarButton icon={Bold} onClick={() => insertText('**', '**')} title="Bold" />
+              <ToolbarButton icon={Italic} onClick={() => insertText('*', '*')} title="Italic" />
+              <ToolbarButton icon={Heading1} onClick={() => insertText('# ')} title="Heading 1" />
+              <ToolbarButton icon={Heading2} onClick={() => insertText('## ')} title="Heading 2" />
+              <div className="w-2"></div>
+              <ToolbarButton icon={List} onClick={() => insertText('- ')} title="Bullet List" />
+              <ToolbarButton icon={ListOrdered} onClick={() => insertText('1. ')} title="Numbered List" />
+              <ToolbarButton icon={Quote} onClick={() => insertText('> ')} title="Quote" />
+              <ToolbarButton icon={Code} onClick={() => insertText('```\n', '\n```')} title="Code Block" />
+              <ToolbarButton icon={LinkIcon} onClick={() => insertText('[', '](url)')} title="Link" />
+              
+              <div className="w-2"></div>
+              
+              {/* Image Upload */}
+              <input 
+                type="file" 
+                ref={fileInputRef} 
+                className="hidden" 
+                accept="image/*" 
+                onChange={handleImageUpload}
+              />
+              <ToolbarButton icon={ImageIcon} onClick={() => fileInputRef.current?.click()} title="Insert Image" />
+           </div>
+        </div>
+
+        <div className="flex items-center gap-3">
+          {/* View Toggle */}
+          <div className="flex bg-zinc-800 p-1 rounded-lg border border-zinc-700 hidden sm:flex">
             <button
-              onClick={() => setActiveTab('write')}
-              className={`px-3 py-1.5 rounded-md text-sm font-medium transition-all ${
-                activeTab === 'write' ? 'bg-zinc-700 text-white shadow-sm' : 'text-zinc-400 hover:text-zinc-200'
-              }`}
+              onClick={() => setViewMode('edit')}
+              className={`p-1.5 rounded transition-all ${viewMode === 'edit' ? 'bg-zinc-600 text-white' : 'text-zinc-400'}`}
+              title="Edit Only"
             >
-              Write
+              <PenTool className="w-4 h-4" />
             </button>
             <button
-              onClick={() => setActiveTab('preview')}
-              className={`px-3 py-1.5 rounded-md text-sm font-medium transition-all ${
-                activeTab === 'preview' ? 'bg-zinc-700 text-white shadow-sm' : 'text-zinc-400 hover:text-zinc-200'
-              }`}
+              onClick={() => setViewMode('split')}
+              className={`p-1.5 rounded transition-all ${viewMode === 'split' ? 'bg-zinc-600 text-white' : 'text-zinc-400'}`}
+              title="Split View"
             >
-              Preview
+              <Columns className="w-4 h-4" />
+            </button>
+            <button
+              onClick={() => setViewMode('preview')}
+              className={`p-1.5 rounded transition-all ${viewMode === 'preview' ? 'bg-zinc-600 text-white' : 'text-zinc-400'}`}
+              title="Preview Only"
+            >
+              <Eye className="w-4 h-4" />
             </button>
           </div>
+
           <button 
              onClick={handleClear}
-             className="p-2 ml-2 hover:bg-red-500/10 rounded text-zinc-400 hover:text-red-400 transition-colors"
+             className="p-2 hover:bg-red-500/10 rounded text-zinc-500 hover:text-red-400 transition-colors"
              title="Clear Document"
           >
              <Trash2 className="w-4 h-4" />
           </button>
+          
+          <button
+            onClick={() => onSave(content)}
+            className="flex items-center gap-2 bg-emerald-600 hover:bg-emerald-700 text-white px-3 py-1.5 rounded-md text-sm font-medium transition-colors shadow-lg shadow-emerald-900/20"
+          >
+            <Save className="w-4 h-4" />
+            <span className="hidden sm:inline">Save</span>
+          </button>
         </div>
-        <button
-          onClick={() => onSave(content)}
-          className="flex items-center gap-2 bg-emerald-600 hover:bg-emerald-700 text-white px-4 py-2 rounded-md text-sm font-medium transition-colors shadow-lg shadow-emerald-900/20"
-        >
-          <Save className="w-4 h-4" />
-          Save Document
-        </button>
       </div>
 
-      <div className="flex-1 flex overflow-hidden">
-        {/* Editor / Preview Area */}
-        <div className="flex-1 overflow-auto custom-scrollbar relative">
-          {activeTab === 'write' ? (
+      <div className="flex-1 flex overflow-hidden relative">
+        
+        {/* Editor Pane */}
+        {(viewMode === 'edit' || viewMode === 'split') && (
+          <div className={`h-full flex flex-col ${viewMode === 'split' ? 'w-1/2 border-r border-zinc-800' : 'w-full'}`}>
             <textarea
-              className="w-full h-full bg-zinc-950 p-8 text-zinc-300 font-mono text-sm resize-none focus:outline-none leading-relaxed"
+              ref={textareaRef}
+              className="w-full h-full bg-zinc-950 p-6 text-zinc-300 font-mono text-sm resize-none focus:outline-none leading-relaxed custom-scrollbar selection:bg-blue-500/30"
               value={content}
               onChange={(e) => setContent(e.target.value)}
-              placeholder="# Start writing..."
+              placeholder="# Start writing your masterpiece..."
+              spellCheck={false}
             />
-          ) : (
-            <div className="w-full h-full bg-zinc-900 p-8 overflow-auto prose prose-invert prose-zinc max-w-none">
-              <ReactMarkdown>{content}</ReactMarkdown>
-            </div>
-          )}
-        </div>
+          </div>
+        )}
+
+        {/* Preview Pane */}
+        {(viewMode === 'preview' || viewMode === 'split') && (
+          <div className={`h-full overflow-auto custom-scrollbar bg-zinc-900 ${viewMode === 'split' ? 'w-1/2' : 'w-full'}`}>
+             <div className="max-w-3xl mx-auto p-8 prose prose-invert prose-zinc prose-headings:text-zinc-100 prose-p:text-zinc-300 prose-a:text-blue-400 hover:prose-a:text-blue-300 prose-pre:bg-zinc-950 prose-pre:border prose-pre:border-zinc-800 prose-img:rounded-lg prose-img:shadow-lg">
+                <ReactMarkdown>{content || '*Preview will appear here...*'}</ReactMarkdown>
+             </div>
+          </div>
+        )}
       </div>
     </div>
   );

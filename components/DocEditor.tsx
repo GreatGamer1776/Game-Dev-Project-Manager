@@ -49,7 +49,6 @@ const DocEditor: React.FC<DocEditorProps> = ({ initialContent, onSave, fileName 
 
     setContent(newText);
 
-    // Reset cursor position after React re-render
     setTimeout(() => {
       textarea.focus();
       textarea.setSelectionRange(
@@ -63,7 +62,6 @@ const DocEditor: React.FC<DocEditorProps> = ({ initialContent, onSave, fileName 
     const file = e.target.files?.[0];
     if (!file) return;
 
-    // Limit image size (optional recommendation: < 1MB for performance)
     if (file.size > 1024 * 1024) {
       if(!confirm("This image is large (>1MB). Embedding it might slow down the project file saving. Continue?")) {
         return;
@@ -77,7 +75,6 @@ const DocEditor: React.FC<DocEditorProps> = ({ initialContent, onSave, fileName 
     };
     reader.readAsDataURL(file);
     
-    // Reset input so same file can be selected again
     if (fileInputRef.current) fileInputRef.current.value = '';
   };
 
@@ -196,8 +193,32 @@ const DocEditor: React.FC<DocEditorProps> = ({ initialContent, onSave, fileName 
         {/* Preview Pane */}
         {(viewMode === 'preview' || viewMode === 'split') && (
           <div className={`h-full overflow-auto custom-scrollbar bg-zinc-900 ${viewMode === 'split' ? 'w-1/2' : 'w-full'}`}>
-             <div className="max-w-3xl mx-auto p-8 prose prose-invert prose-zinc prose-headings:text-zinc-100 prose-p:text-zinc-300 prose-a:text-blue-400 hover:prose-a:text-blue-300 prose-pre:bg-zinc-950 prose-pre:border prose-pre:border-zinc-800 prose-img:rounded-lg prose-img:shadow-lg">
-                <ReactMarkdown>{content || '*Preview will appear here...*'}</ReactMarkdown>
+             <div className="max-w-3xl mx-auto p-8">
+                <ReactMarkdown
+                  components={{
+                    h1: ({node, ...props}) => <h1 className="text-3xl font-bold text-zinc-100 mb-6 pb-2 border-b border-zinc-700" {...props} />,
+                    h2: ({node, ...props}) => <h2 className="text-2xl font-semibold text-zinc-100 mb-4 mt-8" {...props} />,
+                    h3: ({node, ...props}) => <h3 className="text-xl font-semibold text-zinc-200 mb-3 mt-6" {...props} />,
+                    p: ({node, ...props}) => <p className="text-zinc-300 leading-7 mb-4" {...props} />,
+                    ul: ({node, ...props}) => <ul className="list-disc list-outside ml-6 mb-4 text-zinc-300" {...props} />,
+                    ol: ({node, ...props}) => <ol className="list-decimal list-outside ml-6 mb-4 text-zinc-300" {...props} />,
+                    li: ({node, ...props}) => <li className="mb-1 pl-1" {...props} />,
+                    blockquote: ({node, ...props}) => <blockquote className="border-l-4 border-blue-500 bg-zinc-800/30 pl-4 py-2 my-4 text-zinc-400 italic rounded-r" {...props} />,
+                    code: ({node, inline, className, children, ...props}: any) => {
+                       return inline 
+                         ? <code className="bg-zinc-800 text-red-400 px-1.5 py-0.5 rounded text-sm font-mono border border-zinc-700/50" {...props}>{children}</code>
+                         : <div className="bg-zinc-950 p-4 rounded-lg my-4 overflow-x-auto border border-zinc-800 shadow-inner"><code className="text-sm font-mono text-zinc-300 block" {...props}>{children}</code></div>
+                    },
+                    a: ({node, ...props}) => <a className="text-blue-400 hover:text-blue-300 hover:underline transition-colors" target="_blank" rel="noopener noreferrer" {...props} />,
+                    img: ({node, ...props}) => <img className="max-w-full h-auto rounded-lg shadow-lg my-6 border border-zinc-800" {...props} />,
+                    hr: ({node, ...props}) => <hr className="border-zinc-800 my-8" {...props} />,
+                    table: ({node, ...props}) => <div className="overflow-x-auto my-6 rounded-lg border border-zinc-800"><table className="w-full text-left text-sm" {...props} /></div>,
+                    th: ({node, ...props}) => <th className="bg-zinc-800 p-3 font-semibold text-zinc-200 border-b border-zinc-700" {...props} />,
+                    td: ({node, ...props}) => <td className="p-3 border-b border-zinc-800 text-zinc-300" {...props} />,
+                  }}
+                >
+                  {content || '*Preview will appear here...*'}
+                </ReactMarkdown>
              </div>
           </div>
         )}

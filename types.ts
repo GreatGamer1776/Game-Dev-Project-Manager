@@ -1,0 +1,83 @@
+
+export interface FlowchartNode {
+  id: string;
+  type?: string; // 'input', 'output', 'default', 'diamond', 'database', 'circle'
+  position: { x: number; y: number };
+  data: { label: string };
+  style?: any;
+}
+
+export interface FlowchartEdge {
+  id: string;
+  source: string;
+  target: string;
+  label?: string;
+  animated?: boolean;
+  style?: any;
+}
+
+export interface FlowchartData {
+  nodes: FlowchartNode[];
+  edges: FlowchartEdge[];
+}
+
+export type Priority = 'Low' | 'Medium' | 'High';
+
+export interface SubTask {
+  id: string;
+  text: string;
+  completed: boolean;
+}
+
+export interface TodoItem {
+  id: string;
+  text: string;
+  completed: boolean;
+  priority: Priority;
+  dueDate?: string; // ISO Date string YYYY-MM-DD
+  description?: string;
+  subTasks?: SubTask[];
+}
+
+export interface TodoData {
+  items: TodoItem[];
+}
+
+export type BugSeverity = 'Low' | 'Medium' | 'High' | 'Critical';
+export type BugStatus = 'Open' | 'In Progress' | 'Resolved' | 'Closed';
+
+export interface Bug {
+  id: string;
+  title: string;
+  description: string;
+  severity: BugSeverity;
+  status: BugStatus;
+  createdAt: number;
+}
+
+export interface KanbanData {
+  tasks: Bug[];
+}
+
+export type FileType = 'doc' | 'flowchart' | 'todo' | 'kanban';
+
+export interface ProjectFile {
+  id: string;
+  name: string;
+  type: FileType;
+  content: string | FlowchartData | TodoData | KanbanData;
+}
+
+export interface Project {
+  id: string;
+  name: string;
+  type: 'Software' | 'Game' | 'Web';
+  description: string;
+  lastModified: number;
+  files: ProjectFile[];
+}
+
+export enum ViewState {
+  DASHBOARD = 'DASHBOARD',
+  PROJECT = 'PROJECT',
+}

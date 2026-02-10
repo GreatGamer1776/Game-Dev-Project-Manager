@@ -1,4 +1,3 @@
-
 export interface FlowchartNode {
   id: string;
   type?: string;
@@ -59,10 +58,7 @@ export interface KanbanData {
   tasks: Bug[];
 }
 
-// Generic Content Type for flexibility
 export type FileContent = string | FlowchartData | TodoData | KanbanData | any;
-
-// FileType is now just a string, allowing for infinite expansion via the registry
 export type FileType = 'doc' | 'flowchart' | 'todo' | 'kanban' | string;
 
 export interface ProjectFile {
@@ -79,6 +75,8 @@ export interface Project {
   description: string;
   lastModified: number;
   files: ProjectFile[];
+  // NEW: Central storage for images/assets (ID -> Base64)
+  assets: Record<string, string>; 
 }
 
 export enum ViewState {
@@ -86,9 +84,11 @@ export enum ViewState {
   PROJECT = 'PROJECT',
 }
 
-// Standardized Interface for all Editor Components
 export interface EditorProps {
   initialContent: any;
   onSave: (content: any) => void;
   fileName: string;
+  // NEW: Props for handling assets
+  assets?: Record<string, string>;
+  onAddAsset?: (file: File) => Promise<string>; // Returns the asset ID
 }

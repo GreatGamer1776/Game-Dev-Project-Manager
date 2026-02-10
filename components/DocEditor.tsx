@@ -5,65 +5,16 @@ import {
   Heading1, Heading2, Quote, Code, Image as ImageIcon, 
   Eye, Columns, PenTool, Link as LinkIcon 
 } from 'lucide-react';
+import { EditorProps } from '../types';
 
-interface DocEditorProps {
-  initialContent: string;
-  onSave: (content: string) => void;
-  fileName: string;
-}
-
-type ViewMode = 'edit' | 'preview' | 'split';
-
-// Helper to compress images via Canvas
-const compressImage = (file: File): Promise<string> => {
-  return new Promise((resolve, reject) => {
-    const reader = new FileReader();
-    reader.readAsDataURL(file);
-    reader.onload = (event) => {
-      const img = new Image();
-      img.src = event.target?.result as string;
-      img.onload = () => {
-        const canvas = document.createElement('canvas');
-        const MAX_WIDTH = 1024; // Limit width to prevent massive files
-        const scaleSize = MAX_WIDTH / img.width;
-        
-        // Only resize if image is larger than max width
-        if (scaleSize < 1) {
-            canvas.width = MAX_WIDTH;
-            canvas.height = img.height * scaleSize;
-        } else {
-            canvas.width = img.width;
-            canvas.height = img.height;
-        }
-
-        const ctx = canvas.getContext('2d');
-        if (!ctx) {
-            reject(new Error("Failed to get canvas context"));
-            return;
-        }
-        
-        ctx.drawImage(img, 0, 0, canvas.width, canvas.height);
-        
-        // Compress to JPEG at 70% quality
-        // This drastically reduces string size vs raw PNG Base64
-        const compressedDataUrl = canvas.toDataURL('image/jpeg', 0.7);
-        resolve(compressedDataUrl);
-      };
-      img.onerror = (error) => reject(error);
-    };
-    reader.onerror = (error) => reject(error);
-  });
-};
-
-const DocEditor: React.FC<DocEditorProps> = ({ initialContent, onSave, fileName }) => {
+const DocEditor: React.FC<EditorProps> = ({ initialContent, onSave, fileName, assets, onAddAsset }) => {
   const [content, setContent] = useState(initialContent);
-  const [viewMode, setViewMode] = useState<ViewMode>('split');
-  const [isCompressing, setIsCompressing] = useState(false);
+  const [viewMode, setViewMode] = useState<'edit' | 'preview' | 'split'>('split');
+  const [isUploading, setIsUploading] = useState(false);
   
   const textareaRef = useRef<HTMLTextAreaElement>(null);
   const fileInputRef = useRef<HTMLInputElement>(null);
 
-  // Sync content when file switches
   useEffect(() => {
     setContent(initialContent);
   }, [initialContent]);
@@ -73,8 +24,6 @@ const DocEditor: React.FC<DocEditorProps> = ({ initialContent, onSave, fileName 
       setContent('');
     }
   };
-
-  // --- Formatting Logic ---
 
   const insertText = (before: string, after: string = '') => {
     const textarea = textareaRef.current;
@@ -104,26 +53,37 @@ const DocEditor: React.FC<DocEditorProps> = ({ initialContent, onSave, fileName 
   const handleImageUpload = async (e: React.ChangeEvent<HTMLInputElement>) => {
     const file = e.target.files?.[0];
     if (!file) return;
+    
+    // Check if asset system is available
+    if (!onAddAsset) {
+        alert("Image upload is not available in this version.");
+        return;
+    }
 
-    setIsCompressing(true);
+    setIsUploading(true);
     
     try {
-        const compressedBase64 = await compressImage(file);
-        
-        // Sanitize filename for markdown alt text (remove brackets which break syntax)
+        const assetUrl = await onAddAsset(file); // returns "asset://uuid"
         const safeName = file.name.replace(/[\[\]\(\)]/g, '');
-        
-        insertText(`\n![${safeName}](${compressedBase64})\n`);
+        insertText(`\n![${safeName}](${assetUrl})\n`);
     } catch (error) {
-        console.error("Image compression failed", error);
-        alert("Failed to process image.");
+        console.error("Image upload failed", error);
+        alert("Failed to add image.");
     } finally {
-        setIsCompressing(false);
+        setIsUploading(false);
         if (fileInputRef.current) fileInputRef.current.value = '';
     }
   };
 
-  // --- Toolbar Component ---
+  // Helper to resolve asset:// URLs to base64 for display
+  const resolveAssetSource = (src?: string) => {
+    if (!src) return '';
+    if (src.startsWith('asset://')) {
+        const id = src.replace('asset://', '');
+        return assets && assets[id] ? assets[id] : '';
+    }
+    return src;
+  };
 
   const ToolbarButton = ({ icon: Icon, onClick, title, active = false, disabled = false }: any) => (
     <button
@@ -142,14 +102,10 @@ const DocEditor: React.FC<DocEditorProps> = ({ initialContent, onSave, fileName 
 
   return (
     <div className="h-full flex flex-col bg-zinc-900">
-      {/* Header & Main Toolbar */}
       <div className="h-14 border-b border-zinc-800 flex items-center justify-between px-4 bg-zinc-950/50 backdrop-blur-sm sticky top-0 z-20 shrink-0">
         <div className="flex items-center gap-4">
            <h3 className="text-zinc-200 font-medium mr-2 truncate max-w-[150px]">{fileName}</h3>
-           
            <div className="h-6 w-px bg-zinc-800 hidden sm:block"></div>
-
-           {/* Formatting Toolbar */}
            <div className="flex items-center gap-0.5">
               <ToolbarButton icon={Bold} onClick={() => insertText('**', '**')} title="Bold" />
               <ToolbarButton icon={Italic} onClick={() => insertText('*', '*')} title="Italic" />
@@ -161,73 +117,29 @@ const DocEditor: React.FC<DocEditorProps> = ({ initialContent, onSave, fileName 
               <ToolbarButton icon={Quote} onClick={() => insertText('> ')} title="Quote" />
               <ToolbarButton icon={Code} onClick={() => insertText('```\n', '\n```')} title="Code Block" />
               <ToolbarButton icon={LinkIcon} onClick={() => insertText('[', '](url)')} title="Link" />
-              
               <div className="w-2"></div>
-              
-              {/* Image Upload */}
-              <input 
-                type="file" 
-                ref={fileInputRef} 
-                className="hidden" 
-                accept="image/*" 
-                onChange={handleImageUpload}
-              />
+              <input type="file" ref={fileInputRef} className="hidden" accept="image/*" onChange={handleImageUpload} />
               <ToolbarButton 
                   icon={ImageIcon} 
                   onClick={() => fileInputRef.current?.click()} 
-                  title={isCompressing ? "Compressing..." : "Insert Image"}
-                  disabled={isCompressing}
+                  title={isUploading ? "Processing..." : "Insert Image"}
+                  disabled={isUploading || !onAddAsset}
               />
            </div>
         </div>
 
         <div className="flex items-center gap-3">
-          {/* View Toggle */}
           <div className="flex bg-zinc-800 p-1 rounded-lg border border-zinc-700 hidden sm:flex">
-            <button
-              onClick={() => setViewMode('edit')}
-              className={`p-1.5 rounded transition-all ${viewMode === 'edit' ? 'bg-zinc-600 text-white' : 'text-zinc-400'}`}
-              title="Edit Only"
-            >
-              <PenTool className="w-4 h-4" />
-            </button>
-            <button
-              onClick={() => setViewMode('split')}
-              className={`p-1.5 rounded transition-all ${viewMode === 'split' ? 'bg-zinc-600 text-white' : 'text-zinc-400'}`}
-              title="Split View"
-            >
-              <Columns className="w-4 h-4" />
-            </button>
-            <button
-              onClick={() => setViewMode('preview')}
-              className={`p-1.5 rounded transition-all ${viewMode === 'preview' ? 'bg-zinc-600 text-white' : 'text-zinc-400'}`}
-              title="Preview Only"
-            >
-              <Eye className="w-4 h-4" />
-            </button>
+            <button onClick={() => setViewMode('edit')} className={`p-1.5 rounded transition-all ${viewMode === 'edit' ? 'bg-zinc-600 text-white' : 'text-zinc-400'}`} title="Edit Only"><PenTool className="w-4 h-4" /></button>
+            <button onClick={() => setViewMode('split')} className={`p-1.5 rounded transition-all ${viewMode === 'split' ? 'bg-zinc-600 text-white' : 'text-zinc-400'}`} title="Split View"><Columns className="w-4 h-4" /></button>
+            <button onClick={() => setViewMode('preview')} className={`p-1.5 rounded transition-all ${viewMode === 'preview' ? 'bg-zinc-600 text-white' : 'text-zinc-400'}`} title="Preview Only"><Eye className="w-4 h-4" /></button>
           </div>
-
-          <button 
-             onClick={handleClear}
-             className="p-2 hover:bg-red-500/10 rounded text-zinc-500 hover:text-red-400 transition-colors"
-             title="Clear Document"
-          >
-             <Trash2 className="w-4 h-4" />
-          </button>
-          
-          <button
-            onClick={() => onSave(content)}
-            className="flex items-center gap-2 bg-emerald-600 hover:bg-emerald-700 text-white px-3 py-1.5 rounded-md text-sm font-medium transition-colors shadow-lg shadow-emerald-900/20"
-          >
-            <Save className="w-4 h-4" />
-            <span className="hidden sm:inline">Save</span>
-          </button>
+          <button onClick={handleClear} className="p-2 hover:bg-red-500/10 rounded text-zinc-500 hover:text-red-400 transition-colors" title="Clear Document"><Trash2 className="w-4 h-4" /></button>
+          <button onClick={() => onSave(content)} className="flex items-center gap-2 bg-emerald-600 hover:bg-emerald-700 text-white px-3 py-1.5 rounded-md text-sm font-medium transition-colors shadow-lg shadow-emerald-900/20"><Save className="w-4 h-4" /><span className="hidden sm:inline">Save</span></button>
         </div>
       </div>
 
       <div className="flex-1 flex overflow-hidden relative">
-        
-        {/* Editor Pane */}
         {(viewMode === 'edit' || viewMode === 'split') && (
           <div className={`h-full flex flex-col ${viewMode === 'split' ? 'w-1/2 border-r border-zinc-800' : 'w-full'}`}>
             <textarea
@@ -241,7 +153,6 @@ const DocEditor: React.FC<DocEditorProps> = ({ initialContent, onSave, fileName 
           </div>
         )}
 
-        {/* Preview Pane */}
         {(viewMode === 'preview' || viewMode === 'split') && (
           <div className={`h-full overflow-auto custom-scrollbar bg-zinc-900 ${viewMode === 'split' ? 'w-1/2' : 'w-full'}`}>
              <div className="max-w-3xl mx-auto p-8">
@@ -261,10 +172,9 @@ const DocEditor: React.FC<DocEditorProps> = ({ initialContent, onSave, fileName 
                          : <div className="bg-zinc-950 p-4 rounded-lg my-4 overflow-x-auto border border-zinc-800 shadow-inner"><code className="text-sm font-mono text-zinc-300 block" {...props}>{children}</code></div>
                     },
                     a: ({node, ...props}) => <a className="text-blue-400 hover:text-blue-300 hover:underline transition-colors" target="_blank" rel="noopener noreferrer" {...props} />,
-                    // IMPORTANT: Ensure img tags can handle data URLs and have error fallback
                     img: ({node, src, alt, ...props}) => (
                         <img 
-                            src={src} 
+                            src={resolveAssetSource(src)} 
                             alt={alt} 
                             className="max-w-full h-auto rounded-lg shadow-lg my-6 border border-zinc-800 bg-zinc-950" 
                             loading="lazy"

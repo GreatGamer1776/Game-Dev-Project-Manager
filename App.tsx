@@ -7,6 +7,43 @@ import TodoEditor from './components/TodoEditor';
 import KanbanBoard from './components/KanbanBoard';
 import { Project, ViewState, ProjectFile, FileType, EditorProps } from './types';
 
+// --- UTILS ---
+
+const compressImage = (file: File): Promise<string> => {
+  return new Promise((resolve, reject) => {
+    const reader = new FileReader();
+    reader.readAsDataURL(file);
+    reader.onload = (event) => {
+      const img = new Image();
+      img.src = event.target?.result as string;
+      img.onload = () => {
+        const canvas = document.createElement('canvas');
+        const MAX_WIDTH = 1024;
+        const scaleSize = MAX_WIDTH / img.width;
+        
+        if (scaleSize < 1) {
+            canvas.width = MAX_WIDTH;
+            canvas.height = img.height * scaleSize;
+        } else {
+            canvas.width = img.width;
+            canvas.height = img.height;
+        }
+
+        const ctx = canvas.getContext('2d');
+        if (!ctx) {
+            reject(new Error("Failed to get canvas context"));
+            return;
+        }
+        
+        ctx.drawImage(img, 0, 0, canvas.width, canvas.height);
+        resolve(canvas.toDataURL('image/jpeg', 0.7));
+      };
+      img.onerror = (error) => reject(error);
+    };
+    reader.onerror = (error) => reject(error);
+  });
+};
+
 // --- PLUGIN REGISTRY SYSTEM ---
 
 interface EditorPlugin {
@@ -68,43 +105,28 @@ const MOCK_PROJECTS: Project[] = [
         name: 'Game Design Document',
         type: 'doc',
         content: '# Cosmic Invaders\n\n## 1. Introduction\nA fast-paced shooter set in the Andromeda galaxy.\n\n## 2. Core Mechanics\n- Ship customization\n- Loot drops\n- Boss battles'
-      },
-      {
-        id: 'f2',
-        name: 'Game Loop',
-        type: 'flowchart',
-        content: {
-          nodes: [
-            { id: '1', type: 'circle', data: { label: 'Start' }, position: { x: 250, y: 0 }, style: { } },
-            { id: '2', type: 'default', data: { label: 'Main Menu' }, position: { x: 250, y: 150 }, style: { background: '#18181b', color: '#fff', border: '1px solid #3f3f46', borderRadius: '8px', padding: '10px', width: 150, textAlign: 'center' } },
-          ],
-          edges: [
-            { id: 'e1-2', source: '1', target: '2', animated: true, style: { stroke: '#71717a' } },
-          ],
-        }
-      },
-    ]
+      }
+    ],
+    assets: {}
   },
 ];
 
 const App: React.FC = () => {
   const [projects, setProjects] = useState<Project[]>([]);
   const [isLocalMode, setIsLocalMode] = useState(false);
-  const [isLoaded, setIsLoaded] = useState(false); // Track if initial load is complete
-  const [directoryHandle, setDirectoryHandle] = useState<any>(null); // FileSystemDirectoryHandle
+  const [isLoaded, setIsLoaded] = useState(false);
+  const [directoryHandle, setDirectoryHandle] = useState<any>(null);
   
   const [currentView, setCurrentView] = useState<ViewState>(ViewState.DASHBOARD);
   const [activeProjectId, setActiveProjectId] = useState<string | null>(null);
   const [activeFileId, setActiveFileId] = useState<string | null>(null);
 
-  // Load from LocalStorage initially if not in local mode
   useEffect(() => {
     if (!isLocalMode) {
         try {
             const saved = localStorage.getItem('devarchitect_projects');
             if (saved) {
                 const parsed = JSON.parse(saved);
-                // Fix: Allow parsed to be empty array if user deleted everything
                 setProjects(parsed);
             } else {
                 setProjects(MOCK_PROJECTS);
@@ -113,16 +135,12 @@ const App: React.FC = () => {
             console.error("Failed to load projects", e);
             setProjects(MOCK_PROJECTS);
         } finally {
-            // Fix: Mark as loaded so we can start saving (even if empty)
             setIsLoaded(true);
         }
     }
   }, [isLocalMode]);
 
-  // Auto-save to LocalStorage (only if NOT in local mode)
   useEffect(() => {
-    // Fix: Check isLoaded so we don't save the initial empty state over existing data
-    // Fix: Removed 'projects.length > 0' check so we can save an empty list
     if (!isLocalMode && isLoaded) {
       localStorage.setItem('devarchitect_projects', JSON.stringify(projects));
     }
@@ -154,15 +172,14 @@ const App: React.FC = () => {
   };
 
   const handleOpenWorkspace = async () => {
-      // Feature detection
       // @ts-ignore
       if (typeof window.showDirectoryPicker !== 'function') {
-        alert("Your browser does not support the Local File System Access API.\n\nPlease use Chrome, Edge, or Opera on a desktop computer.");
+        alert("Browser not supported. Please use Chrome/Edge on desktop.");
         return;
       }
 
       try {
-          // @ts-ignore - window.showDirectoryPicker is experimental
+          // @ts-ignore
           const dirHandle = await window.showDirectoryPicker();
           setDirectoryHandle(dirHandle);
           setIsLocalMode(true);
@@ -177,6 +194,8 @@ const App: React.FC = () => {
                   try {
                       const json = JSON.parse(text);
                       if (json.id && json.name && json.files) {
+                          // Ensure assets object exists for legacy files
+                          if (!json.assets) json.assets = {};
                           loadedProjects.push(json);
                       }
                   } catch (e) {
@@ -186,12 +205,10 @@ const App: React.FC = () => {
           }
           
           setProjects(loadedProjects);
-          // Don't alert here, just update UI
       } catch (err: any) {
-          // Ignore user cancellation
           if (err.name === 'AbortError') return;
           console.error("Error opening workspace:", err);
-          alert("Failed to access local folder. Please ensure you granted permission.");
+          alert("Failed to access local folder.");
       }
   };
 
@@ -212,7 +229,8 @@ const App: React.FC = () => {
           type: 'doc',
           content: defaultDocPlugin ? defaultDocPlugin.createDefaultContent(name) : ''
         }
-      ]
+      ],
+      assets: {} // Initialize assets
     };
     
     setProjects(prev => [newProject, ...prev]);
@@ -247,7 +265,6 @@ const App: React.FC = () => {
     downloadAnchorNode.remove();
   };
 
-  // Helper helper to update state and disk
   const updateProjectState = (updatedProject: Project) => {
       setProjects(prev => prev.map(p => p.id === updatedProject.id ? updatedProject : p));
       if (isLocalMode) {
@@ -255,27 +272,50 @@ const App: React.FC = () => {
       }
   };
 
-  const handleCreateFile = (type: FileType) => {
-    if (!activeProjectId) return;
+  // --- ASSET HANDLING ---
+
+  const handleAddAsset = async (file: File): Promise<string> => {
+    if (!activeProjectId) throw new Error("No active project");
     
-    const plugin = EDITOR_PLUGINS.find(p => p.type === type);
-    if (!plugin) return;
-
-    const name = prompt(`Enter name for new ${plugin.label}:`);
-    if (!name) return;
-
-    const newFile: ProjectFile = {
-      id: crypto.randomUUID(),
-      name,
-      type,
-      content: plugin.createDefaultContent(name)
-    };
-
+    // 1. Compress
+    const base64 = await compressImage(file);
+    
+    // 2. Generate ID
+    const assetId = crypto.randomUUID();
+    
+    // 3. Update Project State
     const project = projects.find(p => p.id === activeProjectId);
     if (project) {
         const updatedProject = {
             ...project,
             lastModified: Date.now(),
+            assets: {
+                ...(project.assets || {}),
+                [assetId]: base64
+            }
+        };
+        updateProjectState(updatedProject);
+        return `asset://${assetId}`;
+    }
+    throw new Error("Project not found");
+  };
+
+  // --- FILE ACTIONS ---
+
+  const handleCreateFile = (type: FileType) => {
+    if (!activeProjectId) return;
+    const plugin = EDITOR_PLUGINS.find(p => p.type === type);
+    if (!plugin) return;
+    const name = prompt(`Enter name for new ${plugin.label}:`);
+    if (!name) return;
+    const newFile: ProjectFile = {
+      id: crypto.randomUUID(), name, type,
+      content: plugin.createDefaultContent(name)
+    };
+    const project = projects.find(p => p.id === activeProjectId);
+    if (project) {
+        const updatedProject = {
+            ...project, lastModified: Date.now(),
             files: [...project.files, newFile]
         };
         updateProjectState(updatedProject);
@@ -286,8 +326,7 @@ const App: React.FC = () => {
   const handleDeleteFile = (e: React.MouseEvent, fileId: string) => {
     e.stopPropagation();
     if (!activeProjectId) return;
-
-    if (confirm("Are you sure you want to delete this file? This cannot be undone.")) {
+    if (confirm("Are you sure you want to delete this file?")) {
         const project = projects.find(p => p.id === activeProjectId);
         if (project) {
             const updatedProject = {
@@ -295,21 +334,17 @@ const App: React.FC = () => {
                 files: project.files.filter(f => f.id !== fileId)
             };
             updateProjectState(updatedProject);
-            if (activeFileId === fileId) {
-                setActiveFileId(null);
-            }
+            if (activeFileId === fileId) setActiveFileId(null);
         }
     }
   };
 
   const updateFileContent = (content: any) => {
     if (!activeProjectId || !activeFileId) return;
-
     const project = projects.find(p => p.id === activeProjectId);
     if (project) {
         const updatedProject = {
-            ...project,
-            lastModified: Date.now(),
+            ...project, lastModified: Date.now(),
             files: project.files.map(f => f.id === activeFileId ? { ...f, content } : f)
         };
         updateProjectState(updatedProject);
@@ -319,6 +354,8 @@ const App: React.FC = () => {
   const activeProject = projects.find(p => p.id === activeProjectId);
   const activeFile = activeProject?.files.find(f => f.id === activeFileId);
 
+  // --- RENDER HELPERS ---
+
   const renderSidebar = () => {
     if (currentView === ViewState.DASHBOARD || !activeProject) {
       return (
@@ -327,10 +364,7 @@ const App: React.FC = () => {
             <Folder className="w-6 h-6 text-white" />
           </div>
           <nav className="flex-1 flex flex-col gap-4 w-full px-2">
-            <button
-              className="p-3 rounded-xl bg-zinc-800 text-white shadow-md flex justify-center"
-              title="Dashboard"
-            >
+            <button className="p-3 rounded-xl bg-zinc-800 text-white shadow-md flex justify-center" title="Dashboard">
               <LayoutDashboard className="w-5 h-5" />
             </button>
           </nav>
@@ -342,17 +376,12 @@ const App: React.FC = () => {
       <aside className="w-64 bg-zinc-950 border-r border-zinc-800 flex flex-col z-20">
         <div className="h-16 flex items-center px-6 border-b border-zinc-800 shrink-0">
           <button 
-             onClick={() => {
-               setActiveProjectId(null);
-               setCurrentView(ViewState.DASHBOARD);
-             }}
+             onClick={() => { setActiveProjectId(null); setCurrentView(ViewState.DASHBOARD); }}
              className="flex items-center gap-2 text-zinc-400 hover:text-white transition-colors text-sm font-medium"
            >
-            <ArrowLeft className="w-4 h-4" />
-            Back to Dashboard
+            <ArrowLeft className="w-4 h-4" /> Back to Dashboard
           </button>
         </div>
-        
         <div className="p-4 flex-1 overflow-y-auto custom-scrollbar">
           <div className="mb-6">
              <div className="flex items-center gap-2 mb-1">
@@ -361,12 +390,10 @@ const App: React.FC = () => {
              </div>
              <p className="text-xs text-zinc-500 uppercase tracking-wider">{activeProject.type} Project</p>
           </div>
-
           <div className="space-y-6">
             {EDITOR_PLUGINS.map(plugin => {
                 const PluginIcon = plugin.icon;
                 const files = activeProject.files.filter(f => f.type === plugin.type);
-
                 return (
                     <div key={plugin.type}>
                         <div className="flex items-center justify-between mb-2 px-2">
@@ -390,15 +417,12 @@ const App: React.FC = () => {
                                     <button 
                                         onClick={(e) => handleDeleteFile(e, file.id)}
                                         className="p-1.5 text-zinc-600 hover:text-red-400 hover:bg-zinc-800 rounded opacity-0 group-hover:opacity-100 transition-opacity"
-                                        title="Delete File"
                                     >
                                         <Trash2 className="w-3.5 h-3.5" />
                                     </button>
                                 </div>
                             ))}
-                            {files.length === 0 && (
-                                <p className="text-xs text-zinc-600 px-3 italic">No {plugin.pluralLabel.toLowerCase()}</p>
-                            )}
+                            {files.length === 0 && <p className="text-xs text-zinc-600 px-3 italic">No {plugin.pluralLabel.toLowerCase()}</p>}
                         </div>
                     </div>
                 );
@@ -417,11 +441,8 @@ const App: React.FC = () => {
           onSelectProject={(id) => {
             setActiveProjectId(id);
             const project = projects.find(p => p.id === id);
-            if (project && project.files.length > 0) {
-              setActiveFileId(project.files[0].id);
-            } else {
-              setActiveFileId(null);
-            }
+            if (project && project.files.length > 0) setActiveFileId(project.files[0].id);
+            else setActiveFileId(null);
             setCurrentView(ViewState.PROJECT);
           }}
           onCreateProject={handleCreateProject}
@@ -434,7 +455,6 @@ const App: React.FC = () => {
     }
 
     if (!activeProject) return <div>Project not found</div>;
-
     if (!activeFile) {
       return (
         <div className="flex flex-col items-center justify-center h-full text-zinc-500">
@@ -445,7 +465,6 @@ const App: React.FC = () => {
     }
 
     const plugin = EDITOR_PLUGINS.find(p => p.type === activeFile.type);
-    
     if (plugin) {
         const EditorComponent = plugin.component;
         return (
@@ -454,15 +473,13 @@ const App: React.FC = () => {
                 fileName={activeFile.name}
                 initialContent={activeFile.content}
                 onSave={updateFileContent}
+                // NEW: Pass asset props down
+                assets={activeProject.assets || {}}
+                onAddAsset={handleAddAsset}
             />
         );
     }
-
-    return (
-        <div className="flex items-center justify-center h-full text-red-400">
-            Unknown file type: {activeFile.type}
-        </div>
-    );
+    return <div className="text-red-400">Unknown file type: {activeFile.type}</div>;
   };
 
   return (

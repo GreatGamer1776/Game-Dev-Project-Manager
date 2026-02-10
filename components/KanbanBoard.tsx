@@ -1,13 +1,13 @@
-
 import React, { useState, useEffect } from 'react';
-import { Save, Plus, AlertCircle, ChevronLeft, ChevronRight, X, Trash2, Bug as BugIcon, Search, Filter } from 'lucide-react';
+import { Save, Plus, AlertCircle, ChevronLeft, ChevronRight, X, Trash2, Bug as BugIcon, Search, Filter, Pencil } from 'lucide-react';
 import { Bug, BugSeverity, BugStatus, EditorProps } from '../types';
 
 const KanbanBoard: React.FC<EditorProps> = ({ initialContent, onSave, fileName }) => {
-  // Standardization: extract tasks from initialContent
   const [bugs, setBugs] = useState<Bug[]>(initialContent?.tasks || []);
   
   const [isModalOpen, setIsModalOpen] = useState(false);
+  const [editingBug, setEditingBug] = useState<Bug | null>(null); // New state to track editing
+  
   const [searchQuery, setSearchQuery] = useState('');
   const [filterSeverity, setFilterSeverity] = useState<'All' | BugSeverity>('All');
   
@@ -23,30 +23,63 @@ const KanbanBoard: React.FC<EditorProps> = ({ initialContent, onSave, fileName }
   }, [initialContent]);
 
   const handleSave = () => {
-    // Save as standard object { tasks: [] }
     onSave({ tasks: bugs });
   };
 
   const columns: BugStatus[] = ['Open', 'In Progress', 'Resolved', 'Closed'];
 
-  const handleAddBug = (e: React.FormEvent) => {
-    e.preventDefault();
-    if (!newTitle.trim()) return;
-
-    const newBug: Bug = {
-      id: crypto.randomUUID(),
-      title: newTitle,
-      description: newDesc,
-      severity: newSeverity,
-      status: 'Open',
-      createdAt: Date.now()
-    };
-
-    setBugs([...bugs, newBug]);
+  const resetForm = () => {
     setNewTitle('');
     setNewDesc('');
     setNewSeverity('Medium');
+    setEditingBug(null);
     setIsModalOpen(false);
+  };
+
+  const handleOpenCreate = () => {
+    setEditingBug(null);
+    setNewTitle('');
+    setNewDesc('');
+    setNewSeverity('Medium');
+    setIsModalOpen(true);
+  };
+
+  const handleOpenEdit = (e: React.MouseEvent, bug: Bug) => {
+    e.stopPropagation();
+    e.preventDefault();
+    setEditingBug(bug);
+    setNewTitle(bug.title);
+    setNewDesc(bug.description);
+    setNewSeverity(bug.severity);
+    setIsModalOpen(true);
+  };
+
+  const handleSubmit = (e: React.FormEvent) => {
+    e.preventDefault();
+    if (!newTitle.trim()) return;
+
+    if (editingBug) {
+      // Edit existing bug
+      setBugs(prev => prev.map(b => b.id === editingBug.id ? {
+        ...b,
+        title: newTitle,
+        description: newDesc,
+        severity: newSeverity
+      } : b));
+    } else {
+      // Create new bug
+      const newBug: Bug = {
+        id: crypto.randomUUID(),
+        title: newTitle,
+        description: newDesc,
+        severity: newSeverity,
+        status: 'Open',
+        createdAt: Date.now()
+      };
+      setBugs([...bugs, newBug]);
+    }
+    
+    resetForm();
   };
 
   const updateStatus = (id: string, newStatus: BugStatus) => {
@@ -122,7 +155,7 @@ const KanbanBoard: React.FC<EditorProps> = ({ initialContent, onSave, fileName }
         </div>
         <div className="flex gap-3">
           <button
-            onClick={() => setIsModalOpen(true)}
+            onClick={handleOpenCreate}
             className="flex items-center gap-2 bg-zinc-800 hover:bg-zinc-700 text-zinc-200 px-4 py-2 rounded-md text-sm font-medium transition-colors border border-zinc-700"
           >
             <Plus className="w-4 h-4" />
@@ -211,16 +244,26 @@ const KanbanBoard: React.FC<EditorProps> = ({ initialContent, onSave, fileName }
                               {getSeverityIcon(bug.severity)}
                               {bug.severity}
                             </span>
-                            <button 
-                                onClick={(e) => {
-                                    e.preventDefault();
-                                    e.stopPropagation();
-                                    deleteBug(bug.id);
-                                }} 
-                                className="text-zinc-600 hover:text-red-400 opacity-0 group-hover:opacity-100 transition-opacity p-1 hover:bg-zinc-800 rounded cursor-pointer relative z-20"
-                            >
-                              <Trash2 className="w-4 h-4" />
-                            </button>
+                            <div className="flex gap-1 opacity-0 group-hover:opacity-100 transition-opacity relative z-20">
+                                <button 
+                                    onClick={(e) => handleOpenEdit(e, bug)}
+                                    className="p-1 text-zinc-500 hover:text-blue-400 hover:bg-zinc-800 rounded cursor-pointer"
+                                    title="Edit Bug"
+                                >
+                                    <Pencil className="w-4 h-4" />
+                                </button>
+                                <button 
+                                    onClick={(e) => {
+                                        e.preventDefault();
+                                        e.stopPropagation();
+                                        deleteBug(bug.id);
+                                    }} 
+                                    className="p-1 text-zinc-500 hover:text-red-400 hover:bg-zinc-800 rounded cursor-pointer"
+                                    title="Delete Bug"
+                                >
+                                    <Trash2 className="w-4 h-4" />
+                                </button>
+                            </div>
                          </div>
                          <h5 className="text-sm font-medium text-zinc-200 mb-1 pointer-events-none">{bug.title}</h5>
                          <p className="text-xs text-zinc-500 line-clamp-2 mb-3 pointer-events-none">{bug.description || "No description provided."}</p>
@@ -262,12 +305,12 @@ const KanbanBoard: React.FC<EditorProps> = ({ initialContent, onSave, fileName }
         <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/80 backdrop-blur-sm p-4">
           <div className="bg-zinc-900 border border-zinc-800 rounded-xl w-full max-w-lg p-6 shadow-2xl">
             <div className="flex justify-between items-center mb-6">
-              <h2 className="text-xl font-bold text-white">Report Bug</h2>
-              <button onClick={() => setIsModalOpen(false)} className="text-zinc-500 hover:text-white">
+              <h2 className="text-xl font-bold text-white">{editingBug ? 'Edit Bug Report' : 'Report Bug'}</h2>
+              <button onClick={resetForm} className="text-zinc-500 hover:text-white">
                 <X className="w-5 h-5" />
               </button>
             </div>
-            <form onSubmit={handleAddBug} className="space-y-4">
+            <form onSubmit={handleSubmit} className="space-y-4">
               <div>
                 <label className="block text-sm font-medium text-zinc-400 mb-1">Title</label>
                 <input
@@ -314,7 +357,7 @@ const KanbanBoard: React.FC<EditorProps> = ({ initialContent, onSave, fileName }
                   type="submit"
                   className="w-full bg-red-600 hover:bg-red-700 text-white px-4 py-2.5 rounded-lg text-sm font-medium transition-colors"
                 >
-                  Create Ticket
+                  {editingBug ? 'Save Changes' : 'Create Ticket'}
                 </button>
               </div>
             </form>

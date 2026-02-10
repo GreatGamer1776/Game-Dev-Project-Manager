@@ -14,9 +14,52 @@ interface DocEditorProps {
 
 type ViewMode = 'edit' | 'preview' | 'split';
 
+// Helper to compress images via Canvas
+const compressImage = (file: File): Promise<string> => {
+  return new Promise((resolve, reject) => {
+    const reader = new FileReader();
+    reader.readAsDataURL(file);
+    reader.onload = (event) => {
+      const img = new Image();
+      img.src = event.target?.result as string;
+      img.onload = () => {
+        const canvas = document.createElement('canvas');
+        const MAX_WIDTH = 1024; // Limit width to prevent massive files
+        const scaleSize = MAX_WIDTH / img.width;
+        
+        // Only resize if image is larger than max width
+        if (scaleSize < 1) {
+            canvas.width = MAX_WIDTH;
+            canvas.height = img.height * scaleSize;
+        } else {
+            canvas.width = img.width;
+            canvas.height = img.height;
+        }
+
+        const ctx = canvas.getContext('2d');
+        if (!ctx) {
+            reject(new Error("Failed to get canvas context"));
+            return;
+        }
+        
+        ctx.drawImage(img, 0, 0, canvas.width, canvas.height);
+        
+        // Compress to JPEG at 70% quality
+        // This drastically reduces string size vs raw PNG Base64
+        const compressedDataUrl = canvas.toDataURL('image/jpeg', 0.7);
+        resolve(compressedDataUrl);
+      };
+      img.onerror = (error) => reject(error);
+    };
+    reader.onerror = (error) => reject(error);
+  });
+};
+
 const DocEditor: React.FC<DocEditorProps> = ({ initialContent, onSave, fileName }) => {
   const [content, setContent] = useState(initialContent);
   const [viewMode, setViewMode] = useState<ViewMode>('split');
+  const [isCompressing, setIsCompressing] = useState(false);
+  
   const textareaRef = useRef<HTMLTextAreaElement>(null);
   const fileInputRef = useRef<HTMLInputElement>(null);
 
@@ -58,36 +101,39 @@ const DocEditor: React.FC<DocEditorProps> = ({ initialContent, onSave, fileName 
     }, 0);
   };
 
-  const handleImageUpload = (e: React.ChangeEvent<HTMLInputElement>) => {
+  const handleImageUpload = async (e: React.ChangeEvent<HTMLInputElement>) => {
     const file = e.target.files?.[0];
     if (!file) return;
 
-    if (file.size > 1024 * 1024) {
-      if(!confirm("This image is large (>1MB). Embedding it might slow down the project file saving. Continue?")) {
-        return;
-      }
-    }
-
-    const reader = new FileReader();
-    reader.onload = (event) => {
-      const base64 = event.target?.result as string;
-      insertText(`\n![${file.name}](${base64})\n`);
-    };
-    reader.readAsDataURL(file);
+    setIsCompressing(true);
     
-    if (fileInputRef.current) fileInputRef.current.value = '';
+    try {
+        const compressedBase64 = await compressImage(file);
+        
+        // Sanitize filename for markdown alt text (remove brackets which break syntax)
+        const safeName = file.name.replace(/[\[\]\(\)]/g, '');
+        
+        insertText(`\n![${safeName}](${compressedBase64})\n`);
+    } catch (error) {
+        console.error("Image compression failed", error);
+        alert("Failed to process image.");
+    } finally {
+        setIsCompressing(false);
+        if (fileInputRef.current) fileInputRef.current.value = '';
+    }
   };
 
   // --- Toolbar Component ---
 
-  const ToolbarButton = ({ icon: Icon, onClick, title, active = false }: any) => (
+  const ToolbarButton = ({ icon: Icon, onClick, title, active = false, disabled = false }: any) => (
     <button
       onClick={onClick}
+      disabled={disabled}
       className={`p-1.5 rounded-md transition-all ${
         active 
           ? 'bg-blue-600 text-white shadow-sm' 
           : 'text-zinc-400 hover:text-zinc-200 hover:bg-zinc-800'
-      }`}
+      } ${disabled ? 'opacity-50 cursor-not-allowed' : ''}`}
       title={title}
     >
       <Icon className="w-4 h-4" />
@@ -126,7 +172,12 @@ const DocEditor: React.FC<DocEditorProps> = ({ initialContent, onSave, fileName 
                 accept="image/*" 
                 onChange={handleImageUpload}
               />
-              <ToolbarButton icon={ImageIcon} onClick={() => fileInputRef.current?.click()} title="Insert Image" />
+              <ToolbarButton 
+                  icon={ImageIcon} 
+                  onClick={() => fileInputRef.current?.click()} 
+                  title={isCompressing ? "Compressing..." : "Insert Image"}
+                  disabled={isCompressing}
+              />
            </div>
         </div>
 
@@ -199,7 +250,7 @@ const DocEditor: React.FC<DocEditorProps> = ({ initialContent, onSave, fileName 
                     h1: ({node, ...props}) => <h1 className="text-3xl font-bold text-zinc-100 mb-6 pb-2 border-b border-zinc-700" {...props} />,
                     h2: ({node, ...props}) => <h2 className="text-2xl font-semibold text-zinc-100 mb-4 mt-8" {...props} />,
                     h3: ({node, ...props}) => <h3 className="text-xl font-semibold text-zinc-200 mb-3 mt-6" {...props} />,
-                    p: ({node, ...props}) => <p className="text-zinc-300 leading-7 mb-4" {...props} />,
+                    p: ({node, ...props}) => <p className="text-zinc-300 leading-7 mb-4 break-words" {...props} />,
                     ul: ({node, ...props}) => <ul className="list-disc list-outside ml-6 mb-4 text-zinc-300" {...props} />,
                     ol: ({node, ...props}) => <ol className="list-decimal list-outside ml-6 mb-4 text-zinc-300" {...props} />,
                     li: ({node, ...props}) => <li className="mb-1 pl-1" {...props} />,
@@ -210,7 +261,16 @@ const DocEditor: React.FC<DocEditorProps> = ({ initialContent, onSave, fileName 
                          : <div className="bg-zinc-950 p-4 rounded-lg my-4 overflow-x-auto border border-zinc-800 shadow-inner"><code className="text-sm font-mono text-zinc-300 block" {...props}>{children}</code></div>
                     },
                     a: ({node, ...props}) => <a className="text-blue-400 hover:text-blue-300 hover:underline transition-colors" target="_blank" rel="noopener noreferrer" {...props} />,
-                    img: ({node, ...props}) => <img className="max-w-full h-auto rounded-lg shadow-lg my-6 border border-zinc-800" {...props} />,
+                    // IMPORTANT: Ensure img tags can handle data URLs and have error fallback
+                    img: ({node, src, alt, ...props}) => (
+                        <img 
+                            src={src} 
+                            alt={alt} 
+                            className="max-w-full h-auto rounded-lg shadow-lg my-6 border border-zinc-800 bg-zinc-950" 
+                            loading="lazy"
+                            {...props} 
+                        />
+                    ),
                     hr: ({node, ...props}) => <hr className="border-zinc-800 my-8" {...props} />,
                     table: ({node, ...props}) => <div className="overflow-x-auto my-6 rounded-lg border border-zinc-800"><table className="w-full text-left text-sm" {...props} /></div>,
                     th: ({node, ...props}) => <th className="bg-zinc-800 p-3 font-semibold text-zinc-200 border-b border-zinc-700" {...props} />,

@@ -1,6 +1,6 @@
 
 {
   "name": "DevArchitect",
-  "description": "A comprehensive project planning tool for developers and designers. Features Game Design Document (GDD) editing and flowchart creation for software architecture.",
+  "description": "A comprehensive project planning tool for developers and designers. Features Game Design Document (GDD) editing, flowchart creation, and task management.",
   "requestFramePermissions": []
 }

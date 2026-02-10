@@ -1,4 +1,3 @@
-
 import React, { useState, useEffect } from 'react';
 import { LayoutDashboard, FileText, Network, ArrowLeft, Plus, Folder, File, CheckSquare, Bug as BugIcon, Trash2, HardDrive } from 'lucide-react';
 import Dashboard from './components/Dashboard';
@@ -91,6 +90,7 @@ const MOCK_PROJECTS: Project[] = [
 const App: React.FC = () => {
   const [projects, setProjects] = useState<Project[]>([]);
   const [isLocalMode, setIsLocalMode] = useState(false);
+  const [isLoaded, setIsLoaded] = useState(false); // Track if initial load is complete
   const [directoryHandle, setDirectoryHandle] = useState<any>(null); // FileSystemDirectoryHandle
   
   const [currentView, setCurrentView] = useState<ViewState>(ViewState.DASHBOARD);
@@ -104,22 +104,29 @@ const App: React.FC = () => {
             const saved = localStorage.getItem('devarchitect_projects');
             if (saved) {
                 const parsed = JSON.parse(saved);
-                setProjects(parsed.length > 0 ? parsed : MOCK_PROJECTS);
+                // Fix: Allow parsed to be empty array if user deleted everything
+                setProjects(parsed);
             } else {
                 setProjects(MOCK_PROJECTS);
             }
         } catch (e) {
+            console.error("Failed to load projects", e);
             setProjects(MOCK_PROJECTS);
+        } finally {
+            // Fix: Mark as loaded so we can start saving (even if empty)
+            setIsLoaded(true);
         }
     }
   }, [isLocalMode]);
 
   // Auto-save to LocalStorage (only if NOT in local mode)
   useEffect(() => {
-    if (!isLocalMode && projects.length > 0) {
+    // Fix: Check isLoaded so we don't save the initial empty state over existing data
+    // Fix: Removed 'projects.length > 0' check so we can save an empty list
+    if (!isLocalMode && isLoaded) {
       localStorage.setItem('devarchitect_projects', JSON.stringify(projects));
     }
-  }, [projects, isLocalMode]);
+  }, [projects, isLocalMode, isLoaded]);
 
   // --- FILE SYSTEM API HANDLERS ---
 

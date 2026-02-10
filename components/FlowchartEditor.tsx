@@ -18,22 +18,16 @@ import ReactFlow, {
   ReactFlowProvider,
 } from 'reactflow';
 import { Save, MousePointer2, Square, Circle, Diamond, Database, PlayCircle, Trash2 } from 'lucide-react';
+import { EditorProps } from '../types';
 
 // --- Custom Node Components ---
 
-// Fixed Diamond Node: Uses a non-rotated wrapper for handles, with a rotated inner shape.
 const DiamondNode = ({ data, selected }: NodeProps) => (
   <div className="w-24 h-24 relative flex items-center justify-center">
-    {/* Visual Diamond Shape (Rotated Square) */}
-    {/* 4.25rem (w-17) is approx 68px. Diagonal is ~96px (w-24) */}
     <div className={`absolute w-[4.25rem] h-[4.25rem] transform rotate-45 bg-zinc-900 border-2 transition-colors shadow-lg z-0 ${selected ? 'border-blue-500 shadow-blue-500/20' : 'border-purple-500/50'}`}></div>
-    
-    {/* Label (Not Rotated) */}
     <div className="relative z-10 p-1 text-xs text-white font-medium break-words text-center pointer-events-none max-w-[90%]">
       {data.label}
     </div>
-    
-    {/* Standard Handles on the wrapper (Tips of the diamond) */}
     <Handle type="target" position={Position.Top} className="!bg-zinc-400 z-20" />
     <Handle type="source" position={Position.Bottom} className="!bg-zinc-400 z-20" />
     <Handle type="source" position={Position.Left} className="!bg-zinc-400 z-20" />
@@ -43,13 +37,9 @@ const DiamondNode = ({ data, selected }: NodeProps) => (
 
 const DatabaseNode = ({ data, selected }: NodeProps) => (
   <div className={`w-24 h-32 relative flex flex-col items-center justify-center bg-zinc-900 border-x-2 border-zinc-600 rounded-lg ${selected ? 'ring-2 ring-blue-500' : ''}`}>
-     {/* Cylinder Top */}
     <div className="absolute top-0 w-full h-8 bg-zinc-800 border-2 border-zinc-600 rounded-[50%] -mt-4 z-10"></div>
-    {/* Label */}
     <div className="text-xs text-white text-center p-2 z-0 mt-2">{data.label}</div>
-    {/* Cylinder Bottom */}
     <div className="absolute bottom-0 w-full h-8 bg-zinc-900 border-b-2 border-x-2 border-zinc-600 rounded-[50%] -mb-4 z-0"></div>
-    
     <Handle type="target" position={Position.Top} className="-mt-2 !bg-zinc-400 z-20" />
     <Handle type="source" position={Position.Bottom} className="-mb-2 !bg-zinc-400 z-20" />
   </div>
@@ -67,14 +57,11 @@ const CircleNode = ({ data, selected }: NodeProps) => (
 
 // --- Editor Component ---
 
-interface FlowchartEditorProps {
-  initialNodes: Node[];
-  initialEdges: Edge[];
-  onSave: (nodes: Node[], edges: Edge[]) => void;
-  fileName: string;
-}
+const FlowchartEditorContent: React.FC<EditorProps> = ({ initialContent, onSave, fileName }) => {
+  // Extract initial nodes/edges from standardized content prop
+  const initialNodes = initialContent?.nodes || [];
+  const initialEdges = initialContent?.edges || [];
 
-const FlowchartEditorContent: React.FC<FlowchartEditorProps> = ({ initialNodes, initialEdges, onSave, fileName }) => {
   const [nodes, setNodes, onNodesChange] = useNodesState(initialNodes);
   const [edges, setEdges, onEdgesChange] = useEdgesState(initialEdges);
   const { deleteElements } = useReactFlow();
@@ -110,7 +97,6 @@ const FlowchartEditorContent: React.FC<FlowchartEditorProps> = ({ initialNodes, 
       type: type === 'rect' ? 'default' : type,
     };
 
-    // Standard Styles
     if (type === 'rect') {
       newNode.style = { 
         background: '#18181b', 
@@ -149,12 +135,12 @@ const FlowchartEditorContent: React.FC<FlowchartEditorProps> = ({ initialNodes, 
   };
 
   const handleSave = () => {
-    onSave(nodes, edges);
+    // Save as standard content object
+    onSave({ nodes, edges });
   };
 
   return (
     <div className="h-full w-full flex flex-col bg-zinc-900">
-      {/* Toolbar */}
       <div className="h-16 border-b border-zinc-800 flex items-center px-4 justify-between bg-zinc-900/50 backdrop-blur-sm z-10">
         <div className="flex items-center gap-4">
           <h3 className="text-zinc-200 font-medium ml-2">{fileName}</h3>
@@ -196,7 +182,6 @@ const FlowchartEditorContent: React.FC<FlowchartEditorProps> = ({ initialNodes, 
         </button>
       </div>
 
-      {/* Canvas */}
       <div className="flex-1 h-full w-full relative">
         <ReactFlow
           nodes={nodes}
@@ -224,8 +209,7 @@ const FlowchartEditorContent: React.FC<FlowchartEditorProps> = ({ initialNodes, 
   );
 };
 
-// Wrapper to provide context
-const FlowchartEditor: React.FC<FlowchartEditorProps> = (props) => (
+const FlowchartEditor: React.FC<EditorProps> = (props) => (
   <ReactFlowProvider>
     <FlowchartEditorContent {...props} />
   </ReactFlowProvider>

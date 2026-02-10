@@ -1,33 +1,31 @@
 
 import React, { useState, useEffect } from 'react';
 import { Save, Plus, AlertCircle, ChevronLeft, ChevronRight, X, Trash2, Bug as BugIcon, Search, Filter } from 'lucide-react';
-import { Bug, BugSeverity, BugStatus } from '../types';
+import { Bug, BugSeverity, BugStatus, EditorProps } from '../types';
 
-interface KanbanBoardProps {
-  initialBugs: Bug[];
-  onSave: (bugs: Bug[]) => void;
-  fileName: string;
-}
-
-const KanbanBoard: React.FC<KanbanBoardProps> = ({ initialBugs, onSave, fileName }) => {
-  const [bugs, setBugs] = useState<Bug[]>(initialBugs);
-  const [isModalOpen, setIsModalOpen] = useState(false);
+const KanbanBoard: React.FC<EditorProps> = ({ initialContent, onSave, fileName }) => {
+  // Standardization: extract tasks from initialContent
+  const [bugs, setBugs] = useState<Bug[]>(initialContent?.tasks || []);
   
-  // Filtering
+  const [isModalOpen, setIsModalOpen] = useState(false);
   const [searchQuery, setSearchQuery] = useState('');
   const [filterSeverity, setFilterSeverity] = useState<'All' | BugSeverity>('All');
   
-  // New Bug Form
   const [newTitle, setNewTitle] = useState('');
   const [newSeverity, setNewSeverity] = useState<BugSeverity>('Medium');
   const [newDesc, setNewDesc] = useState('');
 
-  // Drag and Drop State
   const [draggedBugId, setDraggedBugId] = useState<string | null>(null);
+  const [activeDropZone, setActiveDropZone] = useState<BugStatus | null>(null);
 
   useEffect(() => {
-    setBugs(initialBugs);
-  }, [initialBugs]);
+    setBugs(initialContent?.tasks || []);
+  }, [initialContent]);
+
+  const handleSave = () => {
+    // Save as standard object { tasks: [] }
+    onSave({ tasks: bugs });
+  };
 
   const columns: BugStatus[] = ['Open', 'In Progress', 'Resolved', 'Closed'];
 
@@ -57,30 +55,37 @@ const KanbanBoard: React.FC<KanbanBoardProps> = ({ initialBugs, onSave, fileName
 
   const deleteBug = (id: string) => {
     if (confirm("Delete this bug ticket?")) {
-      setBugs(bugs.filter(b => b.id !== id));
+      setBugs(prev => prev.filter(b => b.id !== id));
     }
   };
-
-  // --- Drag and Drop Handlers ---
 
   const handleDragStart = (e: React.DragEvent, id: string) => {
     setDraggedBugId(id);
     e.dataTransfer.effectAllowed = 'move';
-    e.dataTransfer.setData('text/plain', id); 
+    e.dataTransfer.setData('text/plain', id);
   };
 
-  const handleDragOver = (e: React.DragEvent) => {
+  const handleDragOver = (e: React.DragEvent, status: BugStatus) => {
     e.preventDefault();
     e.dataTransfer.dropEffect = 'move';
+    if (activeDropZone !== status) {
+        setActiveDropZone(status);
+    }
   };
 
   const handleDrop = (e: React.DragEvent, status: BugStatus) => {
     e.preventDefault();
+    setActiveDropZone(null);
     const id = e.dataTransfer.getData('text/plain');
     if (id && id === draggedBugId) {
       updateStatus(id, status);
     }
     setDraggedBugId(null);
+  };
+
+  const handleDragEnd = () => {
+    setDraggedBugId(null);
+    setActiveDropZone(null);
   };
 
   const getSeverityColor = (s: BugSeverity) => {
@@ -97,11 +102,8 @@ const KanbanBoard: React.FC<KanbanBoardProps> = ({ initialBugs, onSave, fileName
     return <AlertCircle className="w-3 h-3" />;
   };
 
-  // Filter Logic
   const filteredBugs = bugs.filter(bug => {
-    // 1. Severity
     if (filterSeverity !== 'All' && bug.severity !== filterSeverity) return false;
-    // 2. Search
     if (searchQuery) {
       const q = searchQuery.toLowerCase();
       return bug.title.toLowerCase().includes(q) || bug.description.toLowerCase().includes(q);
@@ -111,7 +113,6 @@ const KanbanBoard: React.FC<KanbanBoardProps> = ({ initialBugs, onSave, fileName
 
   return (
     <div className="h-full flex flex-col bg-zinc-900">
-      {/* Toolbar */}
       <div className="h-16 border-b border-zinc-800 flex items-center justify-between px-6 bg-zinc-900/50 backdrop-blur-sm sticky top-0 z-10 shrink-0">
         <div className="flex items-center gap-3">
           <div className="p-2 bg-red-500/10 rounded-lg">
@@ -128,7 +129,7 @@ const KanbanBoard: React.FC<KanbanBoardProps> = ({ initialBugs, onSave, fileName
             Report Bug
           </button>
           <button
-            onClick={() => onSave(bugs)}
+            onClick={handleSave}
             className="flex items-center gap-2 bg-blue-600 hover:bg-blue-700 text-white px-4 py-2 rounded-md text-sm font-medium transition-colors shadow-lg shadow-blue-900/20"
           >
             <Save className="w-4 h-4" />
@@ -137,7 +138,6 @@ const KanbanBoard: React.FC<KanbanBoardProps> = ({ initialBugs, onSave, fileName
         </div>
       </div>
 
-      {/* Filter Bar */}
       <div className="px-6 py-4 border-b border-zinc-800 flex flex-wrap gap-4 items-center bg-zinc-900">
          <div className="relative w-64">
               <Search className="w-4 h-4 text-zinc-500 absolute left-3 top-1/2 -translate-y-1/2" />
@@ -174,20 +174,26 @@ const KanbanBoard: React.FC<KanbanBoardProps> = ({ initialBugs, onSave, fileName
          </div>
       </div>
 
-      {/* Board */}
       <div className="flex-1 overflow-x-auto p-6">
         <div className="flex gap-6 h-full min-w-[1000px]">
           {columns.map(status => {
              const colBugs = filteredBugs.filter(b => b.status === status);
+             const isActiveDrop = activeDropZone === status;
+             
              return (
                <div 
                   key={status}
-                  onDragOver={handleDragOver}
-                  onDrop={(e) => handleDrop(e, status)} 
-                  className={`flex-1 flex flex-col min-w-[300px] h-full bg-zinc-950/50 border border-zinc-800 rounded-xl overflow-hidden transition-colors ${draggedBugId ? 'hover:bg-zinc-900/80 ring-1 ring-zinc-700/50' : ''}`}
+                  onDragOver={(e) => handleDragOver(e, status)}
+                  onDrop={(e) => handleDrop(e, status)}
+                  className={`
+                    flex-1 flex flex-col min-w-[300px] h-full rounded-xl overflow-hidden transition-all duration-200
+                    ${isActiveDrop 
+                       ? 'bg-zinc-900 border-2 border-blue-500/50 shadow-[0_0_30px_-5px_rgba(59,130,246,0.2)]' 
+                       : 'bg-zinc-950/50 border border-zinc-800'}
+                  `}
                >
-                 <div className="p-4 border-b border-zinc-800 bg-zinc-900 flex justify-between items-center sticky top-0">
-                    <h4 className="font-semibold text-zinc-300">{status}</h4>
+                 <div className={`p-4 border-b flex justify-between items-center sticky top-0 ${isActiveDrop ? 'bg-zinc-900 border-zinc-800' : 'bg-zinc-900 border-zinc-800'}`}>
+                    <h4 className={`font-semibold transition-colors ${isActiveDrop ? 'text-blue-400' : 'text-zinc-300'}`}>{status}</h4>
                     <span className="text-xs bg-zinc-800 text-zinc-400 px-2 py-1 rounded-full">{colBugs.length}</span>
                  </div>
                  
@@ -197,22 +203,29 @@ const KanbanBoard: React.FC<KanbanBoardProps> = ({ initialBugs, onSave, fileName
                         key={bug.id}
                         draggable
                         onDragStart={(e) => handleDragStart(e, bug.id)}
+                        onDragEnd={handleDragEnd}
                         className={`bg-zinc-900 border border-zinc-800 p-4 rounded-lg shadow-sm hover:border-zinc-700 transition-colors group cursor-grab active:cursor-grabbing ${draggedBugId === bug.id ? 'opacity-40 grayscale border-dashed border-zinc-600' : 'opacity-100'}`}
                       >
-                         <div className="flex justify-between items-start mb-2 pointer-events-none">
-                            <span className={`text-[10px] font-bold px-2 py-0.5 rounded border flex items-center gap-1 ${getSeverityColor(bug.severity)}`}>
+                         <div className="flex justify-between items-start mb-2 relative">
+                            <span className={`text-[10px] font-bold px-2 py-0.5 rounded border flex items-center gap-1 pointer-events-none ${getSeverityColor(bug.severity)}`}>
                               {getSeverityIcon(bug.severity)}
                               {bug.severity}
                             </span>
-                            <button onClick={(e) => {e.preventDefault(); deleteBug(bug.id);}} className="text-zinc-600 hover:text-red-400 opacity-0 group-hover:opacity-100 transition-opacity pointer-events-auto">
+                            <button 
+                                onClick={(e) => {
+                                    e.preventDefault();
+                                    e.stopPropagation();
+                                    deleteBug(bug.id);
+                                }} 
+                                className="text-zinc-600 hover:text-red-400 opacity-0 group-hover:opacity-100 transition-opacity p-1 hover:bg-zinc-800 rounded cursor-pointer relative z-20"
+                            >
                               <Trash2 className="w-4 h-4" />
                             </button>
                          </div>
                          <h5 className="text-sm font-medium text-zinc-200 mb-1 pointer-events-none">{bug.title}</h5>
                          <p className="text-xs text-zinc-500 line-clamp-2 mb-3 pointer-events-none">{bug.description || "No description provided."}</p>
                          
-                         {/* Move Buttons (Still kept for accessibility or non-mouse users) */}
-                         <div className="flex justify-between items-center mt-3 pt-3 border-t border-zinc-800 pointer-events-auto">
+                         <div className="flex justify-between items-center mt-3 pt-3 border-t border-zinc-800 pointer-events-auto relative z-10">
                            {status !== 'Open' ? (
                              <button 
                                onClick={() => updateStatus(bug.id, columns[columns.indexOf(status) - 1])}
@@ -234,8 +247,8 @@ const KanbanBoard: React.FC<KanbanBoardProps> = ({ initialBugs, onSave, fileName
                       </div>
                     ))}
                     {colBugs.length === 0 && (
-                      <div className="text-center py-8 opacity-30 pointer-events-none">
-                        <div className="text-sm text-zinc-500 italic">Drop items here</div>
+                      <div className={`text-center py-8 pointer-events-none transition-opacity ${isActiveDrop ? 'opacity-50 text-blue-400' : 'opacity-30 text-zinc-500'}`}>
+                        <div className="text-sm italic">{isActiveDrop ? 'Drop to move here' : 'Drop items here'}</div>
                       </div>
                     )}
                  </div>
@@ -245,7 +258,6 @@ const KanbanBoard: React.FC<KanbanBoardProps> = ({ initialBugs, onSave, fileName
         </div>
       </div>
 
-      {/* Modal */}
       {isModalOpen && (
         <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/80 backdrop-blur-sm p-4">
           <div className="bg-zinc-900 border border-zinc-800 rounded-xl w-full max-w-lg p-6 shadow-2xl">

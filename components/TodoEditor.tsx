@@ -1,34 +1,31 @@
 
 import React, { useState, useEffect } from 'react';
-import { Save, Plus, Trash2, CheckSquare, Square, Calendar, Flag, ChevronDown, ChevronUp, Search, Filter, ListChecks, CornerDownRight } from 'lucide-react';
-import { TodoItem, Priority, SubTask } from '../types';
+import { Save, Plus, Trash2, CheckSquare, Square, Calendar, Flag, ChevronDown, ChevronUp, Search, Filter, ListChecks } from 'lucide-react';
+import { TodoItem, Priority, SubTask, EditorProps } from '../types';
 
-interface TodoEditorProps {
-  initialItems: TodoItem[];
-  onSave: (items: TodoItem[]) => void;
-  fileName: string;
-}
-
-const TodoEditor: React.FC<TodoEditorProps> = ({ initialItems, onSave, fileName }) => {
-  const [items, setItems] = useState<TodoItem[]>(initialItems);
+const TodoEditor: React.FC<EditorProps> = ({ initialContent, onSave, fileName }) => {
+  // Standardization: extract items from initialContent
+  const [items, setItems] = useState<TodoItem[]>(initialContent?.items || []);
   
-  // New Task State
   const [newItemText, setNewItemText] = useState('');
   const [newItemPriority, setNewItemPriority] = useState<Priority>('Medium');
   const [newItemDate, setNewItemDate] = useState('');
   
-  // Filtering State
   const [searchQuery, setSearchQuery] = useState('');
   const [filterPriority, setFilterPriority] = useState<'All' | Priority>('All');
   const [hideCompleted, setHideCompleted] = useState(false);
   
-  // Expanded item state (for editing)
   const [expandedId, setExpandedId] = useState<string | null>(null);
   const [newSubTaskText, setNewSubTaskText] = useState('');
 
   useEffect(() => {
-    setItems(initialItems);
-  }, [initialItems]);
+    setItems(initialContent?.items || []);
+  }, [initialContent]);
+
+  const handleSave = () => {
+    // Save as standard object { items: [] }
+    onSave({ items });
+  };
 
   const handleAddItem = (e?: React.FormEvent) => {
     if (e) e.preventDefault();
@@ -44,7 +41,7 @@ const TodoEditor: React.FC<TodoEditorProps> = ({ initialItems, onSave, fileName 
       subTasks: []
     };
 
-    setItems([newItem, ...items]); // Add to top
+    setItems([newItem, ...items]); 
     setNewItemText('');
     setNewItemPriority('Medium');
     setNewItemDate('');
@@ -56,7 +53,8 @@ const TodoEditor: React.FC<TodoEditorProps> = ({ initialItems, onSave, fileName 
     ));
   };
 
-  const deleteItem = (id: string) => {
+  const deleteItem = (e: React.MouseEvent, id: string) => {
+    e.stopPropagation();
     if (confirm("Delete this task?")) {
       setItems(items.filter(item => item.id !== id));
     }
@@ -124,23 +122,18 @@ const TodoEditor: React.FC<TodoEditorProps> = ({ initialItems, onSave, fileName 
 
   // Filter Logic
   const filteredItems = items.filter(item => {
-    // 1. Search Query
     if (searchQuery && !item.text.toLowerCase().includes(searchQuery.toLowerCase())) return false;
-    // 2. Priority Filter
     if (filterPriority !== 'All' && item.priority !== filterPriority) return false;
-    // 3. Hide Completed
     if (hideCompleted && item.completed) return false;
-    
     return true;
   });
 
   return (
     <div className="h-full flex flex-col bg-zinc-900">
-      {/* Toolbar */}
       <div className="h-16 border-b border-zinc-800 flex items-center justify-between px-6 bg-zinc-900/50 backdrop-blur-sm sticky top-0 z-10">
         <h3 className="text-zinc-200 font-medium">{fileName}</h3>
         <button
-          onClick={() => onSave(items)}
+          onClick={handleSave}
           className="flex items-center gap-2 bg-emerald-600 hover:bg-emerald-700 text-white px-4 py-2 rounded-md text-sm font-medium transition-colors shadow-lg shadow-emerald-900/20"
         >
           <Save className="w-4 h-4" />
@@ -151,7 +144,6 @@ const TodoEditor: React.FC<TodoEditorProps> = ({ initialItems, onSave, fileName 
       <div className="flex-1 overflow-auto custom-scrollbar p-6 lg:p-10">
         <div className="max-w-4xl mx-auto">
           
-          {/* Add Item Form */}
           <div className="bg-zinc-950 border border-zinc-800 rounded-xl p-4 mb-8 shadow-xl">
             <h4 className="text-sm font-medium text-zinc-400 mb-3 uppercase tracking-wider">New Task</h4>
             <form onSubmit={handleAddItem} className="flex flex-col gap-3">
@@ -199,9 +191,7 @@ const TodoEditor: React.FC<TodoEditorProps> = ({ initialItems, onSave, fileName 
             </form>
           </div>
 
-          {/* Filters & Stats Bar */}
           <div className="flex flex-col sm:flex-row items-center justify-between gap-4 mb-6 bg-zinc-900/50 p-2 rounded-lg border border-zinc-800/50">
-            {/* Search */}
             <div className="relative w-full sm:w-64">
               <Search className="w-4 h-4 text-zinc-500 absolute left-3 top-1/2 -translate-y-1/2" />
               <input
@@ -213,7 +203,6 @@ const TodoEditor: React.FC<TodoEditorProps> = ({ initialItems, onSave, fileName 
               />
             </div>
 
-            {/* Filters */}
             <div className="flex items-center gap-3 w-full sm:w-auto overflow-x-auto">
                <div className="flex items-center gap-2 bg-zinc-950 border border-zinc-800 rounded-md px-2 py-1.5">
                   <Filter className="w-3.5 h-3.5 text-zinc-500" />
@@ -243,7 +232,6 @@ const TodoEditor: React.FC<TodoEditorProps> = ({ initialItems, onSave, fileName 
             </div>
           </div>
 
-          {/* Todo List */}
           <div className="space-y-3">
             {filteredItems.length === 0 ? (
               <div className="text-center py-16 border-2 border-dashed border-zinc-800 rounded-xl bg-zinc-900/50">
@@ -324,7 +312,7 @@ const TodoEditor: React.FC<TodoEditorProps> = ({ initialItems, onSave, fileName 
                            {expandedId === item.id ? <ChevronUp className="w-5 h-5" /> : <ChevronDown className="w-5 h-5" />}
                         </button>
                         <button
-                          onClick={() => deleteItem(item.id)}
+                          onClick={(e) => deleteItem(e, item.id)}
                           className="p-2 text-zinc-500 hover:text-red-400 hover:bg-zinc-800 rounded transition-colors"
                         >
                           <Trash2 className="w-5 h-5" />
@@ -332,11 +320,9 @@ const TodoEditor: React.FC<TodoEditorProps> = ({ initialItems, onSave, fileName 
                       </div>
                     </div>
                     
-                    {/* Expanded Details */}
                     {expandedId === item.id && (
                       <div className="px-4 pb-4 pt-0 border-t border-zinc-800 bg-zinc-950/30">
                          <div className="grid grid-cols-1 md:grid-cols-2 gap-6 mt-4">
-                           {/* Description Side */}
                            <div>
                               <label className="text-xs font-semibold text-zinc-500 uppercase mb-2 block">Description</label>
                               <textarea
@@ -347,11 +333,9 @@ const TodoEditor: React.FC<TodoEditorProps> = ({ initialItems, onSave, fileName 
                               />
                            </div>
 
-                           {/* Subtasks Side */}
                            <div>
                               <label className="text-xs font-semibold text-zinc-500 uppercase mb-2 block">Sub-tasks</label>
                               <div className="bg-zinc-950 border border-zinc-800 rounded-lg p-3 min-h-[120px] flex flex-col">
-                                 {/* Add Subtask Input */}
                                  <div className="flex gap-2 mb-3">
                                    <input 
                                       type="text" 
@@ -370,7 +354,6 @@ const TodoEditor: React.FC<TodoEditorProps> = ({ initialItems, onSave, fileName 
                                    </button>
                                  </div>
                                  
-                                 {/* Subtasks List */}
                                  <div className="space-y-1 flex-1">
                                     {subTasks.map(sub => (
                                       <div key={sub.id} className="flex items-center gap-2 group/sub p-1 hover:bg-zinc-900 rounded">
@@ -406,7 +389,6 @@ const TodoEditor: React.FC<TodoEditorProps> = ({ initialItems, onSave, fileName 
             )}
           </div>
           
-           {/* Footer Stats */}
            {items.length > 0 && (
              <div className="mt-6 flex justify-between text-xs text-zinc-500 border-t border-zinc-800/50 pt-4">
                <div>Showing {filteredItems.length} of {items.length} tasks</div>

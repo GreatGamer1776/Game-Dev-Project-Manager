@@ -1,7 +1,7 @@
 
 export interface FlowchartNode {
   id: string;
-  type?: string; // 'input', 'output', 'default', 'diamond', 'database', 'circle'
+  type?: string;
   position: { x: number; y: number };
   data: { label: string };
   style?: any;
@@ -34,7 +34,7 @@ export interface TodoItem {
   text: string;
   completed: boolean;
   priority: Priority;
-  dueDate?: string; // ISO Date string YYYY-MM-DD
+  dueDate?: string;
   description?: string;
   subTasks?: SubTask[];
 }
@@ -59,13 +59,17 @@ export interface KanbanData {
   tasks: Bug[];
 }
 
-export type FileType = 'doc' | 'flowchart' | 'todo' | 'kanban';
+// Generic Content Type for flexibility
+export type FileContent = string | FlowchartData | TodoData | KanbanData | any;
+
+// FileType is now just a string, allowing for infinite expansion via the registry
+export type FileType = 'doc' | 'flowchart' | 'todo' | 'kanban' | string;
 
 export interface ProjectFile {
   id: string;
   name: string;
   type: FileType;
-  content: string | FlowchartData | TodoData | KanbanData;
+  content: FileContent;
 }
 
 export interface Project {
@@ -80,4 +84,11 @@ export interface Project {
 export enum ViewState {
   DASHBOARD = 'DASHBOARD',
   PROJECT = 'PROJECT',
+}
+
+// Standardized Interface for all Editor Components
+export interface EditorProps {
+  initialContent: any;
+  onSave: (content: any) => void;
+  fileName: string;
 }

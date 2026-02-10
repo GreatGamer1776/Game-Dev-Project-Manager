@@ -1,15 +1,61 @@
 
 import React, { useState, useEffect } from 'react';
-import { LayoutDashboard, FileText, Network, ArrowLeft, Plus, Folder, File, Settings, Download, CheckSquare, Bug as BugIcon } from 'lucide-react';
+import { LayoutDashboard, FileText, Network, ArrowLeft, Plus, Folder, File, CheckSquare, Bug as BugIcon, Trash2, HardDrive } from 'lucide-react';
 import Dashboard from './components/Dashboard';
 import FlowchartEditor from './components/FlowchartEditor';
 import DocEditor from './components/DocEditor';
 import TodoEditor from './components/TodoEditor';
 import KanbanBoard from './components/KanbanBoard';
-import { Project, ViewState, ProjectFile, FlowchartData, FileType, TodoData, KanbanData } from './types';
-import { Node, Edge } from 'reactflow';
+import { Project, ViewState, ProjectFile, FileType, EditorProps } from './types';
 
-// Migrated Mock Data
+// --- PLUGIN REGISTRY SYSTEM ---
+
+interface EditorPlugin {
+  type: FileType;
+  label: string;
+  pluralLabel: string;
+  icon: React.ElementType;
+  component: React.FC<EditorProps>;
+  createDefaultContent: (name: string) => any;
+}
+
+const EDITOR_PLUGINS: EditorPlugin[] = [
+  {
+    type: 'doc',
+    label: 'Document',
+    pluralLabel: 'Documents',
+    icon: FileText,
+    component: DocEditor,
+    createDefaultContent: (name) => `# ${name}\n\nCreated on ${new Date().toLocaleDateString()}`
+  },
+  {
+    type: 'flowchart',
+    label: 'Flowchart',
+    pluralLabel: 'Flowcharts',
+    icon: Network,
+    component: FlowchartEditor as React.FC<EditorProps>, 
+    createDefaultContent: () => ({ nodes: [], edges: [] })
+  },
+  {
+    type: 'todo',
+    label: 'Task List',
+    pluralLabel: 'Task Lists',
+    icon: CheckSquare,
+    component: TodoEditor as React.FC<EditorProps>,
+    createDefaultContent: () => ({ items: [] })
+  },
+  {
+    type: 'kanban',
+    label: 'Bug Tracker',
+    pluralLabel: 'Bug Trackers',
+    icon: BugIcon,
+    component: KanbanBoard as React.FC<EditorProps>,
+    createDefaultContent: () => ({ tasks: [] })
+  }
+];
+
+// --- MOCK DATA ---
+
 const MOCK_PROJECTS: Project[] = [
   {
     id: '1',
@@ -38,63 +84,114 @@ const MOCK_PROJECTS: Project[] = [
           ],
         }
       },
-      {
-        id: 'f3',
-        name: 'Launch Tasks',
-        type: 'todo',
-        content: {
-          items: [
-            { id: 't1', text: 'Design main character sprite', completed: true, priority: 'High', description: 'Pixel art style, 32x32' },
-            { id: 't2', text: 'Implement shooting mechanics', completed: false, priority: 'High', dueDate: '2024-12-01' },
-          ]
-        }
-      },
-      {
-        id: 'f4',
-        name: 'Alpha Bugs',
-        type: 'kanban',
-        content: {
-          tasks: [
-            { id: 'b1', title: 'Ship clips through walls', severity: 'High', status: 'In Progress', description: 'Collision detection fails at high speeds.', createdAt: Date.now() },
-            { id: 'b2', title: 'Typo in credits', severity: 'Low', status: 'Open', description: 'Says "Prgramming" instead of "Programming"', createdAt: Date.now() }
-          ]
-        }
-      }
     ]
   },
 ];
 
 const App: React.FC = () => {
-  const [projects, setProjects] = useState<Project[]>(() => {
-    try {
-      const saved = localStorage.getItem('devarchitect_projects');
-      if (saved) {
-        const parsed = JSON.parse(saved);
-        // Basic schema check
-        if (parsed.length > 0 && parsed[0].files) {
-          return parsed;
-        }
-        return MOCK_PROJECTS;
-      }
-    } catch (e) {
-      console.error("Failed to load projects", e);
-    }
-    return MOCK_PROJECTS;
-  });
+  const [projects, setProjects] = useState<Project[]>([]);
+  const [isLocalMode, setIsLocalMode] = useState(false);
+  const [directoryHandle, setDirectoryHandle] = useState<any>(null); // FileSystemDirectoryHandle
   
   const [currentView, setCurrentView] = useState<ViewState>(ViewState.DASHBOARD);
   const [activeProjectId, setActiveProjectId] = useState<string | null>(null);
   const [activeFileId, setActiveFileId] = useState<string | null>(null);
 
-  // Auto-save projects to local storage
+  // Load from LocalStorage initially if not in local mode
   useEffect(() => {
-    localStorage.setItem('devarchitect_projects', JSON.stringify(projects));
-  }, [projects]);
+    if (!isLocalMode) {
+        try {
+            const saved = localStorage.getItem('devarchitect_projects');
+            if (saved) {
+                const parsed = JSON.parse(saved);
+                setProjects(parsed.length > 0 ? parsed : MOCK_PROJECTS);
+            } else {
+                setProjects(MOCK_PROJECTS);
+            }
+        } catch (e) {
+            setProjects(MOCK_PROJECTS);
+        }
+    }
+  }, [isLocalMode]);
 
-  const activeProject = projects.find(p => p.id === activeProjectId);
-  const activeFile = activeProject?.files.find(f => f.id === activeFileId);
+  // Auto-save to LocalStorage (only if NOT in local mode)
+  useEffect(() => {
+    if (!isLocalMode && projects.length > 0) {
+      localStorage.setItem('devarchitect_projects', JSON.stringify(projects));
+    }
+  }, [projects, isLocalMode]);
 
-  const handleCreateProject = (name: string, type: Project['type']) => {
+  // --- FILE SYSTEM API HANDLERS ---
+
+  const saveProjectToDisk = async (project: Project) => {
+    if (!directoryHandle) return;
+    try {
+        const fileName = `${project.name.replace(/[^a-z0-9]/gi, '_').toLowerCase()}_${project.id}.json`;
+        const fileHandle = await directoryHandle.getFileHandle(fileName, { create: true });
+        const writable = await fileHandle.createWritable();
+        await writable.write(JSON.stringify(project, null, 2));
+        await writable.close();
+    } catch (err) {
+        console.error("Failed to save to disk:", err);
+    }
+  };
+
+  const deleteProjectFromDisk = async (project: Project) => {
+      if (!directoryHandle) return;
+      try {
+          const fileName = `${project.name.replace(/[^a-z0-9]/gi, '_').toLowerCase()}_${project.id}.json`;
+          await directoryHandle.removeEntry(fileName);
+      } catch (err) {
+          console.error("Failed to delete from disk:", err);
+      }
+  };
+
+  const handleOpenWorkspace = async () => {
+      // Feature detection
+      // @ts-ignore
+      if (typeof window.showDirectoryPicker !== 'function') {
+        alert("Your browser does not support the Local File System Access API.\n\nPlease use Chrome, Edge, or Opera on a desktop computer.");
+        return;
+      }
+
+      try {
+          // @ts-ignore - window.showDirectoryPicker is experimental
+          const dirHandle = await window.showDirectoryPicker();
+          setDirectoryHandle(dirHandle);
+          setIsLocalMode(true);
+          
+          const loadedProjects: Project[] = [];
+          
+          // @ts-ignore
+          for await (const entry of dirHandle.values()) {
+              if (entry.kind === 'file' && entry.name.endsWith('.json')) {
+                  const file = await entry.getFile();
+                  const text = await file.text();
+                  try {
+                      const json = JSON.parse(text);
+                      if (json.id && json.name && json.files) {
+                          loadedProjects.push(json);
+                      }
+                  } catch (e) {
+                      console.warn(`Skipping invalid JSON file: ${entry.name}`);
+                  }
+              }
+          }
+          
+          setProjects(loadedProjects);
+          // Don't alert here, just update UI
+      } catch (err: any) {
+          // Ignore user cancellation
+          if (err.name === 'AbortError') return;
+          console.error("Error opening workspace:", err);
+          alert("Failed to access local folder. Please ensure you granted permission.");
+      }
+  };
+
+  // --- ACTIONS ---
+
+  const handleCreateProject = async (name: string, type: Project['type']) => {
+    const defaultDocPlugin = EDITOR_PLUGINS.find(p => p.type === 'doc');
     const newProject: Project = {
       id: crypto.randomUUID(),
       name,
@@ -106,15 +203,25 @@ const App: React.FC = () => {
           id: crypto.randomUUID(),
           name: 'Readme',
           type: 'doc',
-          content: `# ${name}\n\nProject created on ${new Date().toLocaleDateString()}`
+          content: defaultDocPlugin ? defaultDocPlugin.createDefaultContent(name) : ''
         }
       ]
     };
-    setProjects([newProject, ...projects]);
+    
+    setProjects(prev => [newProject, ...prev]);
+    
+    if (isLocalMode) {
+        await saveProjectToDisk(newProject);
+    }
   };
 
-  const handleDeleteProject = (id: string) => {
-    if (confirm("Are you sure you want to delete this project?")) {
+  const handleDeleteProject = async (id: string) => {
+    if (confirm("Are you sure you want to delete this project? This cannot be undone.")) {
+      const projectToDelete = projects.find(p => p.id === id);
+      if (projectToDelete && isLocalMode) {
+          await deleteProjectFromDisk(projectToDelete);
+      }
+      
       setProjects(prev => prev.filter(p => p.id !== id));
       if (activeProjectId === id) {
         setActiveProjectId(null);
@@ -133,58 +240,77 @@ const App: React.FC = () => {
     downloadAnchorNode.remove();
   };
 
+  // Helper helper to update state and disk
+  const updateProjectState = (updatedProject: Project) => {
+      setProjects(prev => prev.map(p => p.id === updatedProject.id ? updatedProject : p));
+      if (isLocalMode) {
+          saveProjectToDisk(updatedProject);
+      }
+  };
+
   const handleCreateFile = (type: FileType) => {
     if (!activeProjectId) return;
     
-    let typeName = 'document';
-    if (type === 'flowchart') typeName = 'flowchart';
-    if (type === 'todo') typeName = 'to-do list';
-    if (type === 'kanban') typeName = 'bug tracker';
+    const plugin = EDITOR_PLUGINS.find(p => p.type === type);
+    if (!plugin) return;
 
-    const name = prompt(`Enter name for new ${typeName}:`);
+    const name = prompt(`Enter name for new ${plugin.label}:`);
     if (!name) return;
-
-    let content: any = '';
-    if (type === 'flowchart') content = { nodes: [], edges: [] };
-    if (type === 'todo') content = { items: [] };
-    if (type === 'kanban') content = { tasks: [] };
 
     const newFile: ProjectFile = {
       id: crypto.randomUUID(),
       name,
       type,
-      content
+      content: plugin.createDefaultContent(name)
     };
 
-    const updatedProjects = projects.map(p => {
-      if (p.id === activeProjectId) {
-        return {
-          ...p,
-          lastModified: Date.now(),
-          files: [...p.files, newFile]
+    const project = projects.find(p => p.id === activeProjectId);
+    if (project) {
+        const updatedProject = {
+            ...project,
+            lastModified: Date.now(),
+            files: [...project.files, newFile]
         };
-      }
-      return p;
-    });
+        updateProjectState(updatedProject);
+        setActiveFileId(newFile.id);
+    }
+  };
 
-    setProjects(updatedProjects);
-    setActiveFileId(newFile.id);
+  const handleDeleteFile = (e: React.MouseEvent, fileId: string) => {
+    e.stopPropagation();
+    if (!activeProjectId) return;
+
+    if (confirm("Are you sure you want to delete this file? This cannot be undone.")) {
+        const project = projects.find(p => p.id === activeProjectId);
+        if (project) {
+            const updatedProject = {
+                ...project,
+                files: project.files.filter(f => f.id !== fileId)
+            };
+            updateProjectState(updatedProject);
+            if (activeFileId === fileId) {
+                setActiveFileId(null);
+            }
+        }
+    }
   };
 
   const updateFileContent = (content: any) => {
     if (!activeProjectId || !activeFileId) return;
 
-    setProjects(prev => prev.map(p => {
-      if (p.id === activeProjectId) {
-        return {
-          ...p,
-          lastModified: Date.now(),
-          files: p.files.map(f => f.id === activeFileId ? { ...f, content } : f)
+    const project = projects.find(p => p.id === activeProjectId);
+    if (project) {
+        const updatedProject = {
+            ...project,
+            lastModified: Date.now(),
+            files: project.files.map(f => f.id === activeFileId ? { ...f, content } : f)
         };
-      }
-      return p;
-    }));
+        updateProjectState(updatedProject);
+    }
   };
+
+  const activeProject = projects.find(p => p.id === activeProjectId);
+  const activeFile = activeProject?.files.find(f => f.id === activeFileId);
 
   const renderSidebar = () => {
     if (currentView === ViewState.DASHBOARD || !activeProject) {
@@ -220,121 +346,56 @@ const App: React.FC = () => {
           </button>
         </div>
         
-        <div className="p-4 flex-1 overflow-y-auto">
+        <div className="p-4 flex-1 overflow-y-auto custom-scrollbar">
           <div className="mb-6">
-             <h2 className="text-zinc-100 font-semibold truncate mb-1" title={activeProject.name}>{activeProject.name}</h2>
+             <div className="flex items-center gap-2 mb-1">
+                 <h2 className="text-zinc-100 font-semibold truncate" title={activeProject.name}>{activeProject.name}</h2>
+                 {isLocalMode && <HardDrive className="w-3 h-3 text-emerald-500 shrink-0" title="Saved to disk" />}
+             </div>
              <p className="text-xs text-zinc-500 uppercase tracking-wider">{activeProject.type} Project</p>
           </div>
 
           <div className="space-y-6">
-            {/* Documents */}
-            <div>
-              <div className="flex items-center justify-between mb-2 px-2">
-                <span className="text-xs font-semibold text-zinc-500 uppercase tracking-wider">Documents</span>
-                <button onClick={() => handleCreateFile('doc')} className="text-zinc-400 hover:text-white p-1 rounded hover:bg-zinc-800">
-                  <Plus className="w-3 h-3" />
-                </button>
-              </div>
-              <div className="space-y-1">
-                {activeProject.files.filter(f => f.type === 'doc').map(file => (
-                  <button
-                    key={file.id}
-                    onClick={() => setActiveFileId(file.id)}
-                    className={`w-full flex items-center gap-3 px-3 py-2 rounded-lg text-sm transition-colors ${
-                      activeFileId === file.id ? 'bg-zinc-800 text-white' : 'text-zinc-400 hover:bg-zinc-900 hover:text-zinc-300'
-                    }`}
-                  >
-                    <FileText className="w-4 h-4 shrink-0" />
-                    <span className="truncate">{file.name}</span>
-                  </button>
-                ))}
-                {activeProject.files.filter(f => f.type === 'doc').length === 0 && (
-                   <p className="text-xs text-zinc-600 px-3 italic">No documents</p>
-                )}
-              </div>
-            </div>
+            {EDITOR_PLUGINS.map(plugin => {
+                const PluginIcon = plugin.icon;
+                const files = activeProject.files.filter(f => f.type === plugin.type);
 
-            {/* Flowcharts */}
-            <div>
-              <div className="flex items-center justify-between mb-2 px-2">
-                <span className="text-xs font-semibold text-zinc-500 uppercase tracking-wider">Flowcharts</span>
-                <button onClick={() => handleCreateFile('flowchart')} className="text-zinc-400 hover:text-white p-1 rounded hover:bg-zinc-800">
-                  <Plus className="w-3 h-3" />
-                </button>
-              </div>
-              <div className="space-y-1">
-                {activeProject.files.filter(f => f.type === 'flowchart').map(file => (
-                  <button
-                    key={file.id}
-                    onClick={() => setActiveFileId(file.id)}
-                    className={`w-full flex items-center gap-3 px-3 py-2 rounded-lg text-sm transition-colors ${
-                      activeFileId === file.id ? 'bg-zinc-800 text-white' : 'text-zinc-400 hover:bg-zinc-900 hover:text-zinc-300'
-                    }`}
-                  >
-                    <Network className="w-4 h-4 shrink-0" />
-                    <span className="truncate">{file.name}</span>
-                  </button>
-                ))}
-                 {activeProject.files.filter(f => f.type === 'flowchart').length === 0 && (
-                   <p className="text-xs text-zinc-600 px-3 italic">No flowcharts</p>
-                )}
-              </div>
-            </div>
-
-            {/* Todo Lists */}
-            <div>
-              <div className="flex items-center justify-between mb-2 px-2">
-                <span className="text-xs font-semibold text-zinc-500 uppercase tracking-wider">Task Lists</span>
-                <button onClick={() => handleCreateFile('todo')} className="text-zinc-400 hover:text-white p-1 rounded hover:bg-zinc-800">
-                  <Plus className="w-3 h-3" />
-                </button>
-              </div>
-              <div className="space-y-1">
-                {activeProject.files.filter(f => f.type === 'todo').map(file => (
-                  <button
-                    key={file.id}
-                    onClick={() => setActiveFileId(file.id)}
-                    className={`w-full flex items-center gap-3 px-3 py-2 rounded-lg text-sm transition-colors ${
-                      activeFileId === file.id ? 'bg-zinc-800 text-white' : 'text-zinc-400 hover:bg-zinc-900 hover:text-zinc-300'
-                    }`}
-                  >
-                    <CheckSquare className="w-4 h-4 shrink-0" />
-                    <span className="truncate">{file.name}</span>
-                  </button>
-                ))}
-                 {activeProject.files.filter(f => f.type === 'todo').length === 0 && (
-                   <p className="text-xs text-zinc-600 px-3 italic">No task lists</p>
-                )}
-              </div>
-            </div>
-
-            {/* Bug Trackers */}
-            <div>
-              <div className="flex items-center justify-between mb-2 px-2">
-                <span className="text-xs font-semibold text-zinc-500 uppercase tracking-wider">Bug Trackers</span>
-                <button onClick={() => handleCreateFile('kanban')} className="text-zinc-400 hover:text-white p-1 rounded hover:bg-zinc-800">
-                  <Plus className="w-3 h-3" />
-                </button>
-              </div>
-              <div className="space-y-1">
-                {activeProject.files.filter(f => f.type === 'kanban').map(file => (
-                  <button
-                    key={file.id}
-                    onClick={() => setActiveFileId(file.id)}
-                    className={`w-full flex items-center gap-3 px-3 py-2 rounded-lg text-sm transition-colors ${
-                      activeFileId === file.id ? 'bg-zinc-800 text-white' : 'text-zinc-400 hover:bg-zinc-900 hover:text-zinc-300'
-                    }`}
-                  >
-                    <BugIcon className="w-4 h-4 shrink-0" />
-                    <span className="truncate">{file.name}</span>
-                  </button>
-                ))}
-                 {activeProject.files.filter(f => f.type === 'kanban').length === 0 && (
-                   <p className="text-xs text-zinc-600 px-3 italic">No bug trackers</p>
-                )}
-              </div>
-            </div>
-
+                return (
+                    <div key={plugin.type}>
+                        <div className="flex items-center justify-between mb-2 px-2">
+                            <span className="text-xs font-semibold text-zinc-500 uppercase tracking-wider">{plugin.pluralLabel}</span>
+                            <button onClick={() => handleCreateFile(plugin.type)} className="text-zinc-400 hover:text-white p-1 rounded hover:bg-zinc-800 transition-colors">
+                            <Plus className="w-3.5 h-3.5" />
+                            </button>
+                        </div>
+                        <div className="space-y-1">
+                            {files.map(file => (
+                                <div key={file.id} className="group flex items-center gap-1 rounded-lg hover:bg-zinc-900 pr-1 transition-colors">
+                                    <button
+                                        onClick={() => setActiveFileId(file.id)}
+                                        className={`flex-1 flex items-center gap-3 px-3 py-2 rounded-lg text-sm text-left transition-colors ${
+                                            activeFileId === file.id ? 'bg-zinc-800 text-white' : 'text-zinc-400 hover:text-zinc-200'
+                                        }`}
+                                    >
+                                        <PluginIcon className="w-4 h-4 shrink-0" />
+                                        <span className="truncate">{file.name}</span>
+                                    </button>
+                                    <button 
+                                        onClick={(e) => handleDeleteFile(e, file.id)}
+                                        className="p-1.5 text-zinc-600 hover:text-red-400 hover:bg-zinc-800 rounded opacity-0 group-hover:opacity-100 transition-opacity"
+                                        title="Delete File"
+                                    >
+                                        <Trash2 className="w-3.5 h-3.5" />
+                                    </button>
+                                </div>
+                            ))}
+                            {files.length === 0 && (
+                                <p className="text-xs text-zinc-600 px-3 italic">No {plugin.pluralLabel.toLowerCase()}</p>
+                            )}
+                        </div>
+                    </div>
+                );
+            })}
           </div>
         </div>
       </aside>
@@ -359,6 +420,8 @@ const App: React.FC = () => {
           onCreateProject={handleCreateProject}
           onExportProject={handleExportProject}
           onDeleteProject={handleDeleteProject}
+          onOpenWorkspace={handleOpenWorkspace}
+          isLocalMode={isLocalMode}
         />
       );
     }
@@ -374,60 +437,30 @@ const App: React.FC = () => {
       );
     }
 
-    if (activeFile.type === 'doc') {
-      return (
-        <DocEditor
-          key={activeFile.id}
-          fileName={activeFile.name}
-          initialContent={activeFile.content as string}
-          onSave={(content) => updateFileContent(content)}
-        />
-      );
+    const plugin = EDITOR_PLUGINS.find(p => p.type === activeFile.type);
+    
+    if (plugin) {
+        const EditorComponent = plugin.component;
+        return (
+            <EditorComponent
+                key={activeFile.id}
+                fileName={activeFile.name}
+                initialContent={activeFile.content}
+                onSave={updateFileContent}
+            />
+        );
     }
 
-    if (activeFile.type === 'flowchart') {
-      const data = activeFile.content as FlowchartData;
-      return (
-        <FlowchartEditor
-          key={activeFile.id}
-          fileName={activeFile.name}
-          initialNodes={data.nodes}
-          initialEdges={data.edges}
-          onSave={(nodes, edges) => updateFileContent({ nodes, edges })}
-        />
-      );
-    }
-
-    if (activeFile.type === 'todo') {
-      const data = activeFile.content as TodoData;
-      return (
-        <TodoEditor
-          key={activeFile.id}
-          fileName={activeFile.name}
-          initialItems={data.items || []}
-          onSave={(items) => updateFileContent({ items })}
-        />
-      );
-    }
-
-    if (activeFile.type === 'kanban') {
-      const data = activeFile.content as KanbanData;
-      return (
-        <KanbanBoard
-          key={activeFile.id}
-          fileName={activeFile.name}
-          initialBugs={data.tasks || []}
-          onSave={(tasks) => updateFileContent({ tasks })}
-        />
-      );
-    }
+    return (
+        <div className="flex items-center justify-center h-full text-red-400">
+            Unknown file type: {activeFile.type}
+        </div>
+    );
   };
 
   return (
     <div className="flex h-screen bg-black text-zinc-100 font-sans overflow-hidden">
       {renderSidebar()}
-      
-      {/* Main Content Area */}
       <main className="flex-1 flex flex-col min-w-0 bg-zinc-950">
         <div className="flex-1 overflow-hidden relative">
           {renderContent()}

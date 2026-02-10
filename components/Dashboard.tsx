@@ -1,7 +1,7 @@
 
 import React, { useState } from 'react';
 import { Project } from '../types';
-import { Plus, Code, Gamepad2, Globe, Clock, ChevronRight, FileCode, Download, Trash2 } from 'lucide-react';
+import { Plus, Code, Gamepad2, Globe, Clock, ChevronRight, FileCode, Download, Trash2, FolderOpen, HardDrive } from 'lucide-react';
 
 interface DashboardProps {
   projects: Project[];
@@ -9,9 +9,19 @@ interface DashboardProps {
   onCreateProject: (name: string, type: Project['type']) => void;
   onExportProject: (project: Project) => void;
   onDeleteProject: (id: string) => void;
+  onOpenWorkspace: () => void;
+  isLocalMode: boolean;
 }
 
-const Dashboard: React.FC<DashboardProps> = ({ projects, onSelectProject, onCreateProject, onExportProject, onDeleteProject }) => {
+const Dashboard: React.FC<DashboardProps> = ({ 
+    projects, 
+    onSelectProject, 
+    onCreateProject, 
+    onExportProject, 
+    onDeleteProject,
+    onOpenWorkspace,
+    isLocalMode
+}) => {
   const [isModalOpen, setIsModalOpen] = useState(false);
   const [newProjectName, setNewProjectName] = useState('');
   const [newProjectType, setNewProjectType] = useState<Project['type']>('Software');
@@ -35,18 +45,39 @@ const Dashboard: React.FC<DashboardProps> = ({ projects, onSelectProject, onCrea
 
   return (
     <div className="p-8 max-w-7xl mx-auto w-full">
-      <div className="flex items-center justify-between mb-12">
+      <div className="flex items-center justify-between mb-8">
         <div>
-          <h1 className="text-3xl font-bold text-white tracking-tight">Projects</h1>
+          <h1 className="text-3xl font-bold text-white tracking-tight flex items-center gap-3">
+             Projects
+             {isLocalMode && (
+                 <span className="px-3 py-1 bg-emerald-900/30 text-emerald-400 border border-emerald-900 rounded-full text-xs font-medium flex items-center gap-1.5">
+                     <HardDrive className="w-3 h-3" />
+                     Local Mode Active
+                 </span>
+             )}
+          </h1>
           <p className="text-zinc-400 mt-2">Manage your development plans, specs, and architectures.</p>
         </div>
-        <button
-          onClick={() => setIsModalOpen(true)}
-          className="flex items-center gap-2 bg-white text-zinc-950 px-5 py-2.5 rounded-lg font-semibold hover:bg-zinc-200 transition-colors shadow-lg shadow-white/5"
-        >
-          <Plus className="w-5 h-5" />
-          New Project
-        </button>
+        
+        <div className="flex gap-3">
+            {!isLocalMode && (
+                <button
+                onClick={onOpenWorkspace}
+                className="flex items-center gap-2 bg-zinc-800 text-zinc-200 px-5 py-2.5 rounded-lg font-semibold hover:bg-zinc-700 transition-colors border border-zinc-700"
+                >
+                <FolderOpen className="w-5 h-5" />
+                Open Local Workspace
+                </button>
+            )}
+            
+            <button
+            onClick={() => setIsModalOpen(true)}
+            className="flex items-center gap-2 bg-white text-zinc-950 px-5 py-2.5 rounded-lg font-semibold hover:bg-zinc-200 transition-colors shadow-lg shadow-white/5"
+            >
+            <Plus className="w-5 h-5" />
+            New Project
+            </button>
+        </div>
       </div>
 
       {projects.length === 0 ? (
@@ -80,24 +111,26 @@ const Dashboard: React.FC<DashboardProps> = ({ projects, onSelectProject, onCrea
                 </div>
               </div>
               
-              {/* Footer Actions - z-index higher than main click area to prevent overlap issues */}
+              {/* Footer Actions */}
               <div className="flex items-center justify-between pt-4 border-t border-zinc-800 mt-auto relative z-20">
                  <div className="flex items-center text-xs text-zinc-500">
                     <Clock className="w-3.5 h-3.5 mr-1.5" />
                     {new Date(project.lastModified).toLocaleDateString()}
                  </div>
                  <div className="flex items-center gap-2 opacity-0 group-hover:opacity-100 transition-opacity">
-                    <button 
-                      onClick={(e) => { 
-                        e.preventDefault();
-                        e.stopPropagation(); 
-                        onExportProject(project); 
-                      }}
-                      className="p-2 hover:bg-zinc-800 rounded-lg text-zinc-400 hover:text-blue-400 transition-colors"
-                      title="Export Project"
-                    >
-                      <Download className="w-4 h-4" />
-                    </button>
+                    {!isLocalMode && (
+                        <button 
+                        onClick={(e) => { 
+                            e.preventDefault();
+                            e.stopPropagation(); 
+                            onExportProject(project); 
+                        }}
+                        className="p-2 hover:bg-zinc-800 rounded-lg text-zinc-400 hover:text-blue-400 transition-colors"
+                        title="Export JSON"
+                        >
+                        <Download className="w-4 h-4" />
+                        </button>
+                    )}
                     <button 
                       onClick={(e) => { 
                         e.preventDefault();

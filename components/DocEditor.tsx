@@ -54,16 +54,15 @@ const DocEditor: React.FC<EditorProps> = ({ initialContent, onSave, fileName, as
     const file = e.target.files?.[0];
     if (!file) return;
     
-    // Check if asset system is available
     if (!onAddAsset) {
-        alert("Image upload is not available in this version.");
+        alert("Asset system not available. Please save project to disk first.");
         return;
     }
 
     setIsUploading(true);
     
     try {
-        const assetUrl = await onAddAsset(file); // returns "asset://uuid"
+        const assetUrl = await onAddAsset(file); // returns "asset://uuid.png"
         const safeName = file.name.replace(/[\[\]\(\)]/g, '');
         insertText(`\n![${safeName}](${assetUrl})\n`);
     } catch (error) {
@@ -80,7 +79,11 @@ const DocEditor: React.FC<EditorProps> = ({ initialContent, onSave, fileName, as
     if (!src) return '';
     if (src.startsWith('asset://')) {
         const id = src.replace('asset://', '');
-        return assets && assets[id] ? assets[id] : '';
+        // Check exact match or match without extension
+        if (assets && assets[id]) return assets[id];
+        // Fallback for when ID might have extension in the key or not
+        const key = Object.keys(assets || {}).find(k => k.includes(id) || id.includes(k));
+        if (key && assets) return assets[key];
     }
     return src;
   };
@@ -157,6 +160,11 @@ const DocEditor: React.FC<EditorProps> = ({ initialContent, onSave, fileName, as
           <div className={`h-full overflow-auto custom-scrollbar bg-zinc-900 ${viewMode === 'split' ? 'w-1/2' : 'w-full'}`}>
              <div className="max-w-3xl mx-auto p-8">
                 <ReactMarkdown
+                  // CRITICAL FIX: Allow asset protocol
+                  urlTransform={(uri) => {
+                    if (uri.startsWith('asset://')) return uri;
+                    return uri;
+                  }}
                   components={{
                     h1: ({node, ...props}) => <h1 className="text-3xl font-bold text-zinc-100 mb-6 pb-2 border-b border-zinc-700" {...props} />,
                     h2: ({node, ...props}) => <h2 className="text-2xl font-semibold text-zinc-100 mb-4 mt-8" {...props} />,
@@ -172,15 +180,22 @@ const DocEditor: React.FC<EditorProps> = ({ initialContent, onSave, fileName, as
                          : <div className="bg-zinc-950 p-4 rounded-lg my-4 overflow-x-auto border border-zinc-800 shadow-inner"><code className="text-sm font-mono text-zinc-300 block" {...props}>{children}</code></div>
                     },
                     a: ({node, ...props}) => <a className="text-blue-400 hover:text-blue-300 hover:underline transition-colors" target="_blank" rel="noopener noreferrer" {...props} />,
-                    img: ({node, src, alt, ...props}) => (
-                        <img 
-                            src={resolveAssetSource(src)} 
-                            alt={alt} 
-                            className="max-w-full h-auto rounded-lg shadow-lg my-6 border border-zinc-800 bg-zinc-950" 
-                            loading="lazy"
-                            {...props} 
-                        />
-                    ),
+                    // Image Handler with Lookup
+                    img: ({node, src, alt, ...props}) => {
+                        const resolvedSrc = resolveAssetSource(src);
+                        if (!resolvedSrc) {
+                            return <div className="p-4 border border-red-500/50 rounded bg-red-900/10 text-red-400 text-xs">Image not found: {alt}</div>;
+                        }
+                        return (
+                            <img 
+                                src={resolvedSrc} 
+                                alt={alt} 
+                                className="max-w-full h-auto rounded-lg shadow-lg my-6 border border-zinc-800 bg-zinc-950" 
+                                loading="lazy"
+                                {...props} 
+                            />
+                        );
+                    },
                     hr: ({node, ...props}) => <hr className="border-zinc-800 my-8" {...props} />,
                     table: ({node, ...props}) => <div className="overflow-x-auto my-6 rounded-lg border border-zinc-800"><table className="w-full text-left text-sm" {...props} /></div>,
                     th: ({node, ...props}) => <th className="bg-zinc-800 p-3 font-semibold text-zinc-200 border-b border-zinc-700" {...props} />,

@@ -28,10 +28,13 @@ export interface SubTask {
   completed: boolean;
 }
 
+export type TodoStatus = 'To Do' | 'In Progress' | 'Done';
+
 export interface TodoItem {
   id: string;
   text: string;
   completed: boolean;
+  status: TodoStatus;
   priority: Priority;
   dueDate?: string;
   description?: string;
@@ -58,8 +61,30 @@ export interface KanbanData {
   tasks: Bug[];
 }
 
-export type FileContent = string | FlowchartData | TodoData | KanbanData | any;
-export type FileType = 'doc' | 'flowchart' | 'todo' | 'kanban' | string;
+// --- NEW: Roadmap Types ---
+
+export type RoadmapItemType = 'phase' | 'milestone';
+export type RoadmapStatus = 'planned' | 'in-progress' | 'completed' | 'delayed' | 'dropped';
+
+export interface RoadmapItem {
+  id: string;
+  title: string;
+  startDate: string; // ISO Date string YYYY-MM-DD
+  endDate: string;   // For milestones, this equals startDate
+  type: RoadmapItemType;
+  status: RoadmapStatus;
+  progress: number; // 0 to 100
+  description?: string;
+}
+
+export interface RoadmapData {
+  items: RoadmapItem[];
+}
+
+// --------------------------
+
+export type FileContent = string | FlowchartData | TodoData | KanbanData | RoadmapData | any;
+export type FileType = 'doc' | 'flowchart' | 'todo' | 'kanban' | 'roadmap' | string;
 
 export interface ProjectFile {
   id: string;

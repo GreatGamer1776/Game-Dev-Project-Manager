@@ -1,16 +1,15 @@
 import React, { useState, useEffect } from 'react';
-import { LayoutDashboard, FileText, Network, ArrowLeft, Plus, Folder, File, CheckSquare, Bug as BugIcon, Trash2, HardDrive, Download, Upload } from 'lucide-react';
+import { LayoutDashboard, FileText, Network, ArrowLeft, Plus, Folder, File, CheckSquare, Bug as BugIcon, Trash2, HardDrive, Download, Upload, Map as MapIcon } from 'lucide-react';
 import JSZip from 'jszip';
 import Dashboard from './components/Dashboard';
 import FlowchartEditor from './components/FlowchartEditor';
 import DocEditor from './components/DocEditor';
 import TodoEditor from './components/TodoEditor';
 import KanbanBoard from './components/KanbanBoard';
+import RoadmapEditor from './components/RoadmapEditor'; // NEW IMPORT
 import { Project, ViewState, ProjectFile, FileType, EditorProps } from './types';
 
-// --- UTILS ---
-
-// Convert Base64 to Blob (for File System API)
+// ... (base64ToBlob and IDB Utils remain unchanged) ...
 const base64ToBlob = (base64: string): Blob => {
   try {
       const arr = base64.split(',');
@@ -29,7 +28,6 @@ const base64ToBlob = (base64: string): Blob => {
   }
 };
 
-// IndexedDB Wrapper (For Web Mode persistence)
 const IDB = {
     DB_NAME: 'devarchitect_db',
     STORE: 'projects',
@@ -79,11 +77,14 @@ const IDB = {
     }
 };
 
+// UPDATED PLUGINS LIST
 const EDITOR_PLUGINS = [
   { type: 'doc', label: 'Document', pluralLabel: 'Documents', icon: FileText, component: DocEditor, createDefaultContent: (name: string) => `# ${name}\n\nCreated on ${new Date().toLocaleDateString()}` },
   { type: 'flowchart', label: 'Flowchart', pluralLabel: 'Flowcharts', icon: Network, component: FlowchartEditor as React.FC<EditorProps>, createDefaultContent: () => ({ nodes: [], edges: [] }) },
   { type: 'todo', label: 'Task List', pluralLabel: 'Task Lists', icon: CheckSquare, component: TodoEditor as React.FC<EditorProps>, createDefaultContent: () => ({ items: [] }) },
-  { type: 'kanban', label: 'Bug Tracker', pluralLabel: 'Bug Trackers', icon: BugIcon, component: KanbanBoard as React.FC<EditorProps>, createDefaultContent: () => ({ tasks: [] }) }
+  { type: 'kanban', label: 'Bug Tracker', pluralLabel: 'Bug Trackers', icon: BugIcon, component: KanbanBoard as React.FC<EditorProps>, createDefaultContent: () => ({ tasks: [] }) },
+  // NEW PLUGIN REGISTRATION
+  { type: 'roadmap', label: 'Roadmap', pluralLabel: 'Roadmaps', icon: MapIcon, component: RoadmapEditor as React.FC<EditorProps>, createDefaultContent: () => ({ items: [] }) }
 ];
 
 const MOCK_PROJECTS: Project[] = [{

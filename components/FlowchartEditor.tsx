@@ -15,49 +15,59 @@ import ReactFlow, {
   NodeProps,
   useReactFlow,
   ReactFlowProvider,
+  ConnectionMode, // NEW: Import ConnectionMode
 } from 'reactflow';
 import { Save, MousePointer2, Square, Circle, Diamond, Database, PlayCircle, Trash2, Check, Loader2, AlertCircle } from 'lucide-react';
 import { EditorProps } from '../types';
 
 // --- Custom Node Components ---
 
+// Updated DiamondNode (Decision)
+// - Larger handles
+// - Handles pushed slightly outward with negative margins for easier clicking
+// - Z-Index increased
 const DiamondNode = ({ data, selected }: NodeProps) => (
   <div className="w-24 h-24 relative flex items-center justify-center">
     <div className={`absolute w-[4.25rem] h-[4.25rem] transform rotate-45 bg-zinc-900 border-2 transition-colors shadow-lg z-0 ${selected ? 'border-blue-500 shadow-blue-500/20' : 'border-purple-500/50'}`}></div>
     <div className="relative z-10 p-1 text-xs text-white font-medium break-words text-center pointer-events-none max-w-[90%]">
       {data.label}
     </div>
-    <Handle type="target" position={Position.Top} className="!bg-zinc-400 z-20" />
-    <Handle type="source" position={Position.Bottom} className="!bg-zinc-400 z-20" />
-    <Handle type="source" position={Position.Left} className="!bg-zinc-400 z-20" />
-    <Handle type="source" position={Position.Right} className="!bg-zinc-400 z-20" />
+    {/* Tips of the diamond touch the edges of the w-24 h-24 container. We push handles out slightly. */}
+    <Handle type="target" position={Position.Top} className="w-3 h-3 !bg-zinc-400 z-50 -mt-2 border border-zinc-900" />
+    <Handle type="source" position={Position.Bottom} className="w-3 h-3 !bg-zinc-400 z-50 -mb-2 border border-zinc-900" />
+    <Handle type="source" position={Position.Left} className="w-3 h-3 !bg-zinc-400 z-50 -ml-2 border border-zinc-900" />
+    <Handle type="source" position={Position.Right} className="w-3 h-3 !bg-zinc-400 z-50 -mr-2 border border-zinc-900" />
   </div>
 );
 
+// Updated DatabaseNode
 const DatabaseNode = ({ data, selected }: NodeProps) => (
   <div className={`w-24 h-32 relative flex flex-col items-center justify-center bg-zinc-900 border-x-2 border-zinc-600 rounded-lg ${selected ? 'ring-2 ring-blue-500' : ''}`}>
     <div className="absolute top-0 w-full h-8 bg-zinc-800 border-2 border-zinc-600 rounded-[50%] -mt-4 z-10"></div>
     <div className="text-xs text-white text-center p-2 z-0 mt-2">{data.label}</div>
     <div className="absolute bottom-0 w-full h-8 bg-zinc-900 border-b-2 border-x-2 border-zinc-600 rounded-[50%] -mb-4 z-0"></div>
-    <Handle type="target" position={Position.Top} className="-mt-2 !bg-zinc-400 z-20" />
-    <Handle type="source" position={Position.Bottom} className="-mb-2 !bg-zinc-400 z-20" />
+    <Handle type="target" position={Position.Top} className="w-3 h-3 !bg-zinc-400 z-50 -mt-3" />
+    <Handle type="source" position={Position.Bottom} className="w-3 h-3 !bg-zinc-400 z-50 -mb-3" />
   </div>
 );
 
+// Updated CircleNode (Start/End)
+// - Mixed Source/Target handles for better flow flexibility (Top/Left = In, Bottom/Right = Out)
+// - Larger handles
 const CircleNode = ({ data, selected }: NodeProps) => (
   <div className={`w-24 h-24 rounded-full flex items-center justify-center bg-zinc-900 border-2 ${selected ? 'border-blue-500 shadow-lg shadow-blue-500/20' : 'border-emerald-500/50'}`}>
     <div className="text-center text-xs text-white font-medium p-2">{data.label}</div>
-    <Handle type="target" position={Position.Top} className="!bg-zinc-400" />
-    <Handle type="source" position={Position.Bottom} className="!bg-zinc-400" />
-    <Handle type="source" position={Position.Right} className="!bg-zinc-400" />
-    <Handle type="source" position={Position.Left} className="!bg-zinc-400" />
+    <Handle type="target" position={Position.Top} className="w-3 h-3 !bg-zinc-400 z-50 -mt-1" />
+    <Handle type="source" position={Position.Bottom} className="w-3 h-3 !bg-zinc-400 z-50 -mb-1" />
+    {/* Left is now Target (Input) and Right is Source (Output) for L-R flows */}
+    <Handle type="source" position={Position.Right} className="w-3 h-3 !bg-zinc-400 z-50 -mr-1" />
+    <Handle type="target" position={Position.Left} className="w-3 h-3 !bg-zinc-400 z-50 -ml-1" />
   </div>
 );
 
 // --- Editor Component ---
 
 const FlowchartEditorContent: React.FC<EditorProps> = ({ initialContent, onSave, fileName }) => {
-  // Extract initial nodes/edges from standardized content prop
   const initialNodes = initialContent?.nodes || [];
   const initialEdges = initialContent?.edges || [];
 
@@ -234,6 +244,9 @@ const FlowchartEditorContent: React.FC<EditorProps> = ({ initialContent, onSave,
           fitView
           className="bg-zinc-950"
           deleteKeyCode={['Backspace', 'Delete']}
+          // IMPORTANT: Loose connection mode allows connecting any handle to any handle
+          // This prevents frustration when users try to connect "Source to Source" visually
+          connectionMode={ConnectionMode.Loose}
         >
           <Background variant={BackgroundVariant.Dots} gap={16} size={1} color="#27272a" />
           <Controls className="bg-zinc-800 border-zinc-700 fill-zinc-200 text-zinc-200 [&>button]:border-zinc-700 [&>button:hover]:bg-zinc-700" />

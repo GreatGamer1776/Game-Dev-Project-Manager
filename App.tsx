@@ -6,10 +6,11 @@ import FlowchartEditor from './components/FlowchartEditor';
 import DocEditor from './components/DocEditor';
 import TodoEditor from './components/TodoEditor';
 import KanbanBoard from './components/KanbanBoard';
-import RoadmapEditor from './components/RoadmapEditor'; // NEW IMPORT
+import RoadmapEditor from './components/RoadmapEditor';
 import { Project, ViewState, ProjectFile, FileType, EditorProps } from './types';
 
-// ... (base64ToBlob and IDB Utils remain unchanged) ...
+// --- UTILS ---
+
 const base64ToBlob = (base64: string): Blob => {
   try {
       const arr = base64.split(',');
@@ -28,6 +29,7 @@ const base64ToBlob = (base64: string): Blob => {
   }
 };
 
+// IndexedDB Wrapper (For Web Mode persistence)
 const IDB = {
     DB_NAME: 'devarchitect_db',
     STORE: 'projects',
@@ -77,13 +79,11 @@ const IDB = {
     }
 };
 
-// UPDATED PLUGINS LIST
 const EDITOR_PLUGINS = [
   { type: 'doc', label: 'Document', pluralLabel: 'Documents', icon: FileText, component: DocEditor, createDefaultContent: (name: string) => `# ${name}\n\nCreated on ${new Date().toLocaleDateString()}` },
   { type: 'flowchart', label: 'Flowchart', pluralLabel: 'Flowcharts', icon: Network, component: FlowchartEditor as React.FC<EditorProps>, createDefaultContent: () => ({ nodes: [], edges: [] }) },
   { type: 'todo', label: 'Task List', pluralLabel: 'Task Lists', icon: CheckSquare, component: TodoEditor as React.FC<EditorProps>, createDefaultContent: () => ({ items: [] }) },
   { type: 'kanban', label: 'Bug Tracker', pluralLabel: 'Bug Trackers', icon: BugIcon, component: KanbanBoard as React.FC<EditorProps>, createDefaultContent: () => ({ tasks: [] }) },
-  // NEW PLUGIN REGISTRATION
   { type: 'roadmap', label: 'Roadmap', pluralLabel: 'Roadmaps', icon: MapIcon, component: RoadmapEditor as React.FC<EditorProps>, createDefaultContent: () => ({ items: [] }) }
 ];
 
@@ -97,6 +97,7 @@ const App: React.FC = () => {
   const [isLocalMode, setIsLocalMode] = useState(false);
   const [isLoaded, setIsLoaded] = useState(false);
   const [directoryHandle, setDirectoryHandle] = useState<any>(null);
+  const [workspaceMode, setWorkspaceMode] = useState<'single' | 'multi' | null>(null);
   
   const [currentView, setCurrentView] = useState<ViewState>(ViewState.DASHBOARD);
   const [activeProjectId, setActiveProjectId] = useState<string | null>(null);
@@ -105,6 +106,9 @@ const App: React.FC = () => {
   // Save Queue Refs for Thread Safety
   const isSavingRef = React.useRef(false);
   const saveQueueRef = React.useRef<Project | null>(null);
+  
+  // Maps Project ID -> Directory Handle (essential for saving back to correct folders)
+  const projectHandlesRef = React.useRef<Map<string, any>>(new Map());
 
   // Initial Load
   useEffect(() => {
@@ -122,7 +126,7 @@ const App: React.FC = () => {
     }
   }, [isLocalMode]);
 
-  // Auto-save (Web Mode Only - IDB handles concurrency well enough for this scale)
+  // Auto-save (Web Mode Only)
   useEffect(() => {
     if (!isLocalMode && isLoaded && projects.length > 0) {
         projects.forEach(p => IDB.save(p));
@@ -134,20 +138,33 @@ const App: React.FC = () => {
   const saveProjectToDisk = async (project: Project) => {
     if (!directoryHandle) return;
     try {
-        const folderName = `${project.name.replace(/[^a-z0-9]/gi, '_')}_${project.id}`;
-        const projectDir = await directoryHandle.getDirectoryHandle(folderName, { create: true });
+        let targetHandle;
 
-        // Save lean JSON (no assets inside JSON)
+        if (workspaceMode === 'single') {
+            // In single mode, the root handle IS the project folder
+            targetHandle = directoryHandle;
+        } else {
+            // Multi mode: Check if we have a handle for this project
+            targetHandle = projectHandlesRef.current.get(project.id);
+
+            // If new project in multi-mode, create folder
+            if (!targetHandle) {
+                const folderName = `${project.name.replace(/[^a-z0-9]/gi, '_')}_${project.id}`;
+                targetHandle = await directoryHandle.getDirectoryHandle(folderName, { create: true });
+                projectHandlesRef.current.set(project.id, targetHandle);
+            }
+        }
+
+        // Save lean JSON
         const leanProject = { ...project, assets: {} }; 
-        
-        const fileHandle = await projectDir.getFileHandle('project.json', { create: true });
+        const fileHandle = await targetHandle.getFileHandle('project.json', { create: true });
         const writable = await fileHandle.createWritable();
         await writable.write(JSON.stringify(leanProject, null, 2));
         await writable.close();
 
         // Save Assets
         if (project.assets && Object.keys(project.assets).length > 0) {
-            const assetsDir = await projectDir.getDirectoryHandle('assets', { create: true });
+            const assetsDir = await targetHandle.getDirectoryHandle('assets', { create: true });
             
             for (const [id, base64] of Object.entries(project.assets)) {
                 const ext = base64.startsWith('data:image/png') ? 'png' : 'jpg';
@@ -163,12 +180,11 @@ const App: React.FC = () => {
     }
   };
 
-  // Queue Processor to prevent file locking issues
   const processSaveQueue = async () => {
     if (isSavingRef.current || !saveQueueRef.current) return;
     
     const projectToSave = saveQueueRef.current;
-    saveQueueRef.current = null; // Dequeue
+    saveQueueRef.current = null;
     isSavingRef.current = true;
 
     try {
@@ -177,7 +193,6 @@ const App: React.FC = () => {
         console.error("Save queue error:", e);
     } finally {
         isSavingRef.current = false;
-        // If new changes arrived while saving, process them next
         if (saveQueueRef.current) {
             processSaveQueue();
         }
@@ -187,14 +202,56 @@ const App: React.FC = () => {
   const deleteProjectFromDisk = async (project: Project) => {
       if (!directoryHandle) return;
       try {
+          if (workspaceMode === 'single') {
+            alert("Cannot delete the root folder while it is open. Please delete it manually via your OS.");
+            return;
+          }
+          // In multi-mode, we try to find the directory name based on handle or convention
+          // Since File System API doesn't easily give name back from handle, we reconstruct typical name
+          // Note: This is imperfect if user renamed folder externally.
           const folderName = `${project.name.replace(/[^a-z0-9]/gi, '_')}_${project.id}`;
           await directoryHandle.removeEntry(folderName, { recursive: true });
       } catch (err) {
           console.error("Failed to delete from disk:", err);
+          alert("Could not delete folder. It might be locked or named differently.");
       }
   };
 
-  const handleOpenWorkspace = async () => {
+  // Helper to load a project from a specific directory handle
+  const loadProjectFromHandle = async (folderHandle: any): Promise<Project | null> => {
+      try {
+          const jsonHandle = await folderHandle.getFileHandle('project.json');
+          const jsonFile = await jsonHandle.getFile();
+          const jsonText = await jsonFile.text();
+          const projectData = JSON.parse(jsonText);
+
+          // Load Assets
+          const assetsMap: Record<string, string> = {};
+          try {
+            const assetsDir = await folderHandle.getDirectoryHandle('assets');
+            // @ts-ignore
+            for await (const assetEntry of assetsDir.values()) {
+                if (assetEntry.kind === 'file') {
+                    const assetFile = await assetEntry.getFile();
+                    const reader = new FileReader();
+                    const base64 = await new Promise<string>((resolve) => {
+                        reader.onload = (e) => resolve(e.target?.result as string);
+                        reader.readAsDataURL(assetFile);
+                    });
+                    const id = assetEntry.name.split('.')[0];
+                    assetsMap[id] = base64;
+                }
+            }
+          } catch (e) { /* Assets folder optional */ }
+
+          projectData.assets = assetsMap;
+          return projectData;
+      } catch (e) {
+          return null; // Not a valid project folder
+      }
+  };
+
+  const handleOpenLocalFolder = async () => {
       // @ts-ignore
       if (typeof window.showDirectoryPicker !== 'function') {
         alert("Browser not supported. Please use Chrome, Edge, or Opera on desktop.");
@@ -203,51 +260,65 @@ const App: React.FC = () => {
 
       try {
           // @ts-ignore
-          const rootHandle = await window.showDirectoryPicker();
-          setDirectoryHandle(rootHandle);
+          const handle = await window.showDirectoryPicker({
+            id: 'devarchitect_open',
+            mode: 'readwrite'
+          });
+
+          // 1. Check if the selected folder IS a project (Single Mode)
+          let isSingleProject = false;
+          try {
+              await handle.getFileHandle('project.json');
+              isSingleProject = true;
+          } catch (e) {}
+
+          const loadedProjects: Project[] = [];
+          projectHandlesRef.current.clear();
+
+          if (isSingleProject) {
+              const project = await loadProjectFromHandle(handle);
+              if (project) {
+                  loadedProjects.push(project);
+                  // We don't really need to store map for single mode, but consistency helps
+                  projectHandlesRef.current.set(project.id, handle);
+              }
+              setWorkspaceMode('single');
+          } else {
+              // 2. Scan subfolders (Multi Mode)
+              // @ts-ignore
+              for await (const entry of handle.values()) {
+                  if (entry.kind === 'directory') {
+                      const subHandle = await handle.getDirectoryHandle(entry.name);
+                      const project = await loadProjectFromHandle(subHandle);
+                      if (project) {
+                          loadedProjects.push(project);
+                          projectHandlesRef.current.set(project.id, subHandle);
+                      }
+                  }
+              }
+              setWorkspaceMode('multi');
+          }
+
+          setDirectoryHandle(handle);
           setIsLocalMode(true);
           
-          const loadedProjects: Project[] = [];
-          
-          // @ts-ignore
-          for await (const entry of rootHandle.values()) {
-              if (entry.kind === 'directory') {
-                  try {
-                      const projectDir = await rootHandle.getDirectoryHandle(entry.name);
-                      const jsonHandle = await projectDir.getFileHandle('project.json');
-                      const jsonFile = await jsonHandle.getFile();
-                      const jsonText = await jsonFile.text();
-                      const projectData = JSON.parse(jsonText);
-
-                      // Load Assets
-                      const assetsMap: Record<string, string> = {};
-                      try {
-                        const assetsDir = await projectDir.getDirectoryHandle('assets');
-                        // @ts-ignore
-                        for await (const assetEntry of assetsDir.values()) {
-                            if (assetEntry.kind === 'file') {
-                                const assetFile = await assetEntry.getFile();
-                                const reader = new FileReader();
-                                const base64 = await new Promise<string>((resolve) => {
-                                    reader.onload = (e) => resolve(e.target?.result as string);
-                                    reader.readAsDataURL(assetFile);
-                                });
-                                const id = assetEntry.name.split('.')[0];
-                                assetsMap[id] = base64;
-                            }
-                        }
-                      } catch (e) {}
-
-                      projectData.assets = assetsMap;
-                      loadedProjects.push(projectData);
-                  } catch (e) {}
-              }
+          if (loadedProjects.length > 0) {
+            setProjects(loadedProjects);
+          } else {
+             if (confirm("No projects found in this folder. Start a new workspace here?")) {
+                 setProjects([]);
+                 // Mode is technically multi if we treat this as a root for new projects
+                 setWorkspaceMode('multi'); 
+             } else {
+                 setIsLocalMode(false);
+                 setDirectoryHandle(null);
+             }
           }
-          setProjects(loadedProjects);
+
       } catch (err: any) {
           if (err.name === 'AbortError') return;
-          console.error("Error opening workspace:", err);
-          alert("Failed to access local folder.");
+          console.error("Error opening folder:", err);
+          alert("Failed to access folder.");
       }
   };
 
@@ -272,7 +343,7 @@ const App: React.FC = () => {
   };
 
   const handleDeleteProject = async (id: string) => {
-    if (confirm("Delete project?")) {
+    if (confirm("Delete project? This will permanently delete files.")) {
       const projectToDelete = projects.find(p => p.id === id);
       if (projectToDelete) {
           if (isLocalMode) await deleteProjectFromDisk(projectToDelete);
@@ -283,27 +354,20 @@ const App: React.FC = () => {
     }
   };
 
-  // --- ZIP EXPORT ---
   const handleExportProject = async (project: Project) => {
     const zip = new JSZip();
-    
-    // 1. Add project.json (Clean, no asset data strings)
     const leanProject = { ...project, assets: {} }; 
     zip.file("project.json", JSON.stringify(leanProject, null, 2));
 
-    // 2. Add Assets folder
     const assetsFolder = zip.folder("assets");
     if (project.assets && assetsFolder) {
         Object.entries(project.assets).forEach(([id, base64]) => {
-            // Remove data URL prefix (data:image/png;base64,)
             const data = base64.split(',')[1]; 
-            // Detect extension from header
             const ext = base64.substring(base64.indexOf('/') + 1, base64.indexOf(';'));
             assetsFolder.file(`${id}.${ext}`, data, {base64: true});
         });
     }
 
-    // 3. Generate & Download
     const content = await zip.generateAsync({type:"blob"});
     const url = window.URL.createObjectURL(content);
     const a = document.createElement('a');
@@ -346,7 +410,6 @@ const App: React.FC = () => {
     });
   };
 
-  // File Operations
   const handleCreateFile = (type: FileType) => {
     if (!activeProjectId) return;
     const plugin = EDITOR_PLUGINS.find(p => p.type === type);
@@ -439,7 +502,7 @@ const App: React.FC = () => {
               onCreateProject={handleCreateProject}
               onExportProject={handleExportProject} 
               onDeleteProject={handleDeleteProject}
-              onOpenWorkspace={handleOpenWorkspace}
+              onOpenFolder={handleOpenLocalFolder}
               isLocalMode={isLocalMode}
             />
           ) : (

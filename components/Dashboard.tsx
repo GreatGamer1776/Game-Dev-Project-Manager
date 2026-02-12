@@ -8,7 +8,7 @@ interface DashboardProps {
   onCreateProject: (name: string, type: Project['type']) => void;
   onExportProject: (project: Project) => void;
   onDeleteProject: (id: string) => void;
-  onOpenWorkspace: () => void;
+  onOpenFolder: () => void;
   isLocalMode: boolean;
 }
 
@@ -18,7 +18,7 @@ const Dashboard: React.FC<DashboardProps> = ({
     onCreateProject, 
     onExportProject, 
     onDeleteProject,
-    onOpenWorkspace,
+    onOpenFolder,
     isLocalMode
 }) => {
   const [isModalOpen, setIsModalOpen] = useState(false);
@@ -61,11 +61,11 @@ const Dashboard: React.FC<DashboardProps> = ({
         <div className="flex gap-3">
             {!isLocalMode && (
                 <button
-                onClick={onOpenWorkspace}
+                onClick={onOpenFolder}
                 className="flex items-center gap-2 bg-zinc-800 text-zinc-200 px-5 py-2.5 rounded-lg font-semibold hover:bg-zinc-700 transition-colors border border-zinc-700"
                 >
                 <FolderOpen className="w-5 h-5" />
-                Open Local Workspace
+                Open Local Folder
                 </button>
             )}
             
@@ -83,7 +83,11 @@ const Dashboard: React.FC<DashboardProps> = ({
         <div className="text-center py-20 border border-dashed border-zinc-800 rounded-2xl bg-zinc-900/30">
           <FileCode className="w-16 h-16 text-zinc-700 mx-auto mb-4" />
           <h3 className="text-xl font-medium text-zinc-300">No projects yet</h3>
-          <p className="text-zinc-500 mt-2 max-w-sm mx-auto">Start planning your next big idea by creating a new project above.</p>
+          <p className="text-zinc-500 mt-2 max-w-sm mx-auto">
+             {isLocalMode 
+               ? "No valid 'project.json' files found in this folder." 
+               : "Start planning your next big idea by creating a new project or opening a local folder."}
+          </p>
         </div>
       ) : (
         <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-6">

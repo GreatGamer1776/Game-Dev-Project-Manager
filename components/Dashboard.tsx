@@ -1,6 +1,6 @@
 import React, { useState } from 'react';
 import { Project } from '../types';
-import { Plus, Code, Gamepad2, Globe, Clock, ChevronRight, FileCode, Download, Trash2, FolderOpen, HardDrive, ArrowLeft } from 'lucide-react';
+import { Plus, Code, Gamepad2, Globe, Clock, ChevronRight, FileCode, Download, Trash2, FolderOpen, HardDrive, Import } from 'lucide-react';
 
 interface DashboardProps {
   projects: Project[];
@@ -8,9 +8,7 @@ interface DashboardProps {
   onCreateProject: (name: string, type: Project['type']) => void;
   onExportProject: (project: Project) => void;
   onDeleteProject: (id: string) => void;
-  onOpenFolder: () => void;
-  onCloseFolder: () => void;
-  isLocalMode: boolean;
+  onImportFolder: () => void;
 }
 
 const Dashboard: React.FC<DashboardProps> = ({ 
@@ -19,9 +17,7 @@ const Dashboard: React.FC<DashboardProps> = ({
     onCreateProject, 
     onExportProject, 
     onDeleteProject,
-    onOpenFolder,
-    onCloseFolder,
-    isLocalMode
+    onImportFolder
 }) => {
   const [isModalOpen, setIsModalOpen] = useState(false);
   const [newProjectName, setNewProjectName] = useState('');
@@ -49,32 +45,18 @@ const Dashboard: React.FC<DashboardProps> = ({
       <div className="flex items-center justify-between mb-8">
         <div>
           <h1 className="text-3xl font-bold text-white tracking-tight flex items-center gap-3">
-             {isLocalMode ? "Local Repository" : "Browser Storage"}
+             Projects
           </h1>
-          <p className="text-zinc-400 mt-2">
-            {isLocalMode 
-                ? "Editing projects directly from your file system." 
-                : "Projects saved in your browser's local storage."}
-          </p>
+          <p className="text-zinc-400 mt-2">Manage your development plans, specs, and architectures.</p>
         </div>
         
         <div className="flex gap-3">
-            {isLocalMode && (
-                <button
-                onClick={onCloseFolder}
-                className="flex items-center gap-2 bg-zinc-800 text-zinc-300 px-5 py-2.5 rounded-lg font-semibold hover:bg-zinc-700 transition-colors border border-zinc-700"
-                >
-                <ArrowLeft className="w-5 h-5" />
-                Back to Browser Storage
-                </button>
-            )}
-            
             <button
-            onClick={onOpenFolder}
+            onClick={onImportFolder}
             className="flex items-center gap-2 bg-zinc-800 text-zinc-200 px-5 py-2.5 rounded-lg font-semibold hover:bg-zinc-700 transition-colors border border-zinc-700"
             >
-            <FolderOpen className="w-5 h-5" />
-            {isLocalMode ? "Switch Folder" : "Open Local Folder"}
+            <Import className="w-5 h-5" />
+            Import Local Folder
             </button>
             
             <button
@@ -91,11 +73,7 @@ const Dashboard: React.FC<DashboardProps> = ({
         <div className="text-center py-20 border border-dashed border-zinc-800 rounded-2xl bg-zinc-900/30">
           <FileCode className="w-16 h-16 text-zinc-700 mx-auto mb-4" />
           <h3 className="text-xl font-medium text-zinc-300">No projects yet</h3>
-          <p className="text-zinc-500 mt-2 max-w-sm mx-auto">
-             {isLocalMode 
-               ? "No valid 'project.json' files found in this folder." 
-               : "Start planning your next big idea by creating a new project or opening a local folder."}
-          </p>
+          <p className="text-zinc-500 mt-2 max-w-sm mx-auto">Start planning by creating a new project or importing an existing folder.</p>
         </div>
       ) : (
         <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-6">
@@ -113,6 +91,14 @@ const Dashboard: React.FC<DashboardProps> = ({
                     <div className="p-3 bg-zinc-950 rounded-lg inline-block border border-zinc-800 group-hover:border-zinc-700 transition-colors">
                       {getTypeIcon(project.type)}
                     </div>
+                    
+                    {/* Local Indicator Icon */}
+                    {project.isLocal && (
+                        <div className="flex items-center gap-1 bg-blue-500/10 border border-blue-500/20 px-2 py-1 rounded text-[10px] text-blue-400 font-bold uppercase tracking-wider">
+                            <HardDrive className="w-3 h-3" />
+                            Local
+                        </div>
+                    )}
                 </div>
                 
                 <h3 className="text-xl font-semibold text-zinc-100 mb-2 group-hover:text-blue-400 transition-colors">{project.name}</h3>
@@ -129,19 +115,18 @@ const Dashboard: React.FC<DashboardProps> = ({
                     {new Date(project.lastModified).toLocaleDateString()}
                  </div>
                  <div className="flex items-center gap-2 opacity-0 group-hover:opacity-100 transition-opacity">
-                    {!isLocalMode && (
-                        <button 
-                        onClick={(e) => { 
-                            e.preventDefault();
-                            e.stopPropagation(); 
-                            onExportProject(project); 
-                        }}
-                        className="p-2 hover:bg-zinc-800 rounded-lg text-zinc-400 hover:text-blue-400 transition-colors"
-                        title="Export JSON"
-                        >
-                        <Download className="w-4 h-4" />
-                        </button>
-                    )}
+                    <button 
+                    onClick={(e) => { 
+                        e.preventDefault();
+                        e.stopPropagation(); 
+                        onExportProject(project); 
+                    }}
+                    className="p-2 hover:bg-zinc-800 rounded-lg text-zinc-400 hover:text-blue-400 transition-colors"
+                    title="Export JSON"
+                    >
+                    <Download className="w-4 h-4" />
+                    </button>
+                    
                     <button 
                       onClick={(e) => { 
                         e.preventDefault();
@@ -149,7 +134,7 @@ const Dashboard: React.FC<DashboardProps> = ({
                         onDeleteProject(project.id); 
                       }}
                       className="p-2 hover:bg-zinc-800 rounded-lg text-zinc-400 hover:text-red-400 transition-colors"
-                      title="Delete Project"
+                      title={project.isLocal ? "Remove from List" : "Delete Permanently"}
                     >
                       <Trash2 className="w-4 h-4" />
                     </button>

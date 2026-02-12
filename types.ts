@@ -61,27 +61,23 @@ export interface KanbanData {
   tasks: Bug[];
 }
 
-// --- NEW: Roadmap Types ---
-
 export type RoadmapItemType = 'phase' | 'milestone';
 export type RoadmapStatus = 'planned' | 'in-progress' | 'completed' | 'delayed' | 'dropped';
 
 export interface RoadmapItem {
   id: string;
   title: string;
-  startDate: string; // ISO Date string YYYY-MM-DD
-  endDate: string;   // For milestones, this equals startDate
+  startDate: string; 
+  endDate: string;   
   type: RoadmapItemType;
   status: RoadmapStatus;
-  progress: number; // 0 to 100
+  progress: number; 
   description?: string;
 }
 
 export interface RoadmapData {
   items: RoadmapItem[];
 }
-
-// --------------------------
 
 export type FileContent = string | FlowchartData | TodoData | KanbanData | RoadmapData | any;
 export type FileType = 'doc' | 'flowchart' | 'todo' | 'kanban' | 'roadmap' | string;
@@ -101,6 +97,7 @@ export interface Project {
   lastModified: number;
   files: ProjectFile[];
   assets: Record<string, string>; 
+  isLocal?: boolean; // NEW: Flag to distinguish local repos
 }
 
 export enum ViewState {

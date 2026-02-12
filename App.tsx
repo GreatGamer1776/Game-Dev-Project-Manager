@@ -29,50 +29,80 @@ const base64ToBlob = (base64: string): Blob => {
   }
 };
 
-// IndexedDB Wrapper (For Web Mode persistence)
+// IndexedDB Wrapper
 const IDB = {
     DB_NAME: 'devarchitect_db',
-    STORE: 'projects',
+    STORE_PROJECTS: 'projects',
+    STORE_HANDLES: 'handles', // New store for FileSystemHandles
     init: function() {
         return new Promise<void>((resolve, reject) => {
-            const req = indexedDB.open(this.DB_NAME, 1);
+            const req = indexedDB.open(this.DB_NAME, 2); // Version 2
             req.onerror = () => reject(req.error);
             req.onupgradeneeded = (e: any) => {
-                e.target.result.createObjectStore(this.STORE, { keyPath: 'id' });
+                const db = e.target.result;
+                if (!db.objectStoreNames.contains(this.STORE_PROJECTS)) {
+                    db.createObjectStore(this.STORE_PROJECTS, { keyPath: 'id' });
+                }
+                if (!db.objectStoreNames.contains(this.STORE_HANDLES)) {
+                    db.createObjectStore(this.STORE_HANDLES); // Key is projectId
+                }
             };
             req.onsuccess = () => resolve();
         });
     },
-    save: function(project: Project) {
+    saveProject: function(project: Project) {
         return new Promise<void>((resolve, reject) => {
-            const req = indexedDB.open(this.DB_NAME, 1);
+            const req = indexedDB.open(this.DB_NAME, 2);
             req.onsuccess = (e: any) => {
-                const tx = e.target.result.transaction([this.STORE], 'readwrite');
-                tx.objectStore(this.STORE).put(project);
+                const tx = e.target.result.transaction([this.STORE_PROJECTS], 'readwrite');
+                tx.objectStore(this.STORE_PROJECTS).put(project);
                 tx.oncomplete = () => resolve();
                 tx.onerror = () => reject(tx.error);
             };
         });
     },
-    loadAll: function() {
-        return new Promise<Project[]>((resolve, reject) => {
-            const req = indexedDB.open(this.DB_NAME, 1);
+    saveHandle: function(id: string, handle: any) {
+        return new Promise<void>((resolve, reject) => {
+            const req = indexedDB.open(this.DB_NAME, 2);
             req.onsuccess = (e: any) => {
-                const tx = e.target.result.transaction([this.STORE], 'readonly');
-                const store = tx.objectStore(this.STORE);
-                const allReq = store.getAll();
-                allReq.onsuccess = () => resolve(allReq.result);
-                allReq.onerror = () => reject(allReq.error);
+                const tx = e.target.result.transaction([this.STORE_HANDLES], 'readwrite');
+                tx.objectStore(this.STORE_HANDLES).put(handle, id);
+                tx.oncomplete = () => resolve();
+                tx.onerror = () => reject(tx.error);
+            };
+        });
+    },
+    loadAllProjects: function() {
+        return new Promise<Project[]>((resolve, reject) => {
+            const req = indexedDB.open(this.DB_NAME, 2);
+            req.onsuccess = (e: any) => {
+                const tx = e.target.result.transaction([this.STORE_PROJECTS], 'readonly');
+                const reqAll = tx.objectStore(this.STORE_PROJECTS).getAll();
+                reqAll.onsuccess = () => resolve(reqAll.result);
+                reqAll.onerror = () => reject(reqAll.error);
             };
             req.onerror = () => resolve([]); 
         });
     },
+    loadHandle: function(id: string) {
+        return new Promise<any>((resolve, reject) => {
+             const req = indexedDB.open(this.DB_NAME, 2);
+             req.onsuccess = (e: any) => {
+                 const tx = e.target.result.transaction([this.STORE_HANDLES], 'readonly');
+                 const reqGet = tx.objectStore(this.STORE_HANDLES).get(id);
+                 reqGet.onsuccess = () => resolve(reqGet.result);
+                 reqGet.onerror = () => resolve(null);
+             };
+             req.onerror = () => resolve(null);
+        });
+    },
     delete: function(id: string) {
         return new Promise<void>((resolve, reject) => {
-            const req = indexedDB.open(this.DB_NAME, 1);
+            const req = indexedDB.open(this.DB_NAME, 2);
             req.onsuccess = (e: any) => {
-                const tx = e.target.result.transaction([this.STORE], 'readwrite');
-                tx.objectStore(this.STORE).delete(id);
+                const tx = e.target.result.transaction([this.STORE_PROJECTS, this.STORE_HANDLES], 'readwrite');
+                tx.objectStore(this.STORE_PROJECTS).delete(id);
+                tx.objectStore(this.STORE_HANDLES).delete(id);
                 tx.oncomplete = () => resolve();
             };
         });
@@ -94,10 +124,7 @@ const MOCK_PROJECTS: Project[] = [{
 
 const App: React.FC = () => {
   const [projects, setProjects] = useState<Project[]>([]);
-  const [isLocalMode, setIsLocalMode] = useState(false);
   const [isLoaded, setIsLoaded] = useState(false);
-  const [directoryHandle, setDirectoryHandle] = useState<any>(null);
-  const [workspaceMode, setWorkspaceMode] = useState<'single' | 'multi' | null>(null);
   
   const [currentView, setCurrentView] = useState<ViewState>(ViewState.DASHBOARD);
   const [activeProjectId, setActiveProjectId] = useState<string | null>(null);
@@ -107,58 +134,58 @@ const App: React.FC = () => {
   const isSavingRef = React.useRef(false);
   const saveQueueRef = React.useRef<Project | null>(null);
   
-  // Maps Project ID -> Directory Handle (essential for saving back to correct folders)
+  // Cache for handles (ID -> Handle)
   const projectHandlesRef = React.useRef<Map<string, any>>(new Map());
 
   // Initial Load
   useEffect(() => {
-    if (!isLocalMode) {
-        IDB.init().then(() => {
-            return IDB.loadAll();
-        }).then(loaded => {
+    const load = async () => {
+        try {
+            await IDB.init();
+            const loaded = await IDB.loadAllProjects();
+            // Load handles into memory cache
+            for (const p of loaded) {
+                if (p.isLocal) {
+                    const handle = await IDB.loadHandle(p.id);
+                    if (handle) projectHandlesRef.current.set(p.id, handle);
+                }
+            }
             setProjects(loaded.length > 0 ? loaded : MOCK_PROJECTS);
-        }).catch(e => {
-            console.error("IDB Error:", e);
+        } catch (e) {
+            console.error("Init error", e);
             setProjects(MOCK_PROJECTS);
-        }).finally(() => {
+        } finally {
             setIsLoaded(true);
-        });
-    }
-  }, [isLocalMode]);
+        }
+    };
+    load();
+  }, []);
 
-  // Auto-save (Web Mode Only)
+  // Auto-save metadata for all projects
   useEffect(() => {
-    if (!isLocalMode && isLoaded && projects.length > 0) {
-        projects.forEach(p => IDB.save(p));
+    if (isLoaded && projects.length > 0) {
+        projects.forEach(p => IDB.saveProject(p));
     }
-  }, [projects, isLocalMode, isLoaded]);
+  }, [projects, isLoaded]);
 
-  // --- LOCAL MODE (DISK) ---
+  // --- DISK OPS ---
 
   const saveProjectToDisk = async (project: Project) => {
-    if (!directoryHandle) return;
+    const handle = projectHandlesRef.current.get(project.id);
+    if (!handle) {
+        // Fallback: Just save to IDB (which is already happening via autosave effect)
+        return; 
+    }
+
     try {
-        let targetHandle;
-
-        if (workspaceMode === 'single') {
-            targetHandle = directoryHandle;
-        } else {
-            targetHandle = projectHandlesRef.current.get(project.id);
-            if (!targetHandle) {
-                const folderName = `${project.name.replace(/[^a-z0-9]/gi, '_')}_${project.id}`;
-                targetHandle = await directoryHandle.getDirectoryHandle(folderName, { create: true });
-                projectHandlesRef.current.set(project.id, targetHandle);
-            }
-        }
-
         const leanProject = { ...project, assets: {} }; 
-        const fileHandle = await targetHandle.getFileHandle('project.json', { create: true });
+        const fileHandle = await handle.getFileHandle('project.json', { create: true });
         const writable = await fileHandle.createWritable();
         await writable.write(JSON.stringify(leanProject, null, 2));
         await writable.close();
 
         if (project.assets && Object.keys(project.assets).length > 0) {
-            const assetsDir = await targetHandle.getDirectoryHandle('assets', { create: true });
+            const assetsDir = await handle.getDirectoryHandle('assets', { create: true });
             for (const [id, base64] of Object.entries(project.assets)) {
                 const ext = base64.startsWith('data:image/png') ? 'png' : 'jpg';
                 const filename = `${id}.${ext}`;
@@ -193,18 +220,12 @@ const App: React.FC = () => {
   };
 
   const deleteProjectFromDisk = async (project: Project) => {
-      if (!directoryHandle) return;
-      try {
-          if (workspaceMode === 'single') {
-            alert("Cannot delete the root folder while it is open. Please delete it manually via your OS.");
-            return;
-          }
-          const folderName = `${project.name.replace(/[^a-z0-9]/gi, '_')}_${project.id}`;
-          await directoryHandle.removeEntry(folderName, { recursive: true });
-      } catch (err) {
-          console.error("Failed to delete from disk:", err);
-          alert("Could not delete folder. It might be locked or named differently.");
-      }
+      // We can't actually delete the user's folder easily without parent handle. 
+      // We just forget it from the app.
+      // If we had parent handle we could, but we store project-level handles.
+      // So 'Delete' for local projects just removes from Dashboard list.
+      await IDB.delete(project.id);
+      projectHandlesRef.current.delete(project.id);
   };
 
   const loadProjectFromHandle = async (folderHandle: any): Promise<Project | null> => {
@@ -233,13 +254,16 @@ const App: React.FC = () => {
           } catch (e) { }
 
           projectData.assets = assetsMap;
+          projectData.isLocal = true; // MARK AS LOCAL
           return projectData;
       } catch (e) {
           return null;
       }
   };
 
-  const handleOpenLocalFolder = async () => {
+  // --- ACTIONS ---
+
+  const handleImportLocalFolder = async () => {
       // @ts-ignore
       if (typeof window.showDirectoryPicker !== 'function') {
         alert("Browser not supported. Please use Chrome, Edge, or Opera on desktop.");
@@ -253,73 +277,86 @@ const App: React.FC = () => {
             mode: 'readwrite'
           });
 
-          let isSingleProject = false;
-          try {
-              await handle.getFileHandle('project.json');
-              isSingleProject = true;
-          } catch (e) {}
+          // Check for project.json in root
+          let rootProject = await loadProjectFromHandle(handle);
+          const newProjects: Project[] = [];
 
-          const loadedProjects: Project[] = [];
-          projectHandlesRef.current.clear();
-
-          if (isSingleProject) {
-              const project = await loadProjectFromHandle(handle);
-              if (project) {
-                  loadedProjects.push(project);
-                  projectHandlesRef.current.set(project.id, handle);
-              }
-              setWorkspaceMode('single');
+          if (rootProject) {
+              newProjects.push(rootProject);
+              await IDB.saveHandle(rootProject.id, handle);
+              projectHandlesRef.current.set(rootProject.id, handle);
           } else {
+              // Try scanning subfolders
               // @ts-ignore
               for await (const entry of handle.values()) {
                   if (entry.kind === 'directory') {
                       const subHandle = await handle.getDirectoryHandle(entry.name);
-                      const project = await loadProjectFromHandle(subHandle);
-                      if (project) {
-                          loadedProjects.push(project);
-                          projectHandlesRef.current.set(project.id, subHandle);
+                      const subProject = await loadProjectFromHandle(subHandle);
+                      if (subProject) {
+                          newProjects.push(subProject);
+                          await IDB.saveHandle(subProject.id, subHandle);
+                          projectHandlesRef.current.set(subProject.id, subHandle);
                       }
                   }
               }
-              setWorkspaceMode('multi');
           }
 
-          setDirectoryHandle(handle);
-          setIsLocalMode(true);
-          
-          if (loadedProjects.length > 0) {
-            setProjects(loadedProjects);
+          if (newProjects.length > 0) {
+              // Merge with existing
+              const newIds = new Set(newProjects.map(p => p.id));
+              setProjects(prev => [...newProjects, ...prev.filter(p => !newIds.has(p.id))]);
+              newProjects.forEach(p => IDB.saveProject(p));
           } else {
-             if (confirm("No projects found in this folder. Start a new workspace here?")) {
-                 setProjects([]);
-                 setWorkspaceMode('multi'); 
-             } else {
-                 // Cancelled
-                 setIsLocalMode(false);
-                 setDirectoryHandle(null);
-             }
+              alert("No 'project.json' found in selected folder or its immediate subfolders.");
           }
-
       } catch (err: any) {
           if (err.name === 'AbortError') return;
           console.error("Error opening folder:", err);
-          alert("Failed to access folder.");
       }
   };
 
-  const handleCloseLocalFolder = () => {
-    setIsLocalMode(false);
-    setDirectoryHandle(null);
-    setWorkspaceMode(null);
-    // Reload IDB projects
-    IDB.loadAll().then(loaded => {
-        setProjects(loaded.length > 0 ? loaded : MOCK_PROJECTS);
-    });
+  const verifyPermission = async (project: Project): Promise<boolean> => {
+      if (!project.isLocal) return true;
+      const handle = projectHandlesRef.current.get(project.id);
+      if (!handle) return false;
+
+      // Check permission
+      if ((await handle.queryPermission({ mode: 'readwrite' })) === 'granted') {
+          return true;
+      }
+      // Request permission
+      if ((await handle.requestPermission({ mode: 'readwrite' })) === 'granted') {
+          return true;
+      }
+      return false;
   };
 
-  // --- ACTIONS ---
+  const handleSelectProject = async (id: string) => {
+      const project = projects.find(p => p.id === id);
+      if (!project) return;
+
+      if (project.isLocal) {
+          const hasPerm = await verifyPermission(project);
+          if (!hasPerm) {
+              alert("Permission to access local folder was denied.");
+              return;
+          }
+          // Refresh data from disk to ensure sync
+          const handle = projectHandlesRef.current.get(id);
+          const freshData = await loadProjectFromHandle(handle);
+          if (freshData) {
+              setProjects(prev => prev.map(p => p.id === id ? freshData : p));
+          }
+      }
+      
+      setActiveProjectId(id);
+      setActiveFileId(project.files[0]?.id || null);
+      setCurrentView(ViewState.PROJECT);
+  };
 
   const handleCreateProject = async (name: string, type: Project['type']) => {
+    // New projects created via UI are always Browser Storage (IDB) only initially
+    // Unless we implement "Create in Folder". For now, IDB only.
     const defaultDocPlugin = EDITOR_PLUGINS.find(p => p.type === 'doc');
     const newProject: Project = {
       id: crypto.randomUUID(),
@@ -329,21 +366,20 @@ const App: React.FC = () => {
     };
     
     setProjects(prev => [newProject, ...prev]);
-    if (isLocalMode) {
-        saveQueueRef.current = newProject;
-        processSaveQueue();
-    } else {
-        IDB.save(newProject);
-    }
+    IDB.saveProject(newProject);
   };
 
   const handleDeleteProject = async (id: string) => {
-    if (confirm("Delete project? This will permanently delete files.")) {
-      const projectToDelete = projects.find(p => p.id === id);
-      if (projectToDelete) {
-          if (isLocalMode) await deleteProjectFromDisk(projectToDelete);
-          else await IDB.delete(id);
-      }
+    const project = projects.find(p => p.id === id);
+    if (!project) return;
+    
+    const msg = project.isLocal 
+        ? "Remove this project from the list? (Files on disk will NOT be deleted)" 
+        : "Delete project permanently?";
+
+    if (confirm(msg)) {
+      await IDB.delete(id);
+      projectHandlesRef.current.delete(id);
       setProjects(prev => prev.filter(p => p.id !== id));
       if (activeProjectId === id) { setActiveProjectId(null); setCurrentView(ViewState.DASHBOARD); }
     }
@@ -375,12 +411,12 @@ const App: React.FC = () => {
   const updateProjectState = (updatedProject: Project) => {
       setProjects(prev => prev.map(p => p.id === updatedProject.id ? updatedProject : p));
       
-      if (isLocalMode) {
+      if (updatedProject.isLocal) {
           saveQueueRef.current = updatedProject;
           processSaveQueue();
-      } else {
-          IDB.save(updatedProject);
       }
+      // Always save metadata to IDB
+      IDB.saveProject(updatedProject);
   };
 
   const handleAddAsset = async (file: File): Promise<string> => {
@@ -461,7 +497,10 @@ const App: React.FC = () => {
         </div>
         <div className="p-4 flex-1 overflow-y-auto custom-scrollbar">
           <div className="mb-6">
-             <div className="flex items-center gap-2 mb-1"><h2 className="text-zinc-100 font-semibold truncate">{activeProject.name}</h2>{isLocalMode && <HardDrive className="w-3 h-3 text-emerald-500" />}</div>
+             <div className="flex items-center gap-2 mb-1">
+                 <h2 className="text-zinc-100 font-semibold truncate">{activeProject.name}</h2>
+                 {activeProject.isLocal && <HardDrive className="w-3.5 h-3.5 text-blue-400" title="Local Repository" />}
+             </div>
              <p className="text-xs text-zinc-500 uppercase tracking-wider">{activeProject.type} Project</p>
           </div>
           <div className="space-y-6">{EDITOR_PLUGINS.map(plugin => {
@@ -493,13 +532,11 @@ const App: React.FC = () => {
           {currentView === ViewState.DASHBOARD ? (
             <Dashboard
               projects={projects}
-              onSelectProject={(id) => { setActiveProjectId(id); const p = projects.find(x => x.id === id); setActiveFileId(p?.files[0]?.id || null); setCurrentView(ViewState.PROJECT); }}
+              onSelectProject={handleSelectProject}
               onCreateProject={handleCreateProject}
               onExportProject={handleExportProject} 
               onDeleteProject={handleDeleteProject}
-              onOpenFolder={handleOpenLocalFolder}
-              onCloseFolder={handleCloseLocalFolder}
-              isLocalMode={isLocalMode}
+              onImportFolder={handleImportLocalFolder}
             />
           ) : (
             activeProject && activeFile ? (

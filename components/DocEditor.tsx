@@ -3,7 +3,7 @@ import ReactMarkdown from 'react-markdown';
 import { 
   Save, Trash2, Bold, Italic, List, ListOrdered, 
   Heading1, Heading2, Quote, Code, Image as ImageIcon, 
-  Eye, Columns, PenTool, Link as LinkIcon 
+  Eye, Columns, PenTool, Link as LinkIcon, Check, Loader2, AlertCircle 
 } from 'lucide-react';
 import { EditorProps } from '../types';
 
@@ -12,12 +12,50 @@ const DocEditor: React.FC<EditorProps> = ({ initialContent, onSave, fileName, as
   const [viewMode, setViewMode] = useState<'edit' | 'preview' | 'split'>('split');
   const [isUploading, setIsUploading] = useState(false);
   
+  // Save Status State
+  const [saveStatus, setSaveStatus] = useState<'saved' | 'saving' | 'unsaved'>('saved');
+  const lastSavedContent = useRef(initialContent);
+
   const textareaRef = useRef<HTMLTextAreaElement>(null);
   const fileInputRef = useRef<HTMLInputElement>(null);
 
   useEffect(() => {
-    setContent(initialContent);
+    if (initialContent !== content && initialContent !== lastSavedContent.current) {
+        setContent(initialContent);
+        lastSavedContent.current = initialContent;
+    }
   }, [initialContent]);
+
+  // Autosave Logic
+  useEffect(() => {
+    if (content === lastSavedContent.current) return;
+
+    setSaveStatus('unsaved');
+    const timer = setTimeout(() => {
+      handleManualSave();
+    }, 1500); // 1.5s debounce
+
+    return () => clearTimeout(timer);
+  }, [content]);
+
+  // Keyboard Shortcuts
+  useEffect(() => {
+    const handleKeyDown = (e: KeyboardEvent) => {
+      if ((e.ctrlKey || e.metaKey) && e.key === 's') {
+        e.preventDefault();
+        handleManualSave();
+      }
+    };
+    window.addEventListener('keydown', handleKeyDown);
+    return () => window.removeEventListener('keydown', handleKeyDown);
+  }, [content]);
+
+  const handleManualSave = () => {
+    setSaveStatus('saving');
+    onSave(content);
+    lastSavedContent.current = content;
+    setTimeout(() => setSaveStatus('saved'), 500); 
+  };
 
   const handleClear = () => {
     if (confirm('Are you sure you want to clear the entire document? This cannot be undone.')) {
@@ -132,13 +170,26 @@ const DocEditor: React.FC<EditorProps> = ({ initialContent, onSave, fileName, as
         </div>
 
         <div className="flex items-center gap-3">
+          <div className="flex items-center mr-2">
+            {saveStatus === 'saving' && <span className="text-xs text-zinc-500 flex items-center gap-1"><Loader2 className="w-3 h-3 animate-spin" /> Saving...</span>}
+            {saveStatus === 'saved' && <span className="text-xs text-zinc-500 flex items-center gap-1 opacity-50"><Check className="w-3 h-3" /> Saved</span>}
+            {saveStatus === 'unsaved' && <span className="text-xs text-orange-400 flex items-center gap-1"><AlertCircle className="w-3 h-3" /> Unsaved</span>}
+          </div>
+
           <div className="flex bg-zinc-800 p-1 rounded-lg border border-zinc-700 hidden sm:flex">
             <button onClick={() => setViewMode('edit')} className={`p-1.5 rounded transition-all ${viewMode === 'edit' ? 'bg-zinc-600 text-white' : 'text-zinc-400'}`} title="Edit Only"><PenTool className="w-4 h-4" /></button>
             <button onClick={() => setViewMode('split')} className={`p-1.5 rounded transition-all ${viewMode === 'split' ? 'bg-zinc-600 text-white' : 'text-zinc-400'}`} title="Split View"><Columns className="w-4 h-4" /></button>
             <button onClick={() => setViewMode('preview')} className={`p-1.5 rounded transition-all ${viewMode === 'preview' ? 'bg-zinc-600 text-white' : 'text-zinc-400'}`} title="Preview Only"><Eye className="w-4 h-4" /></button>
           </div>
           <button onClick={handleClear} className="p-2 hover:bg-red-500/10 rounded text-zinc-500 hover:text-red-400 transition-colors" title="Clear Document"><Trash2 className="w-4 h-4" /></button>
-          <button onClick={() => onSave(content)} className="flex items-center gap-2 bg-emerald-600 hover:bg-emerald-700 text-white px-3 py-1.5 rounded-md text-sm font-medium transition-colors shadow-lg shadow-emerald-900/20"><Save className="w-4 h-4" /><span className="hidden sm:inline">Save</span></button>
+          
+          <button 
+            onClick={handleManualSave} 
+            className={`flex items-center gap-2 px-3 py-1.5 rounded-md text-sm font-medium transition-colors shadow-lg ${saveStatus === 'unsaved' ? 'bg-orange-600 hover:bg-orange-700 text-white shadow-orange-900/20' : 'bg-emerald-600 hover:bg-emerald-700 text-white shadow-emerald-900/20'}`}
+          >
+            <Save className="w-4 h-4" />
+            <span className="hidden sm:inline">Save</span>
+          </button>
         </div>
       </div>
 

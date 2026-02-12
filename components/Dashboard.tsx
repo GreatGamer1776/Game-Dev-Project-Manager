@@ -1,4 +1,3 @@
-
 import React, { useState } from 'react';
 import { Project } from '../types';
 import { Plus, Code, Gamepad2, Globe, Clock, ChevronRight, FileCode, Download, Trash2, FolderOpen, HardDrive } from 'lucide-react';

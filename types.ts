@@ -75,7 +75,6 @@ export interface Project {
   description: string;
   lastModified: number;
   files: ProjectFile[];
-  // NEW: Central storage for images/assets (ID -> Base64)
   assets: Record<string, string>; 
 }
 
@@ -88,7 +87,6 @@ export interface EditorProps {
   initialContent: any;
   onSave: (content: any) => void;
   fileName: string;
-  // NEW: Props for handling assets
   assets?: Record<string, string>;
-  onAddAsset?: (file: File) => Promise<string>; // Returns the asset ID
+  onAddAsset?: (file: File) => Promise<string>; 
 }

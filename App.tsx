@@ -1,6 +1,6 @@
 import React, { useState, useEffect } from 'react';
 import { LayoutDashboard, FileText, Network, ArrowLeft, Plus, Folder, File, CheckSquare, Bug as BugIcon, Trash2, HardDrive, Download, Upload } from 'lucide-react';
-import JSZip from 'jszip'; // NEW: Import JSZip
+import JSZip from 'jszip';
 import Dashboard from './components/Dashboard';
 import FlowchartEditor from './components/FlowchartEditor';
 import DocEditor from './components/DocEditor';
@@ -101,6 +101,10 @@ const App: React.FC = () => {
   const [activeProjectId, setActiveProjectId] = useState<string | null>(null);
   const [activeFileId, setActiveFileId] = useState<string | null>(null);
 
+  // Save Queue Refs for Thread Safety
+  const isSavingRef = React.useRef(false);
+  const saveQueueRef = React.useRef<Project | null>(null);
+
   // Initial Load
   useEffect(() => {
     if (!isLocalMode) {
@@ -117,7 +121,7 @@ const App: React.FC = () => {
     }
   }, [isLocalMode]);
 
-  // Auto-save (Web Mode)
+  // Auto-save (Web Mode Only - IDB handles concurrency well enough for this scale)
   useEffect(() => {
     if (!isLocalMode && isLoaded && projects.length > 0) {
         projects.forEach(p => IDB.save(p));
@@ -155,6 +159,27 @@ const App: React.FC = () => {
         }
     } catch (err) {
         console.error("Failed to save to disk:", err);
+    }
+  };
+
+  // Queue Processor to prevent file locking issues
+  const processSaveQueue = async () => {
+    if (isSavingRef.current || !saveQueueRef.current) return;
+    
+    const projectToSave = saveQueueRef.current;
+    saveQueueRef.current = null; // Dequeue
+    isSavingRef.current = true;
+
+    try {
+        await saveProjectToDisk(projectToSave);
+    } catch (e) {
+        console.error("Save queue error:", e);
+    } finally {
+        isSavingRef.current = false;
+        // If new changes arrived while saving, process them next
+        if (saveQueueRef.current) {
+            processSaveQueue();
+        }
     }
   };
 
@@ -237,8 +262,12 @@ const App: React.FC = () => {
     };
     
     setProjects(prev => [newProject, ...prev]);
-    if (isLocalMode) await saveProjectToDisk(newProject);
-    else IDB.save(newProject);
+    if (isLocalMode) {
+        saveQueueRef.current = newProject;
+        processSaveQueue();
+    } else {
+        IDB.save(newProject);
+    }
   };
 
   const handleDeleteProject = async (id: string) => {
@@ -285,8 +314,13 @@ const App: React.FC = () => {
 
   const updateProjectState = (updatedProject: Project) => {
       setProjects(prev => prev.map(p => p.id === updatedProject.id ? updatedProject : p));
-      if (isLocalMode) saveProjectToDisk(updatedProject);
-      else IDB.save(updatedProject);
+      
+      if (isLocalMode) {
+          saveQueueRef.current = updatedProject;
+          processSaveQueue();
+      } else {
+          IDB.save(updatedProject);
+      }
   };
 
   const handleAddAsset = async (file: File): Promise<string> => {

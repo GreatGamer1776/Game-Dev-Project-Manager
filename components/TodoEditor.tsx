@@ -1,12 +1,14 @@
-
-import React, { useState, useEffect } from 'react';
-import { Save, Plus, Trash2, CheckSquare, Square, Calendar, Flag, ChevronDown, ChevronUp, Search, Filter, ListChecks } from 'lucide-react';
+import React, { useState, useEffect, useRef } from 'react';
+import { Save, Plus, Trash2, CheckSquare, Square, Calendar, Flag, ChevronDown, ChevronUp, Search, Filter, ListChecks, Loader2, Check, AlertCircle } from 'lucide-react';
 import { TodoItem, Priority, SubTask, EditorProps } from '../types';
 
 const TodoEditor: React.FC<EditorProps> = ({ initialContent, onSave, fileName }) => {
-  // Standardization: extract items from initialContent
   const [items, setItems] = useState<TodoItem[]>(initialContent?.items || []);
   
+  // Save Status
+  const [saveStatus, setSaveStatus] = useState<'saved' | 'saving' | 'unsaved'>('saved');
+  const lastSavedData = useRef(JSON.stringify(initialContent?.items || []));
+
   const [newItemText, setNewItemText] = useState('');
   const [newItemPriority, setNewItemPriority] = useState<Priority>('Medium');
   const [newItemDate, setNewItemDate] = useState('');
@@ -20,11 +22,39 @@ const TodoEditor: React.FC<EditorProps> = ({ initialContent, onSave, fileName })
 
   useEffect(() => {
     setItems(initialContent?.items || []);
+    lastSavedData.current = JSON.stringify(initialContent?.items || []);
   }, [initialContent]);
 
-  const handleSave = () => {
-    // Save as standard object { items: [] }
+  // Autosave Logic
+  useEffect(() => {
+    const currentData = JSON.stringify(items);
+    if (currentData === lastSavedData.current) return;
+
+    setSaveStatus('unsaved');
+    const timer = setTimeout(() => {
+      handleManualSave();
+    }, 2000);
+
+    return () => clearTimeout(timer);
+  }, [items]);
+
+  // Keyboard Shortcuts
+  useEffect(() => {
+    const handleKeyDown = (e: KeyboardEvent) => {
+      if ((e.ctrlKey || e.metaKey) && e.key === 's') {
+        e.preventDefault();
+        handleManualSave();
+      }
+    };
+    window.addEventListener('keydown', handleKeyDown);
+    return () => window.removeEventListener('keydown', handleKeyDown);
+  }, [items]);
+
+  const handleManualSave = () => {
+    setSaveStatus('saving');
     onSave({ items });
+    lastSavedData.current = JSON.stringify(items);
+    setTimeout(() => setSaveStatus('saved'), 500);
   };
 
   const handleAddItem = (e?: React.FormEvent) => {
@@ -132,13 +162,22 @@ const TodoEditor: React.FC<EditorProps> = ({ initialContent, onSave, fileName })
     <div className="h-full flex flex-col bg-zinc-900">
       <div className="h-16 border-b border-zinc-800 flex items-center justify-between px-6 bg-zinc-900/50 backdrop-blur-sm sticky top-0 z-10">
         <h3 className="text-zinc-200 font-medium">{fileName}</h3>
-        <button
-          onClick={handleSave}
-          className="flex items-center gap-2 bg-emerald-600 hover:bg-emerald-700 text-white px-4 py-2 rounded-md text-sm font-medium transition-colors shadow-lg shadow-emerald-900/20"
-        >
-          <Save className="w-4 h-4" />
-          Save List
-        </button>
+        
+        <div className="flex items-center gap-3">
+            <div className="flex items-center mr-2">
+                {saveStatus === 'saving' && <span className="text-xs text-zinc-500 flex items-center gap-1"><Loader2 className="w-3 h-3 animate-spin" /> Saving...</span>}
+                {saveStatus === 'saved' && <span className="text-xs text-zinc-500 flex items-center gap-1 opacity-50"><Check className="w-3 h-3" /> Saved</span>}
+                {saveStatus === 'unsaved' && <span className="text-xs text-orange-400 flex items-center gap-1"><AlertCircle className="w-3 h-3" /> Unsaved</span>}
+            </div>
+
+            <button
+            onClick={handleManualSave}
+            className={`flex items-center gap-2 px-4 py-2 rounded-md text-sm font-medium transition-colors shadow-lg ${saveStatus === 'unsaved' ? 'bg-emerald-600 hover:bg-emerald-700 text-white shadow-emerald-900/20' : 'bg-zinc-700 hover:bg-zinc-600 text-zinc-200'}`}
+            >
+            <Save className="w-4 h-4" />
+            Save List
+            </button>
+        </div>
       </div>
 
       <div className="flex-1 overflow-auto custom-scrollbar p-6 lg:p-10">

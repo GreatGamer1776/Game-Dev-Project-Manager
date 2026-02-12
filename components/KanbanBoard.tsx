@@ -1,12 +1,16 @@
-import React, { useState, useEffect } from 'react';
-import { Save, Plus, AlertCircle, ChevronLeft, ChevronRight, X, Trash2, Bug as BugIcon, Search, Filter, Pencil } from 'lucide-react';
+import React, { useState, useEffect, useRef } from 'react';
+import { Save, Plus, AlertCircle, ChevronLeft, ChevronRight, X, Trash2, Bug as BugIcon, Search, Filter, Pencil, Loader2, Check } from 'lucide-react';
 import { Bug, BugSeverity, BugStatus, EditorProps } from '../types';
 
 const KanbanBoard: React.FC<EditorProps> = ({ initialContent, onSave, fileName }) => {
   const [bugs, setBugs] = useState<Bug[]>(initialContent?.tasks || []);
   
+  // Save Status
+  const [saveStatus, setSaveStatus] = useState<'saved' | 'saving' | 'unsaved'>('saved');
+  const lastSavedData = useRef(JSON.stringify(initialContent?.tasks || []));
+
   const [isModalOpen, setIsModalOpen] = useState(false);
-  const [editingBug, setEditingBug] = useState<Bug | null>(null); // New state to track editing
+  const [editingBug, setEditingBug] = useState<Bug | null>(null);
   
   const [searchQuery, setSearchQuery] = useState('');
   const [filterSeverity, setFilterSeverity] = useState<'All' | BugSeverity>('All');
@@ -20,10 +24,39 @@ const KanbanBoard: React.FC<EditorProps> = ({ initialContent, onSave, fileName }
 
   useEffect(() => {
     setBugs(initialContent?.tasks || []);
+    lastSavedData.current = JSON.stringify(initialContent?.tasks || []);
   }, [initialContent]);
 
-  const handleSave = () => {
+  // Autosave Logic
+  useEffect(() => {
+    const currentData = JSON.stringify(bugs);
+    if (currentData === lastSavedData.current) return;
+
+    setSaveStatus('unsaved');
+    const timer = setTimeout(() => {
+      handleManualSave();
+    }, 2000);
+
+    return () => clearTimeout(timer);
+  }, [bugs]);
+
+  // Keyboard Shortcuts
+  useEffect(() => {
+    const handleKeyDown = (e: KeyboardEvent) => {
+      if ((e.ctrlKey || e.metaKey) && e.key === 's') {
+        e.preventDefault();
+        handleManualSave();
+      }
+    };
+    window.addEventListener('keydown', handleKeyDown);
+    return () => window.removeEventListener('keydown', handleKeyDown);
+  }, [bugs]);
+
+  const handleManualSave = () => {
+    setSaveStatus('saving');
     onSave({ tasks: bugs });
+    lastSavedData.current = JSON.stringify(bugs);
+    setTimeout(() => setSaveStatus('saved'), 500);
   };
 
   const columns: BugStatus[] = ['Open', 'In Progress', 'Resolved', 'Closed'];
@@ -59,7 +92,6 @@ const KanbanBoard: React.FC<EditorProps> = ({ initialContent, onSave, fileName }
     if (!newTitle.trim()) return;
 
     if (editingBug) {
-      // Edit existing bug
       setBugs(prev => prev.map(b => b.id === editingBug.id ? {
         ...b,
         title: newTitle,
@@ -67,7 +99,6 @@ const KanbanBoard: React.FC<EditorProps> = ({ initialContent, onSave, fileName }
         severity: newSeverity
       } : b));
     } else {
-      // Create new bug
       const newBug: Bug = {
         id: crypto.randomUUID(),
         title: newTitle,
@@ -154,20 +185,28 @@ const KanbanBoard: React.FC<EditorProps> = ({ initialContent, onSave, fileName }
           <h3 className="text-zinc-200 font-medium">{fileName}</h3>
         </div>
         <div className="flex gap-3">
-          <button
-            onClick={handleOpenCreate}
-            className="flex items-center gap-2 bg-zinc-800 hover:bg-zinc-700 text-zinc-200 px-4 py-2 rounded-md text-sm font-medium transition-colors border border-zinc-700"
-          >
-            <Plus className="w-4 h-4" />
-            Report Bug
-          </button>
-          <button
-            onClick={handleSave}
-            className="flex items-center gap-2 bg-blue-600 hover:bg-blue-700 text-white px-4 py-2 rounded-md text-sm font-medium transition-colors shadow-lg shadow-blue-900/20"
-          >
-            <Save className="w-4 h-4" />
-            Save Board
-          </button>
+          <div className="flex items-center gap-3">
+            <div className="flex items-center mr-2">
+                {saveStatus === 'saving' && <span className="text-xs text-zinc-500 flex items-center gap-1"><Loader2 className="w-3 h-3 animate-spin" /> Saving...</span>}
+                {saveStatus === 'saved' && <span className="text-xs text-zinc-500 flex items-center gap-1 opacity-50"><Check className="w-3 h-3" /> Saved</span>}
+                {saveStatus === 'unsaved' && <span className="text-xs text-orange-400 flex items-center gap-1"><AlertCircle className="w-3 h-3" /> Unsaved</span>}
+            </div>
+
+            <button
+                onClick={handleOpenCreate}
+                className="flex items-center gap-2 bg-zinc-800 hover:bg-zinc-700 text-zinc-200 px-4 py-2 rounded-md text-sm font-medium transition-colors border border-zinc-700"
+            >
+                <Plus className="w-4 h-4" />
+                Report Bug
+            </button>
+            <button
+                onClick={handleManualSave}
+                className={`flex items-center gap-2 px-4 py-2 rounded-md text-sm font-medium transition-colors shadow-lg ${saveStatus === 'unsaved' ? 'bg-blue-600 hover:bg-blue-700 text-white shadow-blue-900/20' : 'bg-zinc-700 hover:bg-zinc-600 text-zinc-200'}`}
+            >
+                <Save className="w-4 h-4" />
+                Save Board
+            </button>
+          </div>
         </div>
       </div>
 

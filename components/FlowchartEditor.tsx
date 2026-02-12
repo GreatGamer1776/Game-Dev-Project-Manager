@@ -1,5 +1,4 @@
-
-import React, { useCallback, useMemo } from 'react';
+import React, { useCallback, useMemo, useState, useRef, useEffect } from 'react';
 import ReactFlow, {
   Background,
   Controls,
@@ -17,7 +16,7 @@ import ReactFlow, {
   useReactFlow,
   ReactFlowProvider,
 } from 'reactflow';
-import { Save, MousePointer2, Square, Circle, Diamond, Database, PlayCircle, Trash2 } from 'lucide-react';
+import { Save, MousePointer2, Square, Circle, Diamond, Database, PlayCircle, Trash2, Check, Loader2, AlertCircle } from 'lucide-react';
 import { EditorProps } from '../types';
 
 // --- Custom Node Components ---
@@ -66,6 +65,42 @@ const FlowchartEditorContent: React.FC<EditorProps> = ({ initialContent, onSave,
   const [edges, setEdges, onEdgesChange] = useEdgesState(initialEdges);
   const { deleteElements } = useReactFlow();
 
+  // Save State
+  const [saveStatus, setSaveStatus] = useState<'saved' | 'saving' | 'unsaved'>('saved');
+  const lastSavedData = useRef(JSON.stringify({ nodes: initialNodes, edges: initialEdges }));
+
+  // Autosave Logic
+  useEffect(() => {
+    const currentData = JSON.stringify({ nodes, edges });
+    if (currentData === lastSavedData.current) return;
+
+    setSaveStatus('unsaved');
+    const timer = setTimeout(() => {
+      handleManualSave();
+    }, 2000);
+
+    return () => clearTimeout(timer);
+  }, [nodes, edges]);
+
+  // Keyboard Shortcuts
+  useEffect(() => {
+    const handleKeyDown = (e: KeyboardEvent) => {
+      if ((e.ctrlKey || e.metaKey) && e.key === 's') {
+        e.preventDefault();
+        handleManualSave();
+      }
+    };
+    window.addEventListener('keydown', handleKeyDown);
+    return () => window.removeEventListener('keydown', handleKeyDown);
+  }, [nodes, edges]);
+
+  const handleManualSave = () => {
+    setSaveStatus('saving');
+    onSave({ nodes, edges });
+    lastSavedData.current = JSON.stringify({ nodes, edges });
+    setTimeout(() => setSaveStatus('saved'), 500);
+  };
+
   // Define custom node types
   const nodeTypes = useMemo(() => ({
     diamond: DiamondNode,
@@ -76,6 +111,7 @@ const FlowchartEditorContent: React.FC<EditorProps> = ({ initialContent, onSave,
   React.useEffect(() => {
     setNodes(initialNodes);
     setEdges(initialEdges);
+    lastSavedData.current = JSON.stringify({ nodes: initialNodes, edges: initialEdges });
   }, [initialNodes, initialEdges, setNodes, setEdges]);
 
   const onConnect = useCallback(
@@ -134,11 +170,6 @@ const FlowchartEditorContent: React.FC<EditorProps> = ({ initialContent, onSave,
     }
   };
 
-  const handleSave = () => {
-    // Save as standard content object
-    onSave({ nodes, edges });
-  };
-
   return (
     <div className="h-full w-full flex flex-col bg-zinc-900">
       <div className="h-16 border-b border-zinc-800 flex items-center px-4 justify-between bg-zinc-900/50 backdrop-blur-sm z-10">
@@ -173,13 +204,22 @@ const FlowchartEditorContent: React.FC<EditorProps> = ({ initialContent, onSave,
              <span className="text-xs font-medium hidden sm:inline">Delete Selected</span>
           </button>
         </div>
-        <button
-          onClick={handleSave}
-          className="flex items-center gap-2 bg-blue-600 hover:bg-blue-700 text-white px-4 py-2 rounded-md text-sm font-medium transition-colors shadow-lg shadow-blue-900/20"
-        >
-          <Save className="w-4 h-4" />
-          Save
-        </button>
+
+        <div className="flex items-center gap-3">
+             <div className="flex items-center mr-2">
+                {saveStatus === 'saving' && <span className="text-xs text-zinc-500 flex items-center gap-1"><Loader2 className="w-3 h-3 animate-spin" /> Saving...</span>}
+                {saveStatus === 'saved' && <span className="text-xs text-zinc-500 flex items-center gap-1 opacity-50"><Check className="w-3 h-3" /> Saved</span>}
+                {saveStatus === 'unsaved' && <span className="text-xs text-orange-400 flex items-center gap-1"><AlertCircle className="w-3 h-3" /> Unsaved</span>}
+            </div>
+            
+            <button
+            onClick={handleManualSave}
+            className={`flex items-center gap-2 px-4 py-2 rounded-md text-sm font-medium transition-colors shadow-lg ${saveStatus === 'unsaved' ? 'bg-blue-600 hover:bg-blue-700 text-white shadow-blue-900/20' : 'bg-zinc-700 hover:bg-zinc-600 text-zinc-200'}`}
+            >
+            <Save className="w-4 h-4" />
+            Save
+            </button>
+        </div>
       </div>
 
       <div className="flex-1 h-full w-full relative">

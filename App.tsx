@@ -141,13 +141,9 @@ const App: React.FC = () => {
         let targetHandle;
 
         if (workspaceMode === 'single') {
-            // In single mode, the root handle IS the project folder
             targetHandle = directoryHandle;
         } else {
-            // Multi mode: Check if we have a handle for this project
             targetHandle = projectHandlesRef.current.get(project.id);
-
-            // If new project in multi-mode, create folder
             if (!targetHandle) {
                 const folderName = `${project.name.replace(/[^a-z0-9]/gi, '_')}_${project.id}`;
                 targetHandle = await directoryHandle.getDirectoryHandle(folderName, { create: true });
@@ -155,17 +151,14 @@ const App: React.FC = () => {
             }
         }
 
-        // Save lean JSON
         const leanProject = { ...project, assets: {} }; 
         const fileHandle = await targetHandle.getFileHandle('project.json', { create: true });
         const writable = await fileHandle.createWritable();
         await writable.write(JSON.stringify(leanProject, null, 2));
         await writable.close();
 
-        // Save Assets
         if (project.assets && Object.keys(project.assets).length > 0) {
             const assetsDir = await targetHandle.getDirectoryHandle('assets', { create: true });
-            
             for (const [id, base64] of Object.entries(project.assets)) {
                 const ext = base64.startsWith('data:image/png') ? 'png' : 'jpg';
                 const filename = `${id}.${ext}`;
@@ -206,9 +199,6 @@ const App: React.FC = () => {
             alert("Cannot delete the root folder while it is open. Please delete it manually via your OS.");
             return;
           }
-          // In multi-mode, we try to find the directory name based on handle or convention
-          // Since File System API doesn't easily give name back from handle, we reconstruct typical name
-          // Note: This is imperfect if user renamed folder externally.
           const folderName = `${project.name.replace(/[^a-z0-9]/gi, '_')}_${project.id}`;
           await directoryHandle.removeEntry(folderName, { recursive: true });
       } catch (err) {
@@ -217,7 +207,6 @@ const App: React.FC = () => {
       }
   };
 
-  // Helper to load a project from a specific directory handle
   const loadProjectFromHandle = async (folderHandle: any): Promise<Project | null> => {
       try {
           const jsonHandle = await folderHandle.getFileHandle('project.json');
@@ -225,7 +214,6 @@ const App: React.FC = () => {
           const jsonText = await jsonFile.text();
           const projectData = JSON.parse(jsonText);
 
-          // Load Assets
           const assetsMap: Record<string, string> = {};
           try {
             const assetsDir = await folderHandle.getDirectoryHandle('assets');
@@ -242,12 +230,12 @@ const App: React.FC = () => {
                     assetsMap[id] = base64;
                 }
             }
-          } catch (e) { /* Assets folder optional */ }
+          } catch (e) { }
 
           projectData.assets = assetsMap;
           return projectData;
       } catch (e) {
-          return null; // Not a valid project folder
+          return null;
       }
   };
 
@@ -265,7 +253,6 @@ const App: React.FC = () => {
             mode: 'readwrite'
           });
 
-          // 1. Check if the selected folder IS a project (Single Mode)
           let isSingleProject = false;
           try {
               await handle.getFileHandle('project.json');
@@ -279,12 +266,10 @@ const App: React.FC = () => {
               const project = await loadProjectFromHandle(handle);
               if (project) {
                   loadedProjects.push(project);
-                  // We don't really need to store map for single mode, but consistency helps
                   projectHandlesRef.current.set(project.id, handle);
               }
               setWorkspaceMode('single');
           } else {
-              // 2. Scan subfolders (Multi Mode)
               // @ts-ignore
               for await (const entry of handle.values()) {
                   if (entry.kind === 'directory') {
@@ -307,9 +292,9 @@ const App: React.FC = () => {
           } else {
              if (confirm("No projects found in this folder. Start a new workspace here?")) {
                  setProjects([]);
-                 // Mode is technically multi if we treat this as a root for new projects
                  setWorkspaceMode('multi'); 
              } else {
+                 // Cancelled
                  setIsLocalMode(false);
                  setDirectoryHandle(null);
              }
@@ -320,6 +305,16 @@ const App: React.FC = () => {
           console.error("Error opening folder:", err);
           alert("Failed to access folder.");
       }
+  };
+
+  const handleCloseLocalFolder = () => {
+    setIsLocalMode(false);
+    setDirectoryHandle(null);
+    setWorkspaceMode(null);
+    // Reload IDB projects
+    IDB.loadAll().then(loaded => {
+        setProjects(loaded.length > 0 ? loaded : MOCK_PROJECTS);
+    });
   };
 
   // --- ACTIONS ---
@@ -503,6 +498,7 @@ const App: React.FC = () => {
               onExportProject={handleExportProject} 
               onDeleteProject={handleDeleteProject}
               onOpenFolder={handleOpenLocalFolder}
+              onCloseFolder={handleCloseLocalFolder}
               isLocalMode={isLocalMode}
             />
           ) : (

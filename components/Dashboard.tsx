@@ -1,6 +1,6 @@
 import React, { useState } from 'react';
 import { Project } from '../types';
-import { Plus, Code, Gamepad2, Globe, Clock, ChevronRight, FileCode, Download, Trash2, FolderOpen, HardDrive } from 'lucide-react';
+import { Plus, Code, Gamepad2, Globe, Clock, ChevronRight, FileCode, Download, Trash2, FolderOpen, HardDrive, ArrowLeft } from 'lucide-react';
 
 interface DashboardProps {
   projects: Project[];
@@ -9,6 +9,7 @@ interface DashboardProps {
   onExportProject: (project: Project) => void;
   onDeleteProject: (id: string) => void;
   onOpenFolder: () => void;
+  onCloseFolder: () => void;
   isLocalMode: boolean;
 }
 
@@ -19,6 +20,7 @@ const Dashboard: React.FC<DashboardProps> = ({
     onExportProject, 
     onDeleteProject,
     onOpenFolder,
+    onCloseFolder,
     isLocalMode
 }) => {
   const [isModalOpen, setIsModalOpen] = useState(false);
@@ -47,27 +49,33 @@ const Dashboard: React.FC<DashboardProps> = ({
       <div className="flex items-center justify-between mb-8">
         <div>
           <h1 className="text-3xl font-bold text-white tracking-tight flex items-center gap-3">
-             Projects
-             {isLocalMode && (
-                 <span className="px-3 py-1 bg-emerald-900/30 text-emerald-400 border border-emerald-900 rounded-full text-xs font-medium flex items-center gap-1.5">
-                     <HardDrive className="w-3 h-3" />
-                     Local Mode Active
-                 </span>
-             )}
+             {isLocalMode ? "Local Repository" : "Browser Storage"}
           </h1>
-          <p className="text-zinc-400 mt-2">Manage your development plans, specs, and architectures.</p>
+          <p className="text-zinc-400 mt-2">
+            {isLocalMode 
+                ? "Editing projects directly from your file system." 
+                : "Projects saved in your browser's local storage."}
+          </p>
         </div>
         
         <div className="flex gap-3">
-            {!isLocalMode && (
+            {isLocalMode && (
                 <button
-                onClick={onOpenFolder}
-                className="flex items-center gap-2 bg-zinc-800 text-zinc-200 px-5 py-2.5 rounded-lg font-semibold hover:bg-zinc-700 transition-colors border border-zinc-700"
+                onClick={onCloseFolder}
+                className="flex items-center gap-2 bg-zinc-800 text-zinc-300 px-5 py-2.5 rounded-lg font-semibold hover:bg-zinc-700 transition-colors border border-zinc-700"
                 >
-                <FolderOpen className="w-5 h-5" />
-                Open Local Folder
+                <ArrowLeft className="w-5 h-5" />
+                Back to Browser Storage
                 </button>
             )}
+            
+            <button
+            onClick={onOpenFolder}
+            className="flex items-center gap-2 bg-zinc-800 text-zinc-200 px-5 py-2.5 rounded-lg font-semibold hover:bg-zinc-700 transition-colors border border-zinc-700"
+            >
+            <FolderOpen className="w-5 h-5" />
+            {isLocalMode ? "Switch Folder" : "Open Local Folder"}
+            </button>
             
             <button
             onClick={() => setIsModalOpen(true)}

@@ -80,7 +80,7 @@ export interface RoadmapData {
 }
 
 export type FileContent = string | FlowchartData | TodoData | KanbanData | RoadmapData | any;
-export type FileType = 'doc' | 'flowchart' | 'todo' | 'kanban' | 'roadmap' | string;
+export type FileType = 'doc' | 'flowchart' | 'todo' | 'kanban' | 'roadmap' | 'grid' | 'whiteboard' | string;
 
 export interface ProjectFile {
   id: string;

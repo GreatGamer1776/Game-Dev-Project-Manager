@@ -1,5 +1,5 @@
 import React, { useState, useEffect } from 'react';
-import { LayoutDashboard, FileText, Network, ArrowLeft, Plus, Folder, File, CheckSquare, Bug as BugIcon, Trash2, HardDrive, Download, Upload, Map as MapIcon, Table, PenTool } from 'lucide-react';
+import { LayoutDashboard, FileText, Network, ArrowLeft, Plus, Folder, File, CheckSquare, Bug as BugIcon, Trash2, HardDrive, Download, Upload, Map as MapIcon, Table, PenTool, Image as ImageIcon } from 'lucide-react';
 import JSZip from 'jszip';
 import Dashboard from './components/Dashboard';
 import FlowchartEditor from './components/FlowchartEditor';
@@ -9,6 +9,8 @@ import KanbanBoard from './components/KanbanBoard';
 import RoadmapEditor from './components/RoadmapEditor';
 import DataGridEditor from './components/DataGridEditor';
 import WhiteboardEditor from './components/WhiteboardEditor';
+import AssetBrowser from './components/AssetBrowser';
+import CommandPalette from './components/CommandPalette';
 import { Project, ViewState, ProjectFile, FileType, EditorProps } from './types';
 
 // --- UTILS ---
@@ -31,14 +33,14 @@ const base64ToBlob = (base64: string): Blob => {
   }
 };
 
-// IndexedDB Wrapper
+// IndexedDB Wrapper (v2 with handles store)
 const IDB = {
     DB_NAME: 'devarchitect_db',
     STORE_PROJECTS: 'projects',
-    STORE_HANDLES: 'handles', // New store for FileSystemHandles
+    STORE_HANDLES: 'handles',
     init: function() {
         return new Promise<void>((resolve, reject) => {
-            const req = indexedDB.open(this.DB_NAME, 2); // Version 2
+            const req = indexedDB.open(this.DB_NAME, 2);
             req.onerror = () => reject(req.error);
             req.onupgradeneeded = (e: any) => {
                 const db = e.target.result;
@@ -117,9 +119,9 @@ const EDITOR_PLUGINS = [
   { type: 'todo', label: 'Task List', pluralLabel: 'Task Lists', icon: CheckSquare, component: TodoEditor as React.FC<EditorProps>, createDefaultContent: () => ({ items: [] }) },
   { type: 'kanban', label: 'Bug Tracker', pluralLabel: 'Bug Trackers', icon: BugIcon, component: KanbanBoard as React.FC<EditorProps>, createDefaultContent: () => ({ tasks: [] }) },
   { type: 'roadmap', label: 'Roadmap', pluralLabel: 'Roadmaps', icon: MapIcon, component: RoadmapEditor as React.FC<EditorProps>, createDefaultContent: () => ({ items: [] }) },
-  // NEW PLUGINS
   { type: 'grid', label: 'Data Grid', pluralLabel: 'Data Grids', icon: Table, component: DataGridEditor as React.FC<EditorProps>, createDefaultContent: () => ({ columns: [], rows: [] }) },
-  { type: 'whiteboard', label: 'Whiteboard', pluralLabel: 'Whiteboards', icon: PenTool, component: WhiteboardEditor as React.FC<EditorProps>, createDefaultContent: () => '' } // Content is dataURL string
+  { type: 'whiteboard', label: 'Whiteboard', pluralLabel: 'Whiteboards', icon: PenTool, component: WhiteboardEditor as React.FC<EditorProps>, createDefaultContent: () => '' },
+  { type: 'asset-gallery', label: 'Asset Library', pluralLabel: 'Asset Libraries', icon: ImageIcon, component: AssetBrowser as React.FC<EditorProps>, createDefaultContent: () => ({}) }
 ];
 
 const MOCK_PROJECTS: Project[] = [{
@@ -130,10 +132,11 @@ const MOCK_PROJECTS: Project[] = [{
 const App: React.FC = () => {
   const [projects, setProjects] = useState<Project[]>([]);
   const [isLoaded, setIsLoaded] = useState(false);
-  
   const [currentView, setCurrentView] = useState<ViewState>(ViewState.DASHBOARD);
   const [activeProjectId, setActiveProjectId] = useState<string | null>(null);
   const [activeFileId, setActiveFileId] = useState<string | null>(null);
+  
+  const [isPaletteOpen, setIsPaletteOpen] = useState(false);
 
   // Save Queue Refs for Thread Safety
   const isSavingRef = React.useRef(false);
@@ -166,20 +169,31 @@ const App: React.FC = () => {
     load();
   }, []);
 
-  // Auto-save metadata for all projects
+  // Auto-save metadata for all projects to IDB
   useEffect(() => {
     if (isLoaded && projects.length > 0) {
         projects.forEach(p => IDB.saveProject(p));
     }
   }, [projects, isLoaded]);
 
-  // --- DISK OPS ---
+  // Global Keyboard Listener for Command Palette
+  useEffect(() => {
+    const handleKeyDown = (e: KeyboardEvent) => {
+      if ((e.ctrlKey || e.metaKey) && e.key === 'k') {
+        e.preventDefault();
+        setIsPaletteOpen(prev => !prev);
+      }
+    };
+    window.addEventListener('keydown', handleKeyDown);
+    return () => window.removeEventListener('keydown', handleKeyDown);
+  }, []);
+
+  // --- DISK OPERATIONS ---
 
   const saveProjectToDisk = async (project: Project) => {
     const handle = projectHandlesRef.current.get(project.id);
     if (!handle) {
-        // Fallback: Just save to IDB (which is already happening via autosave effect)
-        return; 
+        return; // Browser-storage project, IDB autosave handles it
     }
 
     try {
@@ -225,10 +239,7 @@ const App: React.FC = () => {
   };
 
   const deleteProjectFromDisk = async (project: Project) => {
-      // We can't actually delete the user's folder easily without parent handle. 
-      // We just forget it from the app.
-      // If we had parent handle we could, but we store project-level handles.
-      // So 'Delete' for local projects just removes from Dashboard list.
+      // For local projects, we only forget the reference in IDB/App
       await IDB.delete(project.id);
       projectHandlesRef.current.delete(project.id);
   };
@@ -259,7 +270,7 @@ const App: React.FC = () => {
           } catch (e) { }
 
           projectData.assets = assetsMap;
-          projectData.isLocal = true; // MARK AS LOCAL
+          projectData.isLocal = true; // Mark as Local Repo
           return projectData;
       } catch (e) {
           return null;
@@ -291,7 +302,7 @@ const App: React.FC = () => {
               await IDB.saveHandle(rootProject.id, handle);
               projectHandlesRef.current.set(rootProject.id, handle);
           } else {
-              // Try scanning subfolders
+              // Try scanning immediate subfolders
               // @ts-ignore
               for await (const entry of handle.values()) {
                   if (entry.kind === 'directory') {
@@ -307,7 +318,7 @@ const App: React.FC = () => {
           }
 
           if (newProjects.length > 0) {
-              // Merge with existing
+              // Merge with existing state, avoiding duplicates
               const newIds = new Set(newProjects.map(p => p.id));
               setProjects(prev => [...newProjects, ...prev.filter(p => !newIds.has(p.id))]);
               newProjects.forEach(p => IDB.saveProject(p));
@@ -325,11 +336,9 @@ const App: React.FC = () => {
       const handle = projectHandlesRef.current.get(project.id);
       if (!handle) return false;
 
-      // Check permission
       if ((await handle.queryPermission({ mode: 'readwrite' })) === 'granted') {
           return true;
       }
-      // Request permission
       if ((await handle.requestPermission({ mode: 'readwrite' })) === 'granted') {
           return true;
       }
@@ -360,8 +369,7 @@ const App: React.FC = () => {
   };
 
   const handleCreateProject = async (name: string, type: Project['type']) => {
-    // New projects created via UI are always Browser Storage (IDB) only initially
-    // Unless we implement "Create in Folder". For now, IDB only.
+    // New projects created via UI are Browser Storage by default
     const defaultDocPlugin = EDITOR_PLUGINS.find(p => p.type === 'doc');
     const newProject: Project = {
       id: crypto.randomUUID(),
@@ -420,7 +428,6 @@ const App: React.FC = () => {
           saveQueueRef.current = updatedProject;
           processSaveQueue();
       }
-      // Always save metadata to IDB
       IDB.saveProject(updatedProject);
   };
 
@@ -556,6 +563,16 @@ const App: React.FC = () => {
             ) : <div className="flex flex-col items-center justify-center h-full text-zinc-500"><File className="w-16 h-16 mb-4 opacity-20" /><p>Select a file to edit</p></div>
           )}
         </div>
+        
+        <CommandPalette 
+            isOpen={isPaletteOpen} 
+            onClose={() => setIsPaletteOpen(false)}
+            projects={projects}
+            activeProject={activeProject}
+            onSelectFile={(id) => { setActiveFileId(id); }}
+            onSelectProject={handleSelectProject}
+            onCreateFile={handleCreateFile}
+        />
       </main>
     </div>
   );

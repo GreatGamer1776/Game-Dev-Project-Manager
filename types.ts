@@ -67,11 +67,11 @@ export type RoadmapStatus = 'planned' | 'in-progress' | 'completed' | 'delayed' 
 export interface RoadmapItem {
   id: string;
   title: string;
-  startDate: string; 
-  endDate: string;   
+  startDate: string; // ISO Date string YYYY-MM-DD
+  endDate: string;   // For milestones, this equals startDate
   type: RoadmapItemType;
   status: RoadmapStatus;
-  progress: number; 
+  progress: number; // 0 to 100
   description?: string;
 }
 
@@ -79,8 +79,36 @@ export interface RoadmapData {
   items: RoadmapItem[];
 }
 
-export type FileContent = string | FlowchartData | TodoData | KanbanData | RoadmapData | any;
-export type FileType = 'doc' | 'flowchart' | 'todo' | 'kanban' | 'roadmap' | 'grid' | 'whiteboard' | string;
+// Data Grid Types
+export interface GridColumn {
+  id: string;
+  name: string;
+  type: 'text' | 'number' | 'boolean';
+}
+
+export interface GridRow {
+  id: string;
+  [key: string]: any;
+}
+
+export interface GridData {
+  columns: GridColumn[];
+  rows: GridRow[];
+}
+
+export type FileContent = string | FlowchartData | TodoData | KanbanData | RoadmapData | GridData | any;
+
+// Updated FileType union with all new tools
+export type FileType = 
+  | 'doc' 
+  | 'flowchart' 
+  | 'todo' 
+  | 'kanban' 
+  | 'roadmap' 
+  | 'grid' 
+  | 'whiteboard' 
+  | 'asset-gallery' 
+  | string;
 
 export interface ProjectFile {
   id: string;
@@ -97,7 +125,7 @@ export interface Project {
   lastModified: number;
   files: ProjectFile[];
   assets: Record<string, string>; 
-  isLocal?: boolean; // NEW: Flag to distinguish local repos
+  isLocal?: boolean; // Flag to identify local repository projects
 }
 
 export enum ViewState {

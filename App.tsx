@@ -33,7 +33,7 @@ const base64ToBlob = (base64: string): Blob => {
   }
 };
 
-// IndexedDB Wrapper (v2 with handles store)
+// IndexedDB Wrapper
 const IDB = {
     DB_NAME: 'devarchitect_db',
     STORE_PROJECTS: 'projects',
@@ -48,7 +48,7 @@ const IDB = {
                     db.createObjectStore(this.STORE_PROJECTS, { keyPath: 'id' });
                 }
                 if (!db.objectStoreNames.contains(this.STORE_HANDLES)) {
-                    db.createObjectStore(this.STORE_HANDLES); // Key is projectId
+                    db.createObjectStore(this.STORE_HANDLES); 
                 }
             };
             req.onsuccess = () => resolve();
@@ -138,20 +138,15 @@ const App: React.FC = () => {
   
   const [isPaletteOpen, setIsPaletteOpen] = useState(false);
 
-  // Save Queue Refs for Thread Safety
   const isSavingRef = React.useRef(false);
   const saveQueueRef = React.useRef<Project | null>(null);
-  
-  // Cache for handles (ID -> Handle)
   const projectHandlesRef = React.useRef<Map<string, any>>(new Map());
 
-  // Initial Load
   useEffect(() => {
     const load = async () => {
         try {
             await IDB.init();
             const loaded = await IDB.loadAllProjects();
-            // Load handles into memory cache
             for (const p of loaded) {
                 if (p.isLocal) {
                     const handle = await IDB.loadHandle(p.id);
@@ -169,14 +164,12 @@ const App: React.FC = () => {
     load();
   }, []);
 
-  // Auto-save metadata for all projects to IDB
   useEffect(() => {
     if (isLoaded && projects.length > 0) {
         projects.forEach(p => IDB.saveProject(p));
     }
   }, [projects, isLoaded]);
 
-  // Global Keyboard Listener for Command Palette
   useEffect(() => {
     const handleKeyDown = (e: KeyboardEvent) => {
       if ((e.ctrlKey || e.metaKey) && e.key === 'k') {
@@ -188,12 +181,12 @@ const App: React.FC = () => {
     return () => window.removeEventListener('keydown', handleKeyDown);
   }, []);
 
-  // --- DISK OPERATIONS ---
+  // --- DISK OPS ---
 
   const saveProjectToDisk = async (project: Project) => {
     const handle = projectHandlesRef.current.get(project.id);
     if (!handle) {
-        return; // Browser-storage project, IDB autosave handles it
+        return; 
     }
 
     try {
@@ -239,7 +232,6 @@ const App: React.FC = () => {
   };
 
   const deleteProjectFromDisk = async (project: Project) => {
-      // For local projects, we only forget the reference in IDB/App
       await IDB.delete(project.id);
       projectHandlesRef.current.delete(project.id);
   };
@@ -270,7 +262,7 @@ const App: React.FC = () => {
           } catch (e) { }
 
           projectData.assets = assetsMap;
-          projectData.isLocal = true; // Mark as Local Repo
+          projectData.isLocal = true;
           return projectData;
       } catch (e) {
           return null;
@@ -293,7 +285,6 @@ const App: React.FC = () => {
             mode: 'readwrite'
           });
 
-          // Check for project.json in root
           let rootProject = await loadProjectFromHandle(handle);
           const newProjects: Project[] = [];
 
@@ -302,7 +293,6 @@ const App: React.FC = () => {
               await IDB.saveHandle(rootProject.id, handle);
               projectHandlesRef.current.set(rootProject.id, handle);
           } else {
-              // Try scanning immediate subfolders
               // @ts-ignore
               for await (const entry of handle.values()) {
                   if (entry.kind === 'directory') {
@@ -318,7 +308,6 @@ const App: React.FC = () => {
           }
 
           if (newProjects.length > 0) {
-              // Merge with existing state, avoiding duplicates
               const newIds = new Set(newProjects.map(p => p.id));
               setProjects(prev => [...newProjects, ...prev.filter(p => !newIds.has(p.id))]);
               newProjects.forEach(p => IDB.saveProject(p));
@@ -355,7 +344,6 @@ const App: React.FC = () => {
               alert("Permission to access local folder was denied.");
               return;
           }
-          // Refresh data from disk to ensure sync
           const handle = projectHandlesRef.current.get(id);
           const freshData = await loadProjectFromHandle(handle);
           if (freshData) {
@@ -369,7 +357,6 @@ const App: React.FC = () => {
   };
 
   const handleCreateProject = async (name: string, type: Project['type']) => {
-    // New projects created via UI are Browser Storage by default
     const defaultDocPlugin = EDITOR_PLUGINS.find(p => p.type === 'doc');
     const newProject: Project = {
       id: crypto.randomUUID(),
@@ -451,6 +438,41 @@ const App: React.FC = () => {
         };
         reader.readAsDataURL(file);
     });
+  };
+
+  const handleDeleteAsset = async (assetId: string) => {
+    if (!activeProjectId) return;
+    const project = projects.find(p => p.id === activeProjectId);
+    if (project) {
+        const newAssets = { ...project.assets };
+        delete newAssets[assetId];
+        
+        const updatedProject = {
+            ...project,
+            lastModified: Date.now(),
+            assets: newAssets
+        };
+        updateProjectState(updatedProject);
+
+        if (project.isLocal) {
+             const handle = projectHandlesRef.current.get(project.id);
+             if (handle) {
+                 try {
+                     const assetsDir = await handle.getDirectoryHandle('assets');
+                     // We try to find any file starting with ID to delete
+                     // @ts-ignore
+                     for await (const entry of assetsDir.values()) {
+                         if (entry.name.startsWith(assetId + '.')) {
+                             await assetsDir.removeEntry(entry.name);
+                             break;
+                         }
+                     }
+                 } catch (e) {
+                     console.error("Failed to delete asset file from disk", e);
+                 }
+             }
+        }
+    }
   };
 
   const handleCreateFile = (type: FileType) => {
@@ -558,7 +580,8 @@ const App: React.FC = () => {
                     initialContent: activeFile.content,
                     onSave: updateFileContent,
                     assets: activeProject.assets || {},
-                    onAddAsset: handleAddAsset
+                    onAddAsset: handleAddAsset,
+                    onDeleteAsset: handleDeleteAsset
                 })
             ) : <div className="flex flex-col items-center justify-center h-full text-zinc-500"><File className="w-16 h-16 mb-4 opacity-20" /><p>Select a file to edit</p></div>
           )}

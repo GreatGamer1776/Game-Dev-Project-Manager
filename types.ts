@@ -67,11 +67,11 @@ export type RoadmapStatus = 'planned' | 'in-progress' | 'completed' | 'delayed' 
 export interface RoadmapItem {
   id: string;
   title: string;
-  startDate: string; // ISO Date string YYYY-MM-DD
-  endDate: string;   // For milestones, this equals startDate
+  startDate: string; 
+  endDate: string;   
   type: RoadmapItemType;
   status: RoadmapStatus;
-  progress: number; // 0 to 100
+  progress: number; 
   description?: string;
 }
 
@@ -79,7 +79,6 @@ export interface RoadmapData {
   items: RoadmapItem[];
 }
 
-// Data Grid Types
 export interface GridColumn {
   id: string;
   name: string;
@@ -98,7 +97,6 @@ export interface GridData {
 
 export type FileContent = string | FlowchartData | TodoData | KanbanData | RoadmapData | GridData | any;
 
-// Updated FileType union with all new tools
 export type FileType = 
   | 'doc' 
   | 'flowchart' 
@@ -125,7 +123,7 @@ export interface Project {
   lastModified: number;
   files: ProjectFile[];
   assets: Record<string, string>; 
-  isLocal?: boolean; // Flag to identify local repository projects
+  isLocal?: boolean;
 }
 
 export enum ViewState {
@@ -139,4 +137,5 @@ export interface EditorProps {
   fileName: string;
   assets?: Record<string, string>;
   onAddAsset?: (file: File) => Promise<string>; 
+  onDeleteAsset?: (assetId: string) => void; // NEW
 }

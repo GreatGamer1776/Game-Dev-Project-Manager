@@ -2,14 +2,12 @@ import React, { useState } from 'react';
 import { Upload, Trash2, Image as ImageIcon, Copy, Search, Grid, Check, Download } from 'lucide-react';
 import { EditorProps } from '../types';
 
-const AssetBrowser: React.FC<EditorProps> = ({ assets = {}, onAddAsset, onSave, fileName }) => {
+const AssetBrowser: React.FC<EditorProps> = ({ assets = {}, onAddAsset, onDeleteAsset, onSave, fileName }) => {
   const [searchQuery, setSearchQuery] = useState('');
   const [copiedId, setCopiedId] = useState<string | null>(null);
 
-  // 1. Convert the assets object (Key: Value) into an array of objects [{id, data}, {id, data}]
   const assetList = Object.entries(assets).map(([id, data]) => ({ id, data }));
 
-  // 2. Filter the list based on the search query
   const filteredAssets = assetList.filter((item) => 
     item.id.toLowerCase().includes(searchQuery.toLowerCase())
   );
@@ -31,6 +29,16 @@ const AssetBrowser: React.FC<EditorProps> = ({ assets = {}, onAddAsset, onSave, 
     navigator.clipboard.writeText(`asset://${id}`);
     setCopiedId(id);
     setTimeout(() => setCopiedId(null), 2000);
+  };
+
+  const handleDelete = (id: string) => {
+      if (!onDeleteAsset) {
+          alert("Delete functionality not available.");
+          return;
+      }
+      if (confirm("Delete this asset permanently? It will disappear from all documents/whiteboards using it.")) {
+          onDeleteAsset(id);
+      }
   };
 
   const downloadAsset = (data: string, id: string) => {
@@ -75,11 +83,6 @@ const AssetBrowser: React.FC<EditorProps> = ({ assets = {}, onAddAsset, onSave, 
             </div>
         ) : (
             <div className="grid grid-cols-2 md:grid-cols-3 lg:grid-cols-4 xl:grid-cols-5 gap-6">
-                {/* 
-                    FIX: We use object destructuring { id, data } here.
-                    The previous error happened because it was trying to use array destructuring [id, data]
-                    on an object, which is not iterable.
-                */}
                 {filteredAssets.map(({ id, data }) => (
                     <div key={id} className="group bg-zinc-950 border border-zinc-800 rounded-xl overflow-hidden hover:border-zinc-600 transition-all shadow-sm hover:shadow-xl">
                         {/* Image Preview */}
@@ -91,7 +94,7 @@ const AssetBrowser: React.FC<EditorProps> = ({ assets = {}, onAddAsset, onSave, 
                                 <button 
                                     onClick={() => handleCopy(id)}
                                     className="p-2 bg-white text-black rounded-full hover:scale-110 transition-transform" 
-                                    title="Copy ID for Markdown"
+                                    title="Copy ID"
                                 >
                                     {copiedId === id ? <Check className="w-4 h-4" /> : <Copy className="w-4 h-4" />}
                                 </button>
@@ -101,6 +104,13 @@ const AssetBrowser: React.FC<EditorProps> = ({ assets = {}, onAddAsset, onSave, 
                                     title="Download"
                                 >
                                     <Download className="w-4 h-4" />
+                                </button>
+                                <button 
+                                    onClick={() => handleDelete(id)}
+                                    className="p-2 bg-red-600 text-white rounded-full hover:scale-110 transition-transform"
+                                    title="Delete Asset"
+                                >
+                                    <Trash2 className="w-4 h-4" />
                                 </button>
                             </div>
                         </div>

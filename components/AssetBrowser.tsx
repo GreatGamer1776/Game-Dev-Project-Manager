@@ -6,11 +6,12 @@ const AssetBrowser: React.FC<EditorProps> = ({ assets = {}, onAddAsset, onSave, 
   const [searchQuery, setSearchQuery] = useState('');
   const [copiedId, setCopiedId] = useState<string | null>(null);
 
-  // Convert assets object to array for easier filtering
+  // 1. Convert the assets object (Key: Value) into an array of objects [{id, data}, {id, data}]
   const assetList = Object.entries(assets).map(([id, data]) => ({ id, data }));
 
-  const filteredAssets = assetList.filter(([id]) => 
-    id.toLowerCase().includes(searchQuery.toLowerCase())
+  // 2. Filter the list based on the search query
+  const filteredAssets = assetList.filter((item) => 
+    item.id.toLowerCase().includes(searchQuery.toLowerCase())
   );
 
   const handleUpload = () => {
@@ -30,29 +31,6 @@ const AssetBrowser: React.FC<EditorProps> = ({ assets = {}, onAddAsset, onSave, 
     navigator.clipboard.writeText(`asset://${id}`);
     setCopiedId(id);
     setTimeout(() => setCopiedId(null), 2000);
-  };
-
-  const handleDelete = (id: string) => {
-    if(confirm("Delete this asset permanently? It will disappear from all documents/whiteboards using it.")) {
-        // Create a copy of assets without the deleted key
-        const newAssets = { ...assets };
-        delete newAssets[id];
-        // We cheat slightly here: standard EditorProps expects content to be passed to onSave.
-        // For this specific 'editor', we might need to signal the App to update the Project assets.
-        // However, the App handles 'onSave' by updating file content. 
-        // To strictly follow the pattern without refactoring App.tsx, 
-        // we'd usually need a specific prop for deleting assets.
-        // For now, we will just alert that this view is read-only for deletions 
-        // unless we pass a specific handler, OR we can rely on the user knowing 
-        // this is a viewer. 
-        
-        // *Better approach for this specific codebase:*
-        // Since we can't easily bubble a "Delete Asset" up through the generic 'onSave' 
-        // (which saves *File Content*, not *Project Assets*), 
-        // we will implement the upload (which works via the prop) but disable delete for now 
-        // to keep it safe, or rely on the App.tsx to pass a specific prop if we refactored.
-        alert("To delete assets, please implement `onDeleteAsset` in App.tsx. (Visualized only)");
-    }
   };
 
   const downloadAsset = (data: string, id: string) => {
@@ -97,7 +75,12 @@ const AssetBrowser: React.FC<EditorProps> = ({ assets = {}, onAddAsset, onSave, 
             </div>
         ) : (
             <div className="grid grid-cols-2 md:grid-cols-3 lg:grid-cols-4 xl:grid-cols-5 gap-6">
-                {filteredAssets.map(([id, data]) => (
+                {/* 
+                    FIX: We use object destructuring { id, data } here.
+                    The previous error happened because it was trying to use array destructuring [id, data]
+                    on an object, which is not iterable.
+                */}
+                {filteredAssets.map(({ id, data }) => (
                     <div key={id} className="group bg-zinc-950 border border-zinc-800 rounded-xl overflow-hidden hover:border-zinc-600 transition-all shadow-sm hover:shadow-xl">
                         {/* Image Preview */}
                         <div className="aspect-square bg-[#101012] relative flex items-center justify-center overflow-hidden bg-[url('data:image/svg+xml;base64,PHN2ZyB3aWR0aD0iMjAiIGhlaWdodD0iMjAiIHhtbG5zPSJodHRwOi8vd3d3LnczLm9yZy8yMDAwL3N2ZyI+PHBhdGggZD0iTTAgMGgyMHYyMEgwem0xMCAxMGgxMHYxMEgxMHoiIGZpbGw9IiMxODE4MWIiIGZpbGwtb3BhY2l0eT0iMC40Ii8+PC9zdmc+')]">

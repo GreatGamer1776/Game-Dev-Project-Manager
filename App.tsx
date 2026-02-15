@@ -1,4 +1,3 @@
---- FILE: Game-Dev-Project-Manager/App.tsx ---
 import React, { useState, useEffect } from 'react';
 import { LayoutDashboard, FileText, Network, ArrowLeft, Plus, Folder, File, CheckSquare, Bug as BugIcon, Trash2, HardDrive, Download, Upload, Map as MapIcon, Table, PenTool, Image as ImageIcon, HelpCircle } from 'lucide-react';
 import JSZip from 'jszip';

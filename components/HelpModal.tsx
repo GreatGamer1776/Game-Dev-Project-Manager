@@ -1,4 +1,3 @@
---- FILE: Game-Dev-Project-Manager/components/HelpModal.tsx ---
 import React from 'react';
 import { X, FileText, Network, CheckSquare, Bug, Map, Table, PenTool, Image as ImageIcon, LayoutDashboard, Box } from 'lucide-react';
 

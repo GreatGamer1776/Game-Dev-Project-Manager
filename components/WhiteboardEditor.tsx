@@ -1,4 +1,3 @@
---- FILE: Game-Dev-Project-Manager/components/WhiteboardEditor.tsx ---
 import React, { useRef, useState, useEffect } from 'react';
 import { Save, Eraser, Pen, Trash2, Loader2, Check, AlertCircle, Image as ImageIcon, X, Move, Maximize2 } from 'lucide-react';
 import { EditorProps } from '../types';

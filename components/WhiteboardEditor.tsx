@@ -1,5 +1,5 @@
 import React, { useRef, useState, useEffect } from 'react';
-import { Save, Eraser, Pen, Trash2, Loader2, Check, AlertCircle, Image as ImageIcon, X, Move, Maximize2 } from 'lucide-react';
+import { Save, Eraser, Pen, Trash2, Loader2, Check, AlertCircle, Image as ImageIcon, X, Maximize2 } from 'lucide-react';
 import { EditorProps } from '../types';
 
 type ToolType = 'pen' | 'eraser';
@@ -35,7 +35,7 @@ const WhiteboardEditor: React.FC<EditorProps> = ({ initialContent, onSave, fileN
   const [saveStatus, setSaveStatus] = useState<'saved' | 'saving' | 'unsaved'>('saved');
   const lastSavedData = useRef(initialContent);
 
-  // Floating Image State (Import -> Move/Resize -> Stamp)
+  // Floating Image State
   const [floatingImage, setFloatingImage] = useState<PendingImage | null>(null);
   const [isDraggingImage, setIsDraggingImage] = useState(false);
   const [isResizingImage, setIsResizingImage] = useState(false);
@@ -49,7 +49,7 @@ const WhiteboardEditor: React.FC<EditorProps> = ({ initialContent, onSave, fileN
     const ctx = canvas.getContext('2d', { willReadFrequently: true });
     if (!ctx) return;
 
-    // 1. Fill background immediately to prevent transparency glitches
+    // 1. Fill background immediately
     ctx.fillStyle = '#09090b';
     ctx.fillRect(0, 0, canvas.width, canvas.height);
 
@@ -76,8 +76,6 @@ const WhiteboardEditor: React.FC<EditorProps> = ({ initialContent, onSave, fileN
   };
 
   const startDrawing = (e: React.MouseEvent) => {
-    // If placing an image, clicking outside doesn't draw, it might confirm or just ignore.
-    // We allow drawing ONLY if not hovering the floating image (handled by z-index/events on div)
     if (floatingImage || isAssetMenuOpen) {
         setIsAssetMenuOpen(false);
         return;
@@ -91,7 +89,7 @@ const WhiteboardEditor: React.FC<EditorProps> = ({ initialContent, onSave, fileN
     ctx.beginPath();
     ctx.moveTo(x, y);
     
-    // Ensure we are using the latest settings from state closure
+    // Explicitly grab latest state
     const currentSettings = settings[activeTool];
     ctx.strokeStyle = activeTool === 'eraser' ? '#09090b' : currentSettings.color;
     ctx.lineWidth = currentSettings.width;
@@ -129,12 +127,10 @@ const WhiteboardEditor: React.FC<EditorProps> = ({ initialContent, onSave, fileN
       const img = new Image();
       img.src = base64;
       img.onload = () => {
-          // Place in center of CURRENT view
           const viewRect = container.getBoundingClientRect();
           const scrollX = container.scrollLeft;
           const scrollY = container.scrollTop;
           
-          // Default size (max 400px width, keep aspect)
           const maxWidth = 400;
           const scale = img.width > maxWidth ? maxWidth / img.width : 1;
           const width = img.width * scale;
@@ -162,7 +158,7 @@ const WhiteboardEditor: React.FC<EditorProps> = ({ initialContent, onSave, fileN
       img.src = floatingImage.src;
       img.onload = () => {
           ctx.drawImage(img, floatingImage.x, floatingImage.y, floatingImage.width, floatingImage.height);
-          setFloatingImage(null); // Clear floating state
+          setFloatingImage(null); 
           setSaveStatus('unsaved');
           handleManualSave();
       };
@@ -175,7 +171,7 @@ const WhiteboardEditor: React.FC<EditorProps> = ({ initialContent, onSave, fileN
   // --- FLOATING IMAGE INTERACTION ---
 
   const handleImageMouseDown = (e: React.MouseEvent) => {
-      e.stopPropagation(); // Prevent canvas drawing
+      e.stopPropagation();
       if (!floatingImage) return;
       setIsDraggingImage(true);
       dragOffset.current = {
@@ -189,11 +185,10 @@ const WhiteboardEditor: React.FC<EditorProps> = ({ initialContent, onSave, fileN
       setIsResizingImage(true);
       dragOffset.current = {
           x: e.clientX,
-          y: e.clientY // Store initial mouse pos
+          y: e.clientY 
       };
   };
 
-  // Global mouse move for dragging/resizing image overlay
   const handleWindowMouseMove = (e: React.MouseEvent) => {
       if (isDraggingImage && floatingImage) {
           setFloatingImage({
@@ -203,7 +198,6 @@ const WhiteboardEditor: React.FC<EditorProps> = ({ initialContent, onSave, fileN
           });
       } else if (isResizingImage && floatingImage) {
           const deltaX = e.clientX - dragOffset.current.x;
-          // Maintain aspect ratio logic could go here
           const newWidth = Math.max(50, floatingImage.width + deltaX);
           const newHeight = newWidth / floatingImage.originalAspect;
           
@@ -212,7 +206,7 @@ const WhiteboardEditor: React.FC<EditorProps> = ({ initialContent, onSave, fileN
               width: newWidth,
               height: newHeight
           });
-          dragOffset.current = { x: e.clientX, y: e.clientY }; // Reset for next delta
+          dragOffset.current = { x: e.clientX, y: e.clientY };
       }
   };
 
@@ -233,12 +227,18 @@ const WhiteboardEditor: React.FC<EditorProps> = ({ initialContent, onSave, fileN
   const handleManualSave = () => {
     const canvas = canvasRef.current;
     if (!canvas) return;
-    const dataUrl = canvas.toDataURL('image/png');
-    if (dataUrl !== lastSavedData.current) {
-        setSaveStatus('saving');
-        onSave(dataUrl);
-        lastSavedData.current = dataUrl;
-        setTimeout(() => setSaveStatus('saved'), 500);
+    // Note: LibreWolf with RFP enabled might return white noise here
+    try {
+        const dataUrl = canvas.toDataURL('image/png');
+        if (dataUrl !== lastSavedData.current) {
+            setSaveStatus('saving');
+            onSave(dataUrl);
+            lastSavedData.current = dataUrl;
+            setTimeout(() => setSaveStatus('saved'), 500);
+        }
+    } catch (e) {
+        console.error("Canvas save blocked", e);
+        setSaveStatus('unsaved');
     }
   };
 
@@ -295,17 +295,15 @@ const WhiteboardEditor: React.FC<EditorProps> = ({ initialContent, onSave, fileN
             {/* Settings */}
             <div className="flex items-center gap-3 bg-zinc-800/50 px-3 py-1.5 rounded-lg border border-zinc-800 hidden md:flex">
                 {activeTool === 'pen' && (
-                    <div className="flex items-center gap-2 relative group">
-                        <div className="w-6 h-6 rounded-full border border-zinc-600 cursor-pointer overflow-hidden shadow-inner relative" style={{ backgroundColor: settings.pen.color }}>
-                            <input 
-                                type="color" 
-                                value={settings.pen.color} 
-                                onInput={(e) => updateSetting('color', (e.target as HTMLInputElement).value)}
-                                onChange={(e) => updateSetting('color', (e.target as HTMLInputElement).value)}
-                                className="opacity-0 absolute inset-0 w-full h-full cursor-pointer"
-                                title="Change Color"
-                            />
-                        </div>
+                    <div className="flex items-center gap-2">
+                        {/* Standard Color Input for Reliability */}
+                        <input 
+                            type="color"
+                            value={settings.pen.color}
+                            onChange={(e) => updateSetting('color', e.target.value)}
+                            className="w-8 h-8 rounded cursor-pointer bg-transparent border-none"
+                            title="Pen Color"
+                        />
                     </div>
                 )}
                 

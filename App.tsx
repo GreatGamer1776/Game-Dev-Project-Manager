@@ -1,5 +1,6 @@
+--- FILE: Game-Dev-Project-Manager/App.tsx ---
 import React, { useState, useEffect } from 'react';
-import { LayoutDashboard, FileText, Network, ArrowLeft, Plus, Folder, File, CheckSquare, Bug as BugIcon, Trash2, HardDrive, Download, Upload, Map as MapIcon, Table, PenTool, Image as ImageIcon } from 'lucide-react';
+import { LayoutDashboard, FileText, Network, ArrowLeft, Plus, Folder, File, CheckSquare, Bug as BugIcon, Trash2, HardDrive, Download, Upload, Map as MapIcon, Table, PenTool, Image as ImageIcon, HelpCircle } from 'lucide-react';
 import JSZip from 'jszip';
 import Dashboard from './components/Dashboard';
 import FlowchartEditor from './components/FlowchartEditor';
@@ -11,6 +12,7 @@ import DataGridEditor from './components/DataGridEditor';
 import WhiteboardEditor from './components/WhiteboardEditor';
 import AssetBrowser from './components/AssetBrowser';
 import CommandPalette from './components/CommandPalette';
+import HelpModal from './components/HelpModal';
 import { Project, ViewState, ProjectFile, FileType, EditorProps } from './types';
 
 // --- UTILS ---
@@ -137,6 +139,7 @@ const App: React.FC = () => {
   const [activeFileId, setActiveFileId] = useState<string | null>(null);
   
   const [isPaletteOpen, setIsPaletteOpen] = useState(false);
+  const [isHelpOpen, setIsHelpOpen] = useState(false);
 
   const isSavingRef = React.useRef(false);
   const saveQueueRef = React.useRef<Project | null>(null);
@@ -521,6 +524,12 @@ const App: React.FC = () => {
         <aside className="w-16 md:w-20 bg-zinc-950 border-r border-zinc-800 flex flex-col items-center py-6 gap-6 z-20">
           <div className="w-10 h-10 bg-gradient-to-br from-blue-500 to-purple-600 rounded-xl flex items-center justify-center shadow-lg shadow-blue-900/20 mb-4"><Folder className="w-6 h-6 text-white" /></div>
           <button className="p-3 rounded-xl bg-zinc-800 text-white shadow-md" title="Dashboard"><LayoutDashboard className="w-5 h-5" /></button>
+          
+          <div className="mt-auto">
+             <button onClick={() => setIsHelpOpen(true)} className="p-3 rounded-xl text-zinc-500 hover:bg-zinc-800 hover:text-white transition-colors" title="Help">
+                <HelpCircle className="w-5 h-5" />
+             </button>
+          </div>
         </aside>
       );
     }
@@ -553,6 +562,13 @@ const App: React.FC = () => {
                     </div>
                 );
             })}</div>
+        </div>
+        
+        <div className="p-4 border-t border-zinc-800">
+             <button onClick={() => setIsHelpOpen(true)} className="flex items-center gap-3 px-3 py-2 text-zinc-500 hover:text-white hover:bg-zinc-900 rounded-lg w-full transition-colors">
+                <HelpCircle className="w-4 h-4" />
+                <span className="text-sm">Guide & Help</span>
+             </button>
         </div>
       </aside>
     );
@@ -596,6 +612,8 @@ const App: React.FC = () => {
             onSelectProject={handleSelectProject}
             onCreateFile={handleCreateFile}
         />
+        
+        <HelpModal isOpen={isHelpOpen} onClose={() => setIsHelpOpen(false)} />
       </main>
     </div>
   );

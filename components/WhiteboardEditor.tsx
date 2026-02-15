@@ -1,3 +1,4 @@
+--- FILE: Game-Dev-Project-Manager/components/WhiteboardEditor.tsx ---
 import React, { useRef, useState, useEffect } from 'react';
 import { Save, Eraser, Pen, Trash2, Loader2, Check, AlertCircle, Image as ImageIcon, X, Move, Maximize2 } from 'lucide-react';
 import { EditorProps } from '../types';
@@ -91,6 +92,7 @@ const WhiteboardEditor: React.FC<EditorProps> = ({ initialContent, onSave, fileN
     ctx.beginPath();
     ctx.moveTo(x, y);
     
+    // Ensure we are using the latest settings from state closure
     const currentSettings = settings[activeTool];
     ctx.strokeStyle = activeTool === 'eraser' ? '#09090b' : currentSettings.color;
     ctx.lineWidth = currentSettings.width;
@@ -299,8 +301,10 @@ const WhiteboardEditor: React.FC<EditorProps> = ({ initialContent, onSave, fileN
                             <input 
                                 type="color" 
                                 value={settings.pen.color} 
-                                onChange={(e) => updateSetting('color', e.target.value)}
+                                onInput={(e) => updateSetting('color', (e.target as HTMLInputElement).value)}
+                                onChange={(e) => updateSetting('color', (e.target as HTMLInputElement).value)}
                                 className="opacity-0 absolute inset-0 w-full h-full cursor-pointer"
+                                title="Change Color"
                             />
                         </div>
                     </div>

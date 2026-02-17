@@ -9,11 +9,8 @@ import { EditorProps } from '../types';
 
 // --- CUSTOM PARSER LOGIC ---
 
-// A lightweight parser to handle Markdown + HTML + Custom Media types
-// This replaces ReactMarkdown to allow specific features like Color, Underline, and AV players.
 const parseDoc = (text: string, assets: Record<string, string>) => {
     
-    // Helper to resolve asset:// links to their base64/blob data
     const resolveSrc = (src: string) => {
         if (!src) return '';
         if (src.startsWith('asset://')) {
@@ -39,7 +36,6 @@ const parseDoc = (text: string, assets: Record<string, string>) => {
             continue;
         }
         if (inCodeBlock) {
-            // Escape HTML in code blocks to prevent rendering
             const escaped = line.replace(/&/g, "&amp;").replace(/</g, "&lt;").replace(/>/g, "&gt;");
             html += `${escaped}\n`;
             continue;
@@ -76,13 +72,12 @@ const parseDoc = (text: string, assets: Record<string, string>) => {
             continue;
         }
 
-        // 5. Media (Images/Video/Audio) using Markdown Image Syntax: ![alt](src)
+        // 5. Media
         const mediaMatch = line.match(/^!\[(.*?)\]\((.*?)\)$/);
         if (mediaMatch) {
             const [_, alt, src] = mediaMatch;
             const resolved = resolveSrc(src);
             
-            // Heuristic detection of media type
             const isVideo = resolved.startsWith('data:video') || src.match(/\.(mp4|webm|mov)$/i);
             const isAudio = resolved.startsWith('data:audio') || src.match(/\.(mp3|wav|ogg)$/i);
 
@@ -114,7 +109,6 @@ const parseDoc = (text: string, assets: Record<string, string>) => {
     return html;
 };
 
-// Inline parser for Bold, Italic, Link, Inline Code, Color, Underline
 const parseInline = (text: string, assets: Record<string, string>) => {
     let out = text;
 
@@ -127,17 +121,16 @@ const parseInline = (text: string, assets: Record<string, string>) => {
     // Strikethrough (~~text~~)
     out = out.replace(/~~(.*?)~~/g, '<s class="opacity-60 text-zinc-500 decoration-zinc-500">$1</s>');
     
-    // Underline (<u>text</u>) - We respect the HTML tag
+    // Underline (<u>text</u>)
     out = out.replace(/<u>(.*?)<\/u>/g, '<u class="decoration-blue-500 decoration-2 underline-offset-4">$1</u>');
 
-    // Color Spans (<span style="color:...">text</span>)
-    // We trust the local input here for color styles
+    // Color Spans
     out = out.replace(/<span style="color: (.*?)">(.*?)<\/span>/g, '<span style="color: $1">$2</span>');
 
-    // Inline Code (`text`)
+    // Inline Code
     out = out.replace(/`([^`]+)`/g, '<code class="bg-zinc-800 text-red-400 px-1.5 py-0.5 rounded text-sm font-mono border border-zinc-700/50">$1</code>');
 
-    // Links ([text](url))
+    // Links
     out = out.replace(/\[(.*?)\]\((.*?)\)/g, '<a href="$2" target="_blank" class="text-blue-400 hover:text-blue-300 hover:underline cursor-pointer transition-colors">$1</a>');
 
     return out;
@@ -152,13 +145,16 @@ const DocEditor: React.FC<EditorProps> = ({ initialContent, onSave, fileName, as
   const [isUploading, setIsUploading] = useState(false);
   const [previewHtml, setPreviewHtml] = useState('');
   
-  // Save Status
+  // Color Picker State
+  const [showColorPicker, setShowColorPicker] = useState(false);
+  const [customColor, setCustomColor] = useState('#ef4444');
+
   const [saveStatus, setSaveStatus] = useState<'saved' | 'saving' | 'unsaved'>('saved');
   const lastSavedContent = useRef(initialContent);
 
   const textareaRef = useRef<HTMLTextAreaElement>(null);
   const fileInputRef = useRef<HTMLInputElement>(null);
-  const colorInputRef = useRef<HTMLInputElement>(null);
+  const popoverRef = useRef<HTMLDivElement>(null);
 
   // Sync initial content
   useEffect(() => {
@@ -181,7 +177,20 @@ const DocEditor: React.FC<EditorProps> = ({ initialContent, onSave, fileName, as
     return () => clearTimeout(timer);
   }, [content]);
 
-  // Keyboard Shortcuts
+  // Handle outside click for popover
+  useEffect(() => {
+    const handleClickOutside = (event: MouseEvent) => {
+      if (popoverRef.current && !popoverRef.current.contains(event.target as Node)) {
+        setShowColorPicker(false);
+      }
+    };
+    if (showColorPicker) {
+        document.addEventListener('mousedown', handleClickOutside);
+    }
+    return () => document.removeEventListener('mousedown', handleClickOutside);
+  }, [showColorPicker]);
+
+  // Shortcuts
   useEffect(() => {
     const handleKeyDown = (e: KeyboardEvent) => {
       if ((e.ctrlKey || e.metaKey) && e.key === 's') {
@@ -224,12 +233,8 @@ const DocEditor: React.FC<EditorProps> = ({ initialContent, onSave, fileName, as
 
     setIsUploading(true);
     try {
-        // We use the same asset system, but the parser detects if it's video/audio based on the data
         const assetUrl = await onAddAsset(file); 
         const safeName = file.name.replace(/[\[\]\(\)]/g, '');
-        
-        // Insert standard markdown image syntax. The parser is smart enough to render <video> or <audio> 
-        // if the assetUrl ends in extensions or is specific data types.
         insertText(`\n![${safeName}](${assetUrl})\n`);
     } catch (error) {
         console.error("Upload failed", error);
@@ -240,9 +245,9 @@ const DocEditor: React.FC<EditorProps> = ({ initialContent, onSave, fileName, as
     }
   };
 
-  const handleColorChange = (e: React.ChangeEvent<HTMLInputElement>) => {
-      const color = e.target.value;
+  const applyColor = (color: string) => {
       insertText(`<span style="color: ${color}">`, `</span>`);
+      setShowColorPicker(false);
   };
 
   const ToolbarButton = ({ icon: Icon, onClick, title, active = false, disabled = false, color }: any) => (
@@ -258,6 +263,18 @@ const DocEditor: React.FC<EditorProps> = ({ initialContent, onSave, fileName, as
     </button>
   );
 
+  const PRESET_COLORS = [
+      '#ef4444', // Red
+      '#f97316', // Orange
+      '#eab308', // Yellow
+      '#22c55e', // Green
+      '#3b82f6', // Blue
+      '#a855f7', // Purple
+      '#ec4899', // Pink
+      '#71717a', // Zinc
+      '#ffffff', // White
+  ];
+
   return (
     <div className="h-full flex flex-col bg-zinc-900">
       {/* Top Bar */}
@@ -266,23 +283,54 @@ const DocEditor: React.FC<EditorProps> = ({ initialContent, onSave, fileName, as
            <h3 className="text-zinc-200 font-medium mr-2 truncate max-w-[150px] shrink-0">{fileName}</h3>
            <div className="h-6 w-px bg-zinc-800 hidden sm:block shrink-0"></div>
            
-           <div className="flex items-center gap-0.5 shrink-0">
+           <div className="flex items-center gap-0.5 shrink-0 relative">
               {/* Text Style */}
               <ToolbarButton icon={Bold} onClick={() => insertText('**', '**')} title="Bold" />
               <ToolbarButton icon={Italic} onClick={() => insertText('*', '*')} title="Italic" />
               <ToolbarButton icon={Underline} onClick={() => insertText('<u>', '</u>')} title="Underline" />
               <ToolbarButton icon={Strikethrough} onClick={() => insertText('~~', '~~')} title="Strikethrough" />
               
-              {/* Color Picker */}
-              <div className="relative group mx-1 flex items-center">
-                  <input 
-                    ref={colorInputRef}
-                    type="color" 
-                    onChange={handleColorChange}
-                    className="absolute inset-0 opacity-0 w-full h-full cursor-pointer z-10"
-                    title="Text Color"
+              {/* Color Picker Toggle */}
+              <div className="relative">
+                  <ToolbarButton 
+                    icon={Palette} 
+                    onClick={() => setShowColorPicker(!showColorPicker)} 
+                    title="Text Color" 
+                    color="text-pink-400" 
+                    active={showColorPicker}
                   />
-                  <ToolbarButton icon={Palette} onClick={() => {}} title="Text Color" color="text-pink-400" />
+                  
+                  {/* Popover Menu */}
+                  {showColorPicker && (
+                      <div ref={popoverRef} className="absolute top-full left-0 mt-2 bg-zinc-900 border border-zinc-700 rounded-xl shadow-xl p-3 z-50 w-48 flex flex-col gap-3 animate-in fade-in slide-in-from-top-2 duration-200">
+                          <div className="grid grid-cols-5 gap-1.5">
+                              {PRESET_COLORS.map(c => (
+                                  <button
+                                    key={c}
+                                    onClick={() => applyColor(c)}
+                                    className="w-6 h-6 rounded-full border border-zinc-700 hover:scale-110 transition-transform shadow-sm"
+                                    style={{ backgroundColor: c }}
+                                    title={c}
+                                  />
+                              ))}
+                          </div>
+                          <div className="h-px bg-zinc-800 w-full"></div>
+                          <div className="flex items-center gap-2">
+                              <input 
+                                type="color" 
+                                value={customColor}
+                                onChange={(e) => setCustomColor(e.target.value)}
+                                className="w-8 h-8 rounded cursor-pointer border-0 p-0 bg-transparent"
+                              />
+                              <button 
+                                onClick={() => applyColor(customColor)}
+                                className="flex-1 bg-zinc-800 hover:bg-zinc-700 text-xs text-white py-1.5 rounded transition-colors"
+                              >
+                                Apply
+                              </button>
+                          </div>
+                      </div>
+                  )}
               </div>
 
               <div className="w-px h-4 bg-zinc-800 mx-1"></div>

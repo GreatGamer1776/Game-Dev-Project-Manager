@@ -254,7 +254,7 @@ const DocEditor: React.FC<EditorProps> = ({ initialContent, onSave, fileName, as
     <button
       onClick={onClick}
       disabled={disabled}
-      className={`p-1.5 rounded-md transition-all flex items-center justify-center ${
+      className={`p-1.5 rounded-md transition-all flex items-center justify-center shrink-0 ${
         active ? 'bg-blue-600 text-white shadow-sm' : 'text-zinc-400 hover:text-zinc-200 hover:bg-zinc-800'
       } ${disabled ? 'opacity-50 cursor-not-allowed' : ''}`}
       title={title}
@@ -277,13 +277,13 @@ const DocEditor: React.FC<EditorProps> = ({ initialContent, onSave, fileName, as
 
   return (
     <div className="h-full flex flex-col bg-zinc-900">
-      {/* Top Bar */}
-      <div className="h-14 border-b border-zinc-800 flex items-center justify-between px-4 bg-zinc-950/50 backdrop-blur-sm sticky top-0 z-20 shrink-0">
-        <div className="flex items-center gap-4 overflow-x-auto no-scrollbar mask-gradient pr-4">
-           <h3 className="text-zinc-200 font-medium mr-2 truncate max-w-[150px] shrink-0">{fileName}</h3>
+      {/* Top Bar - Fixed Layout & Overflow */}
+      <div className="min-h-[3.5rem] border-b border-zinc-800 flex flex-wrap items-center justify-between px-4 py-2 bg-zinc-950/90 backdrop-blur-sm sticky top-0 z-30 shrink-0 gap-y-2">
+        <div className="flex items-center gap-4 flex-1 min-w-0">
+           <h3 className="text-zinc-200 font-medium mr-2 truncate shrink-0 max-w-[150px]">{fileName}</h3>
            <div className="h-6 w-px bg-zinc-800 hidden sm:block shrink-0"></div>
            
-           <div className="flex items-center gap-0.5 shrink-0 relative">
+           <div className="flex items-center gap-1 flex-wrap">
               {/* Text Style */}
               <ToolbarButton icon={Bold} onClick={() => insertText('**', '**')} title="Bold" />
               <ToolbarButton icon={Italic} onClick={() => insertText('*', '*')} title="Italic" />
@@ -374,7 +374,7 @@ const DocEditor: React.FC<EditorProps> = ({ initialContent, onSave, fileName, as
            </div>
         </div>
 
-        <div className="flex items-center gap-3 shrink-0">
+        <div className="flex items-center gap-3 shrink-0 ml-auto">
           <div className="flex items-center mr-2 hidden sm:flex">
             {saveStatus === 'saving' && <span className="text-xs text-zinc-500 flex items-center gap-1"><Loader2 className="w-3 h-3 animate-spin" /></span>}
             {saveStatus === 'saved' && <span className="text-xs text-zinc-500 flex items-center gap-1 opacity-50"><Check className="w-3 h-3" /></span>}

@@ -141,7 +141,8 @@ const parseInline = (text: string, assets: Record<string, string>) => {
 
 const DocEditor: React.FC<EditorProps> = ({ initialContent, onSave, fileName, assets = {}, onAddAsset }) => {
   const [content, setContent] = useState(initialContent);
-  const [viewMode, setViewMode] = useState<'edit' | 'preview' | 'split'>('split');
+  // OPTIMIZATION: Default to 'edit' mode to prevent initial render lag
+  const [viewMode, setViewMode] = useState<'edit' | 'preview' | 'split'>('edit');
   const [isUploading, setIsUploading] = useState(false);
   const [previewHtml, setPreviewHtml] = useState('');
   
@@ -164,10 +165,17 @@ const DocEditor: React.FC<EditorProps> = ({ initialContent, onSave, fileName, as
     }
   }, [initialContent]);
 
-  // Update preview
+  // OPTIMIZATION: Debounce the preview parsing and only run if viewMode requires it
   useEffect(() => {
-      setPreviewHtml(parseDoc(content, assets));
-  }, [content, assets]);
+      // If we are in Edit mode, do NOT parse HTML (saves resources)
+      if (viewMode === 'edit') return;
+
+      const timer = setTimeout(() => {
+        setPreviewHtml(parseDoc(content, assets));
+      }, 500); // 500ms debounce to prevent lag while typing fast in split view
+
+      return () => clearTimeout(timer);
+  }, [content, assets, viewMode]);
 
   // Autosave
   useEffect(() => {

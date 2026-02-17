@@ -15,57 +15,111 @@ import ReactFlow, {
   NodeProps,
   useReactFlow,
   ReactFlowProvider,
-  ConnectionMode, // NEW: Import ConnectionMode
+  ConnectionMode,
+  MarkerType,
 } from 'reactflow';
-import { Save, MousePointer2, Square, Circle, Diamond, Database, PlayCircle, Trash2, Check, Loader2, AlertCircle } from 'lucide-react';
+import { 
+  Save, Trash2, Check, Loader2, AlertCircle, 
+  Square, Diamond, Database, 
+  ArrowRightLeft, Hexagon, StickyNote, PlayCircle, StopCircle
+} from 'lucide-react';
 import { EditorProps } from '../types';
 
-// --- Custom Node Components ---
+// --- CUSTOM NODE COMPONENTS ---
 
-// Updated DiamondNode (Decision)
-// - Larger handles
-// - Handles pushed slightly outward with negative margins for easier clicking
-// - Z-Index increased
-const DiamondNode = ({ data, selected }: NodeProps) => (
-  <div className="w-24 h-24 relative flex items-center justify-center">
-    <div className={`absolute w-[4.25rem] h-[4.25rem] transform rotate-45 bg-zinc-900 border-2 transition-colors shadow-lg z-0 ${selected ? 'border-blue-500 shadow-blue-500/20' : 'border-purple-500/50'}`}></div>
-    <div className="relative z-10 p-1 text-xs text-white font-medium break-words text-center pointer-events-none max-w-[90%]">
+// 1. Terminal Node (Start/End) - Capsule Shape
+const TerminalNode = ({ data, selected }: NodeProps) => (
+  <div className={`px-6 py-3 rounded-full flex items-center justify-center min-w-[120px] bg-zinc-900 border-2 shadow-sm transition-all ${selected ? 'border-emerald-500 shadow-emerald-500/20' : 'border-emerald-500/50'}`}>
+    <div className="text-center text-xs text-white font-semibold">{data.label}</div>
+    <Handle type="target" position={Position.Top} className="w-3 h-3 !bg-zinc-400 border border-zinc-900" />
+    <Handle type="source" position={Position.Bottom} className="w-3 h-3 !bg-zinc-400 border border-zinc-900" />
+    <Handle type="source" position={Position.Right} className="w-3 h-3 !bg-zinc-400 border border-zinc-900" />
+    <Handle type="target" position={Position.Left} className="w-3 h-3 !bg-zinc-400 border border-zinc-900" />
+  </div>
+);
+
+// 2. Process Node (Action) - Rectangle
+const ProcessNode = ({ data, selected }: NodeProps) => (
+  <div className={`px-4 py-4 rounded-lg flex items-center justify-center min-w-[140px] bg-zinc-900 border-2 shadow-sm transition-all ${selected ? 'border-blue-500 shadow-blue-500/20' : 'border-zinc-600'}`}>
+    <div className="text-center text-xs text-white font-medium">{data.label}</div>
+    <Handle type="target" position={Position.Top} className="w-3 h-3 !bg-zinc-400 border border-zinc-900" />
+    <Handle type="source" position={Position.Bottom} className="w-3 h-3 !bg-zinc-400 border border-zinc-900" />
+    <Handle type="source" position={Position.Right} className="w-3 h-3 !bg-zinc-400 border border-zinc-900" />
+    <Handle type="target" position={Position.Left} className="w-3 h-3 !bg-zinc-400 border border-zinc-900" />
+  </div>
+);
+
+// 3. Decision Node - Diamond
+const DecisionNode = ({ data, selected }: NodeProps) => (
+  <div className="w-28 h-28 relative flex items-center justify-center">
+    <div className={`absolute inset-0 transform rotate-45 bg-zinc-900 border-2 transition-all shadow-sm ${selected ? 'border-purple-500 shadow-purple-500/20' : 'border-purple-500/60'}`}></div>
+    <div className="relative z-10 p-2 text-[10px] text-white font-bold text-center leading-tight max-w-[70%]">
       {data.label}
     </div>
-    {/* Tips of the diamond touch the edges of the w-24 h-24 container. We push handles out slightly. */}
     <Handle type="target" position={Position.Top} className="w-3 h-3 !bg-zinc-400 z-50 -mt-2 border border-zinc-900" />
     <Handle type="source" position={Position.Bottom} className="w-3 h-3 !bg-zinc-400 z-50 -mb-2 border border-zinc-900" />
-    <Handle type="source" position={Position.Left} className="w-3 h-3 !bg-zinc-400 z-50 -ml-2 border border-zinc-900" />
     <Handle type="source" position={Position.Right} className="w-3 h-3 !bg-zinc-400 z-50 -mr-2 border border-zinc-900" />
+    <Handle type="source" position={Position.Left} className="w-3 h-3 !bg-zinc-400 z-50 -ml-2 border border-zinc-900" />
   </div>
 );
 
-// Updated DatabaseNode
+// 4. Input/Output Node - Parallelogram
+const InputOutputNode = ({ data, selected }: NodeProps) => (
+  <div className="relative p-1">
+    <div 
+        className={`px-6 py-3 min-w-[140px] transform -skew-x-12 bg-zinc-900 border-2 transition-all shadow-sm flex items-center justify-center ${selected ? 'border-orange-500 shadow-orange-500/20' : 'border-orange-500/60'}`}
+    >
+        <div className="transform skew-x-12 text-center text-xs text-white font-medium">
+            {data.label}
+        </div>
+    </div>
+    <Handle type="target" position={Position.Top} className="w-3 h-3 !bg-zinc-400 border border-zinc-900" />
+    <Handle type="source" position={Position.Bottom} className="w-3 h-3 !bg-zinc-400 border border-zinc-900" />
+    <Handle type="source" position={Position.Right} className="w-3 h-3 !bg-zinc-400 border border-zinc-900 -mr-2" />
+    <Handle type="target" position={Position.Left} className="w-3 h-3 !bg-zinc-400 border border-zinc-900 -ml-2" />
+  </div>
+);
+
+// 5. Database Node - Cylinder-ish
 const DatabaseNode = ({ data, selected }: NodeProps) => (
-  <div className={`w-24 h-32 relative flex flex-col items-center justify-center bg-zinc-900 border-x-2 border-zinc-600 rounded-lg ${selected ? 'ring-2 ring-blue-500' : ''}`}>
-    <div className="absolute top-0 w-full h-8 bg-zinc-800 border-2 border-zinc-600 rounded-[50%] -mt-4 z-10"></div>
-    <div className="text-xs text-white text-center p-2 z-0 mt-2">{data.label}</div>
-    <div className="absolute bottom-0 w-full h-8 bg-zinc-900 border-b-2 border-x-2 border-zinc-600 rounded-[50%] -mb-4 z-0"></div>
-    <Handle type="target" position={Position.Top} className="w-3 h-3 !bg-zinc-400 z-50 -mt-3" />
-    <Handle type="source" position={Position.Bottom} className="w-3 h-3 !bg-zinc-400 z-50 -mb-3" />
+  <div className={`w-24 h-24 relative flex flex-col items-center justify-center bg-zinc-900 border-x-2 border-zinc-500 ${selected ? 'ring-2 ring-blue-500 border-blue-500' : ''}`}>
+    <div className="absolute top-0 w-full h-6 bg-zinc-800 border-2 border-zinc-500 rounded-[50%] -mt-3 z-10"></div>
+    <div className="text-[10px] text-zinc-300 text-center px-1 z-0 mt-2 font-mono">{data.label}</div>
+    <div className="absolute bottom-0 w-full h-6 bg-zinc-900 border-b-2 border-x-2 border-zinc-500 rounded-[50%] -mb-3 z-0"></div>
+    <Handle type="target" position={Position.Top} className="w-3 h-3 !bg-zinc-400 z-50 -mt-2" />
+    <Handle type="source" position={Position.Bottom} className="w-3 h-3 !bg-zinc-400 z-50 -mb-2" />
+    <Handle type="source" position={Position.Right} className="w-3 h-3 !bg-zinc-400 z-50" />
+    <Handle type="target" position={Position.Left} className="w-3 h-3 !bg-zinc-400 z-50" />
   </div>
 );
 
-// Updated CircleNode (Start/End)
-// - Mixed Source/Target handles for better flow flexibility (Top/Left = In, Bottom/Right = Out)
-// - Larger handles
-const CircleNode = ({ data, selected }: NodeProps) => (
-  <div className={`w-24 h-24 rounded-full flex items-center justify-center bg-zinc-900 border-2 ${selected ? 'border-blue-500 shadow-lg shadow-blue-500/20' : 'border-emerald-500/50'}`}>
-    <div className="text-center text-xs text-white font-medium p-2">{data.label}</div>
-    <Handle type="target" position={Position.Top} className="w-3 h-3 !bg-zinc-400 z-50 -mt-1" />
-    <Handle type="source" position={Position.Bottom} className="w-3 h-3 !bg-zinc-400 z-50 -mb-1" />
-    {/* Left is now Target (Input) and Right is Source (Output) for L-R flows */}
-    <Handle type="source" position={Position.Right} className="w-3 h-3 !bg-zinc-400 z-50 -mr-1" />
-    <Handle type="target" position={Position.Left} className="w-3 h-3 !bg-zinc-400 z-50 -ml-1" />
+// 6. Event Node - Hexagon
+const EventNode = ({ data, selected }: NodeProps) => (
+  <div className={`w-32 h-16 relative flex items-center justify-center`}>
+    <div 
+        className={`absolute inset-0 bg-zinc-900 border-2 transition-all ${selected ? 'border-yellow-500 bg-yellow-500/10' : 'border-yellow-500/60'}`}
+        style={{ clipPath: 'polygon(15% 0%, 85% 0%, 100% 50%, 85% 100%, 15% 100%, 0% 50%)' }}
+    ></div>
+    {/* Border hack for clip-path not supporting border directly nicely */}
+    <div className="relative z-10 text-[10px] uppercase tracking-wider font-bold text-yellow-500 text-center px-6">
+      {data.label}
+    </div>
+    <Handle type="target" position={Position.Top} className="w-3 h-3 !bg-zinc-400 border border-zinc-900" />
+    <Handle type="source" position={Position.Bottom} className="w-3 h-3 !bg-zinc-400 border border-zinc-900" />
   </div>
 );
 
-// --- Editor Component ---
+// 7. Note/Comment Node
+const NoteNode = ({ data, selected }: NodeProps) => (
+  <div className={`w-40 min-h-[80px] bg-yellow-100/10 border-l-4 border-yellow-400 rounded p-2 flex flex-col relative ${selected ? 'ring-1 ring-yellow-400' : ''}`}>
+    <div className="text-[9px] text-yellow-500/80 font-bold uppercase mb-1">Note</div>
+    <div className="text-xs text-zinc-300 italic text-left whitespace-pre-wrap">{data.label}</div>
+    {/* Invisible handles to allow connecting comments if needed */}
+    <Handle type="target" position={Position.Left} className="w-2 h-2 !bg-yellow-400/50 opacity-0 hover:opacity-100" />
+  </div>
+);
+
+// --- EDITOR COMPONENT ---
 
 const FlowchartEditorContent: React.FC<EditorProps> = ({ initialContent, onSave, fileName }) => {
   const initialNodes = initialContent?.nodes || [];
@@ -79,16 +133,13 @@ const FlowchartEditorContent: React.FC<EditorProps> = ({ initialContent, onSave,
   const [saveStatus, setSaveStatus] = useState<'saved' | 'saving' | 'unsaved'>('saved');
   const lastSavedData = useRef(JSON.stringify({ nodes: initialNodes, edges: initialEdges }));
 
-  // Autosave Logic
+  // Autosave
   useEffect(() => {
     const currentData = JSON.stringify({ nodes, edges });
     if (currentData === lastSavedData.current) return;
 
     setSaveStatus('unsaved');
-    const timer = setTimeout(() => {
-      handleManualSave();
-    }, 2000);
-
+    const timer = setTimeout(() => handleManualSave(), 2000);
     return () => clearTimeout(timer);
   }, [nodes, edges]);
 
@@ -111,11 +162,14 @@ const FlowchartEditorContent: React.FC<EditorProps> = ({ initialContent, onSave,
     setTimeout(() => setSaveStatus('saved'), 500);
   };
 
-  // Define custom node types
   const nodeTypes = useMemo(() => ({
-    diamond: DiamondNode,
+    terminal: TerminalNode,
+    process: ProcessNode,
+    decision: DecisionNode,
+    io: InputOutputNode,
     database: DatabaseNode,
-    circle: CircleNode,
+    event: EventNode,
+    note: NoteNode
   }), []);
 
   React.useEffect(() => {
@@ -124,38 +178,37 @@ const FlowchartEditorContent: React.FC<EditorProps> = ({ initialContent, onSave,
     lastSavedData.current = JSON.stringify({ nodes: initialNodes, edges: initialEdges });
   }, [initialNodes, initialEdges, setNodes, setEdges]);
 
+  // UPDATED: Edges with Arrows
   const onConnect = useCallback(
-    (params: Connection) => setEdges((eds) => addEdge({ ...params, animated: true, style: { stroke: '#71717a' } }, eds)),
+    (params: Connection) => setEdges((eds) => addEdge({ 
+        ...params, 
+        animated: false, 
+        type: 'smoothstep', // 'smoothstep' creates nice 90-degree lines
+        style: { stroke: '#a1a1aa', strokeWidth: 2 },
+        markerEnd: { 
+            type: MarkerType.ArrowClosed, 
+            color: '#a1a1aa',
+            width: 20,
+            height: 20,
+        }
+    }, eds)),
     [setEdges]
   );
 
   const addNode = (type: string, label: string) => {
     const id = crypto.randomUUID();
+    // Center randomization slightly
     const position = { 
-      x: Math.random() * 300 + 100, 
-      y: Math.random() * 300 + 100 
+      x: Math.random() * 200 + 200, 
+      y: Math.random() * 200 + 100 
     };
     
-    let newNode: Node = {
+    const newNode: Node = {
       id,
       position,
       data: { label },
-      type: type === 'rect' ? 'default' : type,
+      type,
     };
-
-    if (type === 'rect') {
-      newNode.style = { 
-        background: '#18181b', 
-        color: '#fff', 
-        border: '1px solid #3f3f46', 
-        borderRadius: '8px', 
-        width: 150,
-        padding: '10px',
-        display: 'flex',
-        justifyContent: 'center',
-        alignItems: 'center'
-      };
-    }
 
     setNodes((nds) => nds.concat(newNode));
   };
@@ -167,7 +220,7 @@ const FlowchartEditorContent: React.FC<EditorProps> = ({ initialContent, onSave,
   };
 
   const handleNodeDoubleClick = (event: React.MouseEvent, node: Node) => {
-    const newLabel = prompt("Enter new name for this node:", node.data.label);
+    const newLabel = prompt("Enter text for this node:", node.data.label);
     if (newLabel !== null) {
       setNodes((nds) =>
         nds.map((n) => {
@@ -180,30 +233,25 @@ const FlowchartEditorContent: React.FC<EditorProps> = ({ initialContent, onSave,
     }
   };
 
+  // Helper for Toolbar Buttons
+  const ToolButton = ({ onClick, icon: Icon, label, colorClass }: any) => (
+      <button 
+        onClick={onClick} 
+        className={`flex flex-col items-center justify-center p-2 rounded-lg hover:bg-zinc-800 transition-colors gap-1 group w-16 h-16 border border-transparent hover:border-zinc-700`}
+        title={`Add ${label}`}
+      >
+         <Icon className={`w-6 h-6 ${colorClass} group-hover:scale-110 transition-transform`} />
+         <span className="text-[9px] text-zinc-500 group-hover:text-zinc-300">{label}</span>
+      </button>
+  );
+
   return (
     <div className="h-full w-full flex flex-col bg-zinc-900">
-      <div className="h-16 border-b border-zinc-800 flex items-center px-4 justify-between bg-zinc-900/50 backdrop-blur-sm z-10">
+      {/* Top Bar */}
+      <div className="h-16 border-b border-zinc-800 flex items-center px-4 justify-between bg-zinc-900/50 backdrop-blur-sm z-10 shrink-0">
         <div className="flex items-center gap-4">
           <h3 className="text-zinc-200 font-medium ml-2">{fileName}</h3>
-          <div className="h-6 w-px bg-zinc-700"></div>
-          
-          <div className="flex items-center gap-1">
-             <span className="text-xs text-zinc-500 uppercase font-bold mr-2">Widgets:</span>
-             <button onClick={() => addNode('circle', 'Start')} className="p-2 hover:bg-zinc-800 rounded text-zinc-400 hover:text-emerald-400 transition-colors" title="Start/End">
-                <Circle className="w-5 h-5" />
-             </button>
-             <button onClick={() => addNode('rect', 'Process')} className="p-2 hover:bg-zinc-800 rounded text-zinc-400 hover:text-blue-400 transition-colors" title="Process">
-                <Square className="w-5 h-5" />
-             </button>
-             <button onClick={() => addNode('diamond', 'Decision')} className="p-2 hover:bg-zinc-800 rounded text-zinc-400 hover:text-purple-400 transition-colors" title="Decision">
-                <Diamond className="w-5 h-5" />
-             </button>
-             <button onClick={() => addNode('database', 'DB')} className="p-2 hover:bg-zinc-800 rounded text-zinc-400 hover:text-orange-400 transition-colors" title="Database">
-                <Database className="w-5 h-5" />
-             </button>
-          </div>
-
-          <div className="h-6 w-px bg-zinc-700 mx-2"></div>
+          <div className="h-6 w-px bg-zinc-800"></div>
           
           <button 
              onClick={handleDeleteSelected}
@@ -232,31 +280,53 @@ const FlowchartEditorContent: React.FC<EditorProps> = ({ initialContent, onSave,
         </div>
       </div>
 
-      <div className="flex-1 h-full w-full relative">
-        <ReactFlow
-          nodes={nodes}
-          edges={edges}
-          onNodesChange={onNodesChange}
-          onEdgesChange={onEdgesChange}
-          onConnect={onConnect}
-          onNodeDoubleClick={handleNodeDoubleClick}
-          nodeTypes={nodeTypes}
-          fitView
-          className="bg-zinc-950"
-          deleteKeyCode={['Backspace', 'Delete']}
-          // IMPORTANT: Loose connection mode allows connecting any handle to any handle
-          // This prevents frustration when users try to connect "Source to Source" visually
-          connectionMode={ConnectionMode.Loose}
-        >
-          <Background variant={BackgroundVariant.Dots} gap={16} size={1} color="#27272a" />
-          <Controls className="bg-zinc-800 border-zinc-700 fill-zinc-200 text-zinc-200 [&>button]:border-zinc-700 [&>button:hover]:bg-zinc-700" />
-          <MiniMap 
-            nodeStrokeColor="#52525b" 
-            nodeColor="#18181b" 
-            maskColor="rgba(9, 9, 11, 0.6)"
-            className="bg-zinc-900 border border-zinc-800"
-          />
-        </ReactFlow>
+      {/* Main Area with Sidebar for Tools */}
+      <div className="flex-1 flex overflow-hidden">
+         {/* Tools Sidebar */}
+         <div className="w-20 bg-zinc-950 border-r border-zinc-800 flex flex-col items-center py-4 gap-2 overflow-y-auto custom-scrollbar z-10">
+            <div className="text-[10px] font-bold text-zinc-600 uppercase mb-2">Flow</div>
+            <ToolButton onClick={() => addNode('terminal', 'Start')} icon={PlayCircle} label="Start" colorClass="text-emerald-400" />
+            <ToolButton onClick={() => addNode('terminal', 'End')} icon={StopCircle} label="End" colorClass="text-red-400" />
+            <ToolButton onClick={() => addNode('process', 'Action')} icon={Square} label="Process" colorClass="text-blue-400" />
+            <ToolButton onClick={() => addNode('decision', 'Condition?')} icon={Diamond} label="Decision" colorClass="text-purple-400" />
+            
+            <div className="w-10 h-px bg-zinc-800 my-2"></div>
+            <div className="text-[10px] font-bold text-zinc-600 uppercase mb-2">Data</div>
+            
+            <ToolButton onClick={() => addNode('io', 'Input/Output')} icon={ArrowRightLeft} label="I/O" colorClass="text-orange-400" />
+            <ToolButton onClick={() => addNode('database', 'Database')} icon={Database} label="Data" colorClass="text-zinc-300" />
+            <ToolButton onClick={() => addNode('event', 'On Trigger')} icon={Hexagon} label="Event" colorClass="text-yellow-400" />
+            
+            <div className="w-10 h-px bg-zinc-800 my-2"></div>
+            
+            <ToolButton onClick={() => addNode('note', 'Add comment...')} icon={StickyNote} label="Note" colorClass="text-yellow-200" />
+         </div>
+
+         {/* Canvas */}
+         <div className="flex-1 h-full w-full relative">
+            <ReactFlow
+            nodes={nodes}
+            edges={edges}
+            onNodesChange={onNodesChange}
+            onEdgesChange={onEdgesChange}
+            onConnect={onConnect}
+            onNodeDoubleClick={handleNodeDoubleClick}
+            nodeTypes={nodeTypes}
+            fitView
+            className="bg-zinc-900"
+            deleteKeyCode={['Backspace', 'Delete']}
+            connectionMode={ConnectionMode.Loose}
+            >
+            <Background variant={BackgroundVariant.Dots} gap={24} size={1} color="#3f3f46" />
+            <Controls className="bg-zinc-800 border-zinc-700 fill-zinc-200 text-zinc-200 [&>button]:border-zinc-700 [&>button:hover]:bg-zinc-700" />
+            <MiniMap 
+                nodeStrokeColor="#52525b" 
+                nodeColor="#18181b" 
+                maskColor="rgba(9, 9, 11, 0.6)"
+                className="bg-zinc-950 border border-zinc-800 rounded-lg overflow-hidden"
+            />
+            </ReactFlow>
+         </div>
       </div>
     </div>
   );

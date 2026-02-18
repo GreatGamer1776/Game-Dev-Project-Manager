@@ -188,7 +188,7 @@ const WhiteboardEditor: React.FC<EditorProps> = ({ initialContent, onSave, fileN
     }
     if (activeTool === 'highlighter') {
       ctx.globalCompositeOperation = 'source-over';
-      ctx.globalAlpha = 0.28;
+      ctx.globalAlpha = 0.18;
       ctx.strokeStyle = currentSettings.color;
     }
 
@@ -207,6 +207,9 @@ const WhiteboardEditor: React.FC<EditorProps> = ({ initialContent, onSave, fileN
     const { x, y } = getMousePos(e);
     ctx.lineTo(x, y);
     ctx.stroke();
+    // Draw incrementally so we don't re-stroke the entire path on every mousemove.
+    ctx.beginPath();
+    ctx.moveTo(x, y);
   };
 
   const stopDrawing = () => {

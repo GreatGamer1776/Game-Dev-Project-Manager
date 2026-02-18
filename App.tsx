@@ -600,6 +600,15 @@ const App: React.FC = () => {
   const assetLibraryFile = activeProject?.files.find(f => f.type === ASSET_LIBRARY_TYPE);
   const nonAssetFileCount = activeProject ? activeProject.files.filter(f => f.type !== ASSET_LIBRARY_TYPE).length : 0;
 
+  const handleOpenFileFromLink = (fileId: string) => {
+    if (!activeProject) return;
+    if (!activeProject.files.some(f => f.id === fileId)) {
+      alert("Linked file was not found in this project.");
+      return;
+    }
+    setActiveFileId(fileId);
+  };
+
   // --- SIDEBAR RENDERING ---
 
   const toggleFolder = (folderId: string) => {
@@ -784,13 +793,16 @@ const App: React.FC = () => {
         {/* Asset Library (Always Available) */}
         {assetLibraryFile && (
           <div className="px-3 pt-3">
+            <div className="px-2 pb-1 text-[10px] uppercase tracking-wide text-zinc-500">Asset Library</div>
             <button
               onClick={() => setActiveFileId(assetLibraryFile.id)}
-              className={`w-full flex items-center gap-2 px-2 py-2 rounded-lg text-sm transition-colors ${activeFileId === assetLibraryFile.id ? 'bg-zinc-800 text-white' : 'text-zinc-300 hover:text-white hover:bg-zinc-900'}`}
+              className={`w-full flex items-center gap-2 px-2 py-2 rounded-lg text-sm transition-colors border ${activeFileId === assetLibraryFile.id ? 'bg-zinc-800 text-white border-blue-500/40' : 'text-zinc-300 hover:text-white hover:bg-zinc-900 border-zinc-800'}`}
             >
               <ImageIcon className={`w-4 h-4 ${activeFileId === assetLibraryFile.id ? 'text-blue-400' : 'text-zinc-500'}`} />
               <span className="truncate">{assetLibraryFile.name}</span>
             </button>
+            <div className="my-3 border-t border-zinc-800" />
+            <div className="px-2 pb-1 text-[10px] uppercase tracking-wide text-zinc-600">Project Files</div>
           </div>
         )}
 
@@ -842,7 +854,10 @@ const App: React.FC = () => {
                     onSave: updateFileContent,
                     assets: activeProject.assets || {},
                     onAddAsset: handleAddAsset,
-                    onDeleteAsset: handleDeleteAsset
+                    onDeleteAsset: handleDeleteAsset,
+                    projectFiles: activeProject.files,
+                    activeFileId,
+                    onOpenFile: handleOpenFileFromLink
                 })
             ) : <div className="flex flex-col items-center justify-center h-full text-zinc-500"><File className="w-16 h-16 mb-4 opacity-20" /><p>Select a file to edit</p></div>
           )}

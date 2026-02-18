@@ -9,7 +9,7 @@ import { EditorProps } from '../types';
 
 // --- CUSTOM PARSER LOGIC ---
 
-const parseDoc = (text: string, assets: Record<string, string>) => {
+const parseDoc = (text: string, assets: Record<string, string>, fileLookup: Map<string, string>) => {
     
     const resolveSrc = (src: string) => {
         if (!src) return '';
@@ -43,32 +43,32 @@ const parseDoc = (text: string, assets: Record<string, string>) => {
 
         // 2. Headers
         if (line.startsWith('# ')) {
-            html += `<h1 class="text-3xl font-bold text-zinc-100 mb-4 pb-2 border-b border-zinc-800 mt-6">${parseInline(line.slice(2), assets)}</h1>`;
+            html += `<h1 class="text-3xl font-bold text-zinc-100 mb-4 pb-2 border-b border-zinc-800 mt-6">${parseInline(line.slice(2), assets, fileLookup)}</h1>`;
             continue;
         }
         if (line.startsWith('## ')) {
-            html += `<h2 class="text-2xl font-semibold text-zinc-100 mb-3 mt-8">${parseInline(line.slice(3), assets)}</h2>`;
+            html += `<h2 class="text-2xl font-semibold text-zinc-100 mb-3 mt-8">${parseInline(line.slice(3), assets, fileLookup)}</h2>`;
             continue;
         }
         if (line.startsWith('### ')) {
-            html += `<h3 class="text-xl font-medium text-zinc-200 mb-2 mt-6">${parseInline(line.slice(4), assets)}</h3>`;
+            html += `<h3 class="text-xl font-medium text-zinc-200 mb-2 mt-6">${parseInline(line.slice(4), assets, fileLookup)}</h3>`;
             continue;
         }
 
         // 3. Blockquotes
         if (line.startsWith('> ')) {
-            html += `<blockquote class="border-l-4 border-blue-500 pl-4 py-2 my-4 text-zinc-400 italic bg-zinc-800/30 rounded-r">${parseInline(line.slice(2), assets)}</blockquote>`;
+            html += `<blockquote class="border-l-4 border-blue-500 pl-4 py-2 my-4 text-zinc-400 italic bg-zinc-800/30 rounded-r">${parseInline(line.slice(2), assets, fileLookup)}</blockquote>`;
             continue;
         }
 
         // 4. Lists
         if (line.match(/^\s*-\s/)) {
-            html += `<div class="flex gap-2 ml-4 mb-1 text-zinc-300"><span class="text-zinc-500">•</span><span>${parseInline(line.replace(/^\s*-\s/, ''), assets)}</span></div>`;
+            html += `<div class="flex gap-2 ml-4 mb-1 text-zinc-300"><span class="text-zinc-500">•</span><span>${parseInline(line.replace(/^\s*-\s/, ''), assets, fileLookup)}</span></div>`;
             continue;
         }
         if (line.match(/^\s*\d+\.\s/)) {
             const num = line.match(/^\s*(\d+)\./)?.[1] || '1';
-            html += `<div class="flex gap-2 ml-4 mb-1 text-zinc-300"><span class="text-zinc-500 font-mono">${num}.</span><span>${parseInline(line.replace(/^\s*\d+\.\s/, ''), assets)}</span></div>`;
+            html += `<div class="flex gap-2 ml-4 mb-1 text-zinc-300"><span class="text-zinc-500 font-mono">${num}.</span><span>${parseInline(line.replace(/^\s*\d+\.\s/, ''), assets, fileLookup)}</span></div>`;
             continue;
         }
 
@@ -104,12 +104,12 @@ const parseDoc = (text: string, assets: Record<string, string>) => {
         }
 
         // 8. Paragraphs
-        html += `<p class="mb-2 leading-relaxed text-zinc-300">${parseInline(line, assets)}</p>`;
+        html += `<p class="mb-2 leading-relaxed text-zinc-300">${parseInline(line, assets, fileLookup)}</p>`;
     }
     return html;
 };
 
-const parseInline = (text: string, assets: Record<string, string>) => {
+const parseInline = (text: string, assets: Record<string, string>, fileLookup: Map<string, string>) => {
     let out = text;
 
     // Bold (**text**)
@@ -131,7 +131,16 @@ const parseInline = (text: string, assets: Record<string, string>) => {
     out = out.replace(/`([^`]+)`/g, '<code class="bg-zinc-800 text-red-400 px-1.5 py-0.5 rounded text-sm font-mono border border-zinc-700/50">$1</code>');
 
     // Links
-    out = out.replace(/\[(.*?)\]\((.*?)\)/g, '<a href="$2" target="_blank" class="text-blue-400 hover:text-blue-300 hover:underline cursor-pointer transition-colors">$1</a>');
+    out = out.replace(/\[(.*?)\]\((.*?)\)/g, (_, label: string, href: string) => {
+        if (href.startsWith('file://')) {
+            const fileId = href.replace('file://', '');
+            const linkedName = fileLookup.get(fileId);
+            const display = label || linkedName || 'Open file';
+            const existsClass = linkedName ? 'text-cyan-400 hover:text-cyan-300' : 'text-zinc-500 line-through';
+            return `<a href="${href}" data-file-id="${fileId}" class="${existsClass} hover:underline cursor-pointer transition-colors">${display}</a>`;
+        }
+        return `<a href="${href}" target="_blank" rel="noopener noreferrer" class="text-blue-400 hover:text-blue-300 hover:underline cursor-pointer transition-colors">${label}</a>`;
+    });
 
     return out;
 };
@@ -139,7 +148,7 @@ const parseInline = (text: string, assets: Record<string, string>) => {
 
 // --- COMPONENT ---
 
-const DocEditor: React.FC<EditorProps> = ({ initialContent, onSave, fileName, assets = {}, onAddAsset }) => {
+const DocEditor: React.FC<EditorProps> = ({ initialContent, onSave, fileName, assets = {}, onAddAsset, projectFiles = [], activeFileId, onOpenFile }) => {
   const [content, setContent] = useState(initialContent);
   // OPTIMIZATION: Default to 'edit' mode to prevent initial render lag
   const [viewMode, setViewMode] = useState<'edit' | 'preview' | 'split'>('edit');
@@ -156,6 +165,8 @@ const DocEditor: React.FC<EditorProps> = ({ initialContent, onSave, fileName, as
   const textareaRef = useRef<HTMLTextAreaElement>(null);
   const fileInputRef = useRef<HTMLInputElement>(null);
   const popoverRef = useRef<HTMLDivElement>(null);
+  const previewPaneRef = useRef<HTMLDivElement>(null);
+  const fileLookup = React.useMemo(() => new Map(projectFiles.map(f => [f.id, f.name])), [projectFiles]);
 
   // Sync initial content
   useEffect(() => {
@@ -171,11 +182,11 @@ const DocEditor: React.FC<EditorProps> = ({ initialContent, onSave, fileName, as
       if (viewMode === 'edit') return;
 
       const timer = setTimeout(() => {
-        setPreviewHtml(parseDoc(content, assets));
+        setPreviewHtml(parseDoc(content, assets, fileLookup));
       }, 500); // 500ms debounce to prevent lag while typing fast in split view
 
       return () => clearTimeout(timer);
-  }, [content, assets, viewMode]);
+  }, [content, assets, fileLookup, viewMode]);
 
   // Autosave
   useEffect(() => {
@@ -256,6 +267,36 @@ const DocEditor: React.FC<EditorProps> = ({ initialContent, onSave, fileName, as
   const applyColor = (color: string) => {
       insertText(`<span style="color: ${color}">`, `</span>`);
       setShowColorPicker(false);
+  };
+
+  const insertFileLink = () => {
+      const availableFiles = projectFiles.filter(f => f.id !== activeFileId);
+      if (availableFiles.length === 0) {
+          alert("No other files available to link.");
+          return;
+      }
+      const list = availableFiles
+        .map((f, i) => `${i + 1}. ${f.name} (${f.type})`)
+        .join('\n');
+      const choice = prompt(`Link to which file?\n\n${list}\n\nEnter number:`);
+      if (!choice) return;
+      const idx = Number(choice) - 1;
+      if (Number.isNaN(idx) || idx < 0 || idx >= availableFiles.length) {
+          alert("Invalid file selection.");
+          return;
+      }
+      const selected = availableFiles[idx];
+      insertText(`[${selected.name}](file://${selected.id})`);
+  };
+
+  const handlePreviewClick = (e: React.MouseEvent<HTMLDivElement>) => {
+      const target = e.target as HTMLElement;
+      const link = target.closest('a[data-file-id]') as HTMLAnchorElement | null;
+      if (!link) return;
+      e.preventDefault();
+      const fileId = link.dataset.fileId;
+      if (!fileId || !onOpenFile) return;
+      onOpenFile(fileId);
   };
 
   const ToolbarButton = ({ icon: Icon, onClick, title, active = false, disabled = false, color }: any) => (
@@ -349,6 +390,7 @@ const DocEditor: React.FC<EditorProps> = ({ initialContent, onSave, fileName, as
               <ToolbarButton icon={List} onClick={() => insertText('- ')} title="Bullet List" />
               <ToolbarButton icon={Quote} onClick={() => insertText('> ')} title="Quote" />
               <ToolbarButton icon={Code} onClick={() => insertText('```\n', '\n```')} title="Code Block" />
+              <ToolbarButton icon={LinkIcon} onClick={insertFileLink} title="Insert File Link" color="text-cyan-400" />
               
               <div className="w-px h-4 bg-zinc-800 mx-1"></div>
 
@@ -424,6 +466,8 @@ const DocEditor: React.FC<EditorProps> = ({ initialContent, onSave, fileName, as
         {(viewMode === 'preview' || viewMode === 'split') && (
           <div className={`h-full overflow-auto custom-scrollbar bg-zinc-900 ${viewMode === 'split' ? 'w-1/2' : 'w-full'}`}>
              <div 
+                ref={previewPaneRef}
+                onClick={handlePreviewClick}
                 className="max-w-3xl mx-auto p-8 prose prose-invert prose-headings:border-b-0"
                 dangerouslySetInnerHTML={{ __html: previewHtml }}
              />

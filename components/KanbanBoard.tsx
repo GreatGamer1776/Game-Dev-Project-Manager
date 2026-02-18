@@ -1,8 +1,8 @@
 import React, { useState, useEffect, useRef } from 'react';
-import { Save, Plus, AlertCircle, ChevronLeft, ChevronRight, X, Trash2, Bug as BugIcon, Search, Filter, Pencil, Loader2, Check } from 'lucide-react';
+import { Save, Plus, AlertCircle, ChevronLeft, ChevronRight, X, Trash2, Bug as BugIcon, Search, Filter, Pencil, Loader2, Check, Link as LinkIcon } from 'lucide-react';
 import { Bug, BugSeverity, BugStatus, EditorProps } from '../types';
 
-const KanbanBoard: React.FC<EditorProps> = ({ initialContent, onSave, fileName }) => {
+const KanbanBoard: React.FC<EditorProps> = ({ initialContent, onSave, fileName, projectFiles = [], onOpenFile, activeFileId }) => {
   const [bugs, setBugs] = useState<Bug[]>(initialContent?.tasks || []);
   
   // Save Status
@@ -21,6 +21,7 @@ const KanbanBoard: React.FC<EditorProps> = ({ initialContent, onSave, fileName }
 
   const [draggedBugId, setDraggedBugId] = useState<string | null>(null);
   const [activeDropZone, setActiveDropZone] = useState<BugStatus | null>(null);
+  const fileLookup = React.useMemo(() => new Map(projectFiles.map(f => [f.id, f.name])), [projectFiles]);
 
   useEffect(() => {
     setBugs(initialContent?.tasks || []);
@@ -166,6 +167,58 @@ const KanbanBoard: React.FC<EditorProps> = ({ initialContent, onSave, fileName }
     return <AlertCircle className="w-3 h-3" />;
   };
 
+  const appendFileLinkToDescription = () => {
+    const availableFiles = projectFiles.filter(f => f.id !== activeFileId);
+    if (availableFiles.length === 0) {
+      alert("No other files available to link.");
+      return;
+    }
+    const list = availableFiles.map((f, i) => `${i + 1}. ${f.name} (${f.type})`).join('\n');
+    const choice = prompt(`Link to which file?\n\n${list}\n\nEnter number:`);
+    if (!choice) return;
+    const idx = Number(choice) - 1;
+    if (Number.isNaN(idx) || idx < 0 || idx >= availableFiles.length) {
+      alert("Invalid file selection.");
+      return;
+    }
+    const file = availableFiles[idx];
+    setNewDesc(prev => `${prev}${prev ? '\n' : ''}[${file.name}](file://${file.id})`);
+  };
+
+  const renderDescriptionWithLinks = (text: string) => {
+    const nodes: React.ReactNode[] = [];
+    const regex = /\[([^\]]+)\]\(file:\/\/([^)]+)\)/g;
+    let lastIdx = 0;
+    let match: RegExpExecArray | null = null;
+
+    while ((match = regex.exec(text)) !== null) {
+      if (match.index > lastIdx) {
+        nodes.push(<span key={`txt-${lastIdx}`}>{text.slice(lastIdx, match.index)}</span>);
+      }
+      const label = match[1];
+      const fileId = match[2];
+      const linkedName = fileLookup.get(fileId);
+      nodes.push(
+        <button
+          key={`lnk-${fileId}-${match.index}`}
+          onClick={(e) => {
+            e.stopPropagation();
+            onOpenFile?.(fileId);
+          }}
+          className={`underline underline-offset-2 ${linkedName ? 'text-cyan-400 hover:text-cyan-300' : 'text-zinc-500 line-through'}`}
+          title={linkedName ? `Open ${linkedName}` : 'Linked file not found'}
+        >
+          {label}
+        </button>
+      );
+      lastIdx = regex.lastIndex;
+    }
+    if (lastIdx < text.length) {
+      nodes.push(<span key={`txt-end-${lastIdx}`}>{text.slice(lastIdx)}</span>);
+    }
+    return nodes.length > 0 ? nodes : text;
+  };
+
   const filteredBugs = bugs.filter(bug => {
     if (filterSeverity !== 'All' && bug.severity !== filterSeverity) return false;
     if (searchQuery) {
@@ -305,7 +358,9 @@ const KanbanBoard: React.FC<EditorProps> = ({ initialContent, onSave, fileName }
                             </div>
                          </div>
                          <h5 className="text-sm font-medium text-zinc-200 mb-1 pointer-events-none">{bug.title}</h5>
-                         <p className="text-xs text-zinc-500 line-clamp-2 mb-3 pointer-events-none">{bug.description || "No description provided."}</p>
+                         <p className="text-xs text-zinc-500 line-clamp-2 mb-3 break-words">
+                           {bug.description ? renderDescriptionWithLinks(bug.description) : "No description provided."}
+                         </p>
                          
                          <div className="flex justify-between items-center mt-3 pt-3 border-t border-zinc-800 pointer-events-auto relative z-10">
                            {status !== 'Open' ? (
@@ -382,7 +437,17 @@ const KanbanBoard: React.FC<EditorProps> = ({ initialContent, onSave, fileName }
                 </div>
               </div>
               <div>
-                <label className="block text-sm font-medium text-zinc-400 mb-1">Description</label>
+                <div className="flex items-center justify-between mb-1">
+                  <label className="block text-sm font-medium text-zinc-400">Description</label>
+                  <button
+                    type="button"
+                    onClick={appendFileLinkToDescription}
+                    className="text-xs text-cyan-400 hover:text-cyan-300 flex items-center gap-1"
+                    title="Insert File Link"
+                  >
+                    <LinkIcon className="w-3 h-3" /> Link File
+                  </button>
+                </div>
                 <textarea
                   value={newDesc}
                   onChange={(e) => setNewDesc(e.target.value)}

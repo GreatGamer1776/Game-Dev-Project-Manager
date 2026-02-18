@@ -147,4 +147,7 @@ export interface EditorProps {
   assets?: Record<string, string>;
   onAddAsset?: (file: File) => Promise<string>; 
   onDeleteAsset?: (assetId: string) => void;
+  projectFiles?: ProjectFile[];
+  activeFileId?: string | null;
+  onOpenFile?: (fileId: string) => void;
 }

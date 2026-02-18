@@ -1,8 +1,8 @@
 import React, { useState, useEffect, useRef } from 'react';
-import { Save, Plus, Trash2, CheckSquare, Square, Calendar, Flag, ChevronDown, ChevronUp, Search, Filter, ListChecks, Loader2, Check, AlertCircle, MoreHorizontal } from 'lucide-react';
+import { Save, Plus, Trash2, CheckSquare, Square, Calendar, Flag, ChevronDown, ChevronUp, Search, Filter, ListChecks, Loader2, Check, AlertCircle, MoreHorizontal, Link as LinkIcon } from 'lucide-react';
 import { TodoItem, Priority, SubTask, EditorProps, TodoStatus } from '../types';
 
-const TodoEditor: React.FC<EditorProps> = ({ initialContent, onSave, fileName }) => {
+const TodoEditor: React.FC<EditorProps> = ({ initialContent, onSave, fileName, projectFiles = [], onOpenFile, activeFileId }) => {
   // Initialize items with migration logic for existing data (missing status)
   const [items, setItems] = useState<TodoItem[]>(() => {
     const rawItems = initialContent?.items || [];
@@ -30,6 +30,7 @@ const TodoEditor: React.FC<EditorProps> = ({ initialContent, onSave, fileName })
   
   const [expandedId, setExpandedId] = useState<string | null>(null);
   const [newSubTaskText, setNewSubTaskText] = useState('');
+  const fileLookup = React.useMemo(() => new Map(projectFiles.map(f => [f.id, f.name])), [projectFiles]);
 
   const COLUMNS: TodoStatus[] = ['To Do', 'In Progress', 'Done'];
 
@@ -113,6 +114,57 @@ const TodoEditor: React.FC<EditorProps> = ({ initialContent, onSave, fileName })
     setItems(items.map(item => 
       item.id === id ? { ...item, description: desc } : item
     ));
+  };
+
+  const appendFileLinkToDescription = (itemId: string) => {
+    const availableFiles = projectFiles.filter(f => f.id !== activeFileId);
+    if (availableFiles.length === 0) {
+      alert("No other files available to link.");
+      return;
+    }
+    const list = availableFiles.map((f, i) => `${i + 1}. ${f.name} (${f.type})`).join('\n');
+    const choice = prompt(`Link to which file?\n\n${list}\n\nEnter number:`);
+    if (!choice) return;
+    const idx = Number(choice) - 1;
+    if (Number.isNaN(idx) || idx < 0 || idx >= availableFiles.length) {
+      alert("Invalid file selection.");
+      return;
+    }
+    const selected = availableFiles[idx];
+    const snippet = `[${selected.name}](file://${selected.id})`;
+    setItems(items.map(item => item.id === itemId ? { ...item, description: `${item.description || ''}${item.description ? '\n' : ''}${snippet}` } : item));
+  };
+
+  const renderTextWithFileLinks = (text: string) => {
+    const nodes: React.ReactNode[] = [];
+    const regex = /\[([^\]]+)\]\(file:\/\/([^)]+)\)/g;
+    let lastIdx = 0;
+    let match: RegExpExecArray | null = null;
+    while ((match = regex.exec(text)) !== null) {
+      if (match.index > lastIdx) {
+        nodes.push(<span key={`txt-${lastIdx}`}>{text.slice(lastIdx, match.index)}</span>);
+      }
+      const fileId = match[2];
+      const exists = fileLookup.has(fileId);
+      nodes.push(
+        <button
+          key={`lnk-${fileId}-${match.index}`}
+          onClick={(e) => {
+            e.stopPropagation();
+            onOpenFile?.(fileId);
+          }}
+          className={`underline underline-offset-2 ${exists ? 'text-cyan-400 hover:text-cyan-300' : 'text-zinc-500 line-through'}`}
+          title={exists ? `Open ${fileLookup.get(fileId)}` : 'Linked file not found'}
+        >
+          {match[1]}
+        </button>
+      );
+      lastIdx = regex.lastIndex;
+    }
+    if (lastIdx < text.length) {
+      nodes.push(<span key={`txt-end-${lastIdx}`}>{text.slice(lastIdx)}</span>);
+    }
+    return nodes.length ? nodes : text;
   };
 
   // --- Sub Tasks ---
@@ -325,12 +377,29 @@ const TodoEditor: React.FC<EditorProps> = ({ initialContent, onSave, fileName })
                               {isExpanded && (
                                   <div className="mt-3 pt-3 border-t border-zinc-800/50 space-y-3 animate-in fade-in slide-in-from-top-1 duration-200">
                                       {/* Description */}
-                                      <textarea
-                                        value={item.description || ''}
-                                        onChange={(e) => updateItemDescription(item.id, e.target.value)}
-                                        placeholder="Add notes..."
-                                        className="w-full bg-zinc-950 border border-zinc-800 rounded p-2 text-xs text-zinc-300 focus:outline-none focus:border-zinc-700 min-h-[60px] resize-y"
-                                      />
+                                      <div className="space-y-2">
+                                          <div className="flex items-center justify-between">
+                                              <span className="text-[10px] uppercase tracking-wide text-zinc-500">Notes</span>
+                                              <button
+                                                onClick={() => appendFileLinkToDescription(item.id)}
+                                                className="text-[10px] text-cyan-400 hover:text-cyan-300 flex items-center gap-1"
+                                                title="Insert File Link"
+                                              >
+                                                <LinkIcon className="w-3 h-3" /> Link File
+                                              </button>
+                                          </div>
+                                          <textarea
+                                            value={item.description || ''}
+                                            onChange={(e) => updateItemDescription(item.id, e.target.value)}
+                                            placeholder="Add notes..."
+                                            className="w-full bg-zinc-950 border border-zinc-800 rounded p-2 text-xs text-zinc-300 focus:outline-none focus:border-zinc-700 min-h-[60px] resize-y"
+                                          />
+                                          {item.description && item.description.includes('file://') && (
+                                              <div className="text-xs text-zinc-400 bg-zinc-950 border border-zinc-800 rounded p-2 break-words">
+                                                {renderTextWithFileLinks(item.description)}
+                                              </div>
+                                          )}
+                                      </div>
                                       
                                       {/* Subtasks */}
                                       <div className="bg-zinc-950 border border-zinc-800 rounded p-2">

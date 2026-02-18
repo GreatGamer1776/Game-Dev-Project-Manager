@@ -58,6 +58,8 @@ const CommandPalette: React.FC<CommandPaletteProps> = ({
   let options: { id: string, type: string, label: string, subLabel?: string, action: () => void }[] = [];
 
   if (activeProject) {
+    const hasType = (type: FileType) => activeProject.files.some(f => f.type === type);
+
     // 1. Current Project Files
     activeProject.files.forEach(f => {
       options.push({
@@ -72,9 +74,9 @@ const CommandPalette: React.FC<CommandPaletteProps> = ({
     // 2. Create Actions
     options.push({ id: 'new-doc', type: 'create', label: 'Create Document', action: () => { onCreateFile('doc'); onClose(); } });
     options.push({ id: 'new-flow', type: 'create', label: 'Create Flowchart', action: () => { onCreateFile('flowchart'); onClose(); } });
-    options.push({ id: 'new-todo', type: 'create', label: 'Create Task List', action: () => { onCreateFile('todo'); onClose(); } });
-    options.push({ id: 'new-kanban', type: 'create', label: 'Create Bug Tracker', action: () => { onCreateFile('kanban'); onClose(); } });
-    options.push({ id: 'new-roadmap', type: 'create', label: 'Create Roadmap', action: () => { onCreateFile('roadmap'); onClose(); } });
+    if (!hasType('todo')) options.push({ id: 'new-todo', type: 'create', label: 'Create Task List', action: () => { onCreateFile('todo'); onClose(); } });
+    if (!hasType('kanban')) options.push({ id: 'new-kanban', type: 'create', label: 'Create Bug Tracker', action: () => { onCreateFile('kanban'); onClose(); } });
+    if (!hasType('roadmap')) options.push({ id: 'new-roadmap', type: 'create', label: 'Create Roadmap', action: () => { onCreateFile('roadmap'); onClose(); } });
     options.push({ id: 'new-grid', type: 'create', label: 'Create Data Grid', action: () => { onCreateFile('grid'); onClose(); } });
     options.push({ id: 'new-wb', type: 'create', label: 'Create Whiteboard', action: () => { onCreateFile('whiteboard'); onClose(); } });
   }

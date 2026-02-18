@@ -8,6 +8,7 @@ import {
 import { EditorProps } from '../types';
 
 // --- CUSTOM PARSER LOGIC ---
+const FILE_LINK_DRAG_MIME = 'application/x-gdpm-file-id';
 
 const parseDoc = (text: string, assets: Record<string, string>, fileLookup: Map<string, string>) => {
     
@@ -289,6 +290,27 @@ const DocEditor: React.FC<EditorProps> = ({ initialContent, onSave, fileName, as
       insertText(`[${selected.name}](file://${selected.id})`);
   };
 
+  const getDraggedFile = (e: React.DragEvent): { id: string; name: string } | null => {
+      const fileId = e.dataTransfer.getData(FILE_LINK_DRAG_MIME) || e.dataTransfer.getData('text/plain');
+      if (!fileId) return null;
+      const file = projectFiles.find(f => f.id === fileId);
+      if (!file) return null;
+      return { id: file.id, name: file.name };
+  };
+
+  const handleEditorDragOver = (e: React.DragEvent<HTMLTextAreaElement>) => {
+      if (!getDraggedFile(e)) return;
+      e.preventDefault();
+      e.dataTransfer.dropEffect = 'copy';
+  };
+
+  const handleEditorDrop = (e: React.DragEvent<HTMLTextAreaElement>) => {
+      const draggedFile = getDraggedFile(e);
+      if (!draggedFile) return;
+      e.preventDefault();
+      insertText(`[${draggedFile.name}](file://${draggedFile.id})`);
+  };
+
   const handlePreviewClick = (e: React.MouseEvent<HTMLDivElement>) => {
       const target = e.target as HTMLElement;
       const link = target.closest('a[data-file-id]') as HTMLAnchorElement | null;
@@ -456,6 +478,8 @@ const DocEditor: React.FC<EditorProps> = ({ initialContent, onSave, fileName, as
               className="w-full h-full bg-zinc-950 p-6 text-zinc-300 font-mono text-sm resize-none focus:outline-none leading-relaxed custom-scrollbar selection:bg-blue-500/30"
               value={content}
               onChange={(e) => setContent(e.target.value)}
+              onDragOver={handleEditorDragOver}
+              onDrop={handleEditorDrop}
               placeholder="# Start writing..."
               spellCheck={false}
             />

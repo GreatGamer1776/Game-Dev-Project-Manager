@@ -127,6 +127,13 @@ const EDITOR_PLUGINS = [
 
 const ASSET_LIBRARY_TYPE: FileType = 'asset-gallery';
 const ASSET_LIBRARY_NAME = 'Asset Library';
+const FILE_LINK_DRAG_MIME = 'application/x-gdpm-file-id';
+const SINGLE_INSTANCE_FILE_TYPES = new Set<FileType>([
+  ASSET_LIBRARY_TYPE,
+  'todo',
+  'kanban',
+  'roadmap'
+]);
 
 const createAssetLibraryFile = (): ProjectFile => ({
   id: crypto.randomUUID(),
@@ -493,17 +500,37 @@ const App: React.FC = () => {
       }
   };
 
-  const openCreateFileModal = (folderId: string | null) => {
+  const canCreateFileType = (type: FileType, project?: Project) => {
+      if (type === ASSET_LIBRARY_TYPE) return false;
+      if (!project) return true;
+      if (!SINGLE_INSTANCE_FILE_TYPES.has(type)) return true;
+      return !project.files.some(f => f.type === type);
+  };
+
+  const openCreateFileModal = (folderId: string | null, preferredType?: FileType) => {
+      const project = projects.find(p => p.id === activeProjectId);
+      const creatablePlugins = EDITOR_PLUGINS.filter(p => canCreateFileType(p.type as FileType, project));
+      const fallbackType = (creatablePlugins[0]?.type || 'doc') as FileType;
+      const selectedType = preferredType && canCreateFileType(preferredType, project) ? preferredType : fallbackType;
+
+      if (preferredType && !canCreateFileType(preferredType, project)) {
+          const plugin = EDITOR_PLUGINS.find(p => p.type === preferredType);
+          alert(`Only one ${plugin?.label || preferredType} is allowed per project.`);
+      }
+
       setCreateFileModal({ open: true, folderId });
       setNewFileName('');
-      setNewFileType('doc');
+      setNewFileType(selectedType);
   };
 
   const handleConfirmCreateFile = (e: React.FormEvent) => {
       e.preventDefault();
       if (!activeProjectId || !newFileName) return;
-      if (newFileType === ASSET_LIBRARY_TYPE) {
-          alert("Asset Library is built into every project and can only exist once.");
+      const project = projects.find(p => p.id === activeProjectId);
+      if (!project) return;
+      if (!canCreateFileType(newFileType, project)) {
+          const plugin = EDITOR_PLUGINS.find(p => p.type === newFileType);
+          alert(`Only one ${plugin?.label || newFileType} is allowed per project.`);
           return;
       }
 
@@ -518,13 +545,10 @@ const App: React.FC = () => {
           folderId: createFileModal.folderId
       };
 
-      const project = projects.find(p => p.id === activeProjectId);
-      if (project) {
-          updateProjectState({ ...project, lastModified: Date.now(), files: [...project.files, newFile] });
-          setActiveFileId(newFile.id);
-          if (createFileModal.folderId) {
-             setExpandedFolders(prev => new Set(prev).add(createFileModal.folderId!));
-          }
+      updateProjectState({ ...project, lastModified: Date.now(), files: [...project.files, newFile] });
+      setActiveFileId(newFile.id);
+      if (createFileModal.folderId) {
+         setExpandedFolders(prev => new Set(prev).add(createFileModal.folderId!));
       }
       setCreateFileModal({ open: false, folderId: null });
   };
@@ -632,6 +656,7 @@ const App: React.FC = () => {
   const handleFileDragStart = (e: React.DragEvent, fileId: string) => {
       setDraggedFileId(fileId);
       e.dataTransfer.effectAllowed = 'move';
+      e.dataTransfer.setData(FILE_LINK_DRAG_MIME, fileId);
       e.dataTransfer.setData('text/plain', fileId);
   };
 
@@ -796,7 +821,10 @@ const App: React.FC = () => {
             <div className="px-2 pb-1 text-[10px] uppercase tracking-wide text-zinc-500">Asset Library</div>
             <button
               onClick={() => setActiveFileId(assetLibraryFile.id)}
-              className={`w-full flex items-center gap-2 px-2 py-2 rounded-lg text-sm transition-colors border ${activeFileId === assetLibraryFile.id ? 'bg-zinc-800 text-white border-blue-500/40' : 'text-zinc-300 hover:text-white hover:bg-zinc-900 border-zinc-800'}`}
+              draggable
+              onDragStart={(e) => handleFileDragStart(e, assetLibraryFile.id)}
+              onDragEnd={handleFileDragEnd}
+              className={`w-full flex items-center gap-2 px-2 py-2 rounded-lg text-sm transition-colors border cursor-grab active:cursor-grabbing ${activeFileId === assetLibraryFile.id ? 'bg-zinc-800 text-white border-blue-500/40' : 'text-zinc-300 hover:text-white hover:bg-zinc-900 border-zinc-800'}`}
             >
               <ImageIcon className={`w-4 h-4 ${activeFileId === assetLibraryFile.id ? 'text-blue-400' : 'text-zinc-500'}`} />
               <span className="truncate">{assetLibraryFile.name}</span>
@@ -870,7 +898,7 @@ const App: React.FC = () => {
             activeProject={activeProject}
             onSelectFile={(id) => { setActiveFileId(id); }}
             onSelectProject={handleSelectProject}
-            onCreateFile={(type) => openCreateFileModal(null)} // Hook palette to new modal
+            onCreateFile={(type) => openCreateFileModal(null, type)} // Hook palette to new modal
         />
         
         <HelpModal isOpen={isHelpOpen} onClose={() => setIsHelpOpen(false)} />
@@ -903,7 +931,7 @@ const App: React.FC = () => {
                                 onChange={e => setNewFileType(e.target.value as FileType)}
                                 className="w-full bg-zinc-950 border border-zinc-800 rounded p-2 text-white focus:ring-2 focus:ring-blue-600 outline-none"
                             >
-                                {EDITOR_PLUGINS.filter(p => p.type !== ASSET_LIBRARY_TYPE).map(p => (
+                                {EDITOR_PLUGINS.filter(p => canCreateFileType(p.type as FileType, activeProject)).map(p => (
                                     <option key={p.type} value={p.type}>{p.label}</option>
                                 ))}
                             </select>

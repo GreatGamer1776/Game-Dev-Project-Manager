@@ -2,6 +2,8 @@ import React, { useState, useEffect, useRef } from 'react';
 import { Save, Plus, AlertCircle, ChevronLeft, ChevronRight, X, Trash2, Bug as BugIcon, Search, Filter, Pencil, Loader2, Check, Link as LinkIcon } from 'lucide-react';
 import { Bug, BugSeverity, BugStatus, EditorProps } from '../types';
 
+const FILE_LINK_DRAG_MIME = 'application/x-gdpm-file-id';
+
 const KanbanBoard: React.FC<EditorProps> = ({ initialContent, onSave, fileName, projectFiles = [], onOpenFile, activeFileId }) => {
   const [bugs, setBugs] = useState<Bug[]>(initialContent?.tasks || []);
   
@@ -182,6 +184,27 @@ const KanbanBoard: React.FC<EditorProps> = ({ initialContent, onSave, fileName, 
       return;
     }
     const file = availableFiles[idx];
+    setNewDesc(prev => `${prev}${prev ? '\n' : ''}[${file.name}](file://${file.id})`);
+  };
+
+  const getDraggedProjectFile = (e: React.DragEvent): { id: string; name: string } | null => {
+    const fileId = e.dataTransfer.getData(FILE_LINK_DRAG_MIME) || e.dataTransfer.getData('text/plain');
+    if (!fileId) return null;
+    const file = projectFiles.find(f => f.id === fileId);
+    if (!file) return null;
+    return { id: file.id, name: file.name };
+  };
+
+  const handleDescriptionDragOver = (e: React.DragEvent<HTMLTextAreaElement>) => {
+    if (!getDraggedProjectFile(e)) return;
+    e.preventDefault();
+    e.dataTransfer.dropEffect = 'copy';
+  };
+
+  const handleDescriptionDrop = (e: React.DragEvent<HTMLTextAreaElement>) => {
+    const file = getDraggedProjectFile(e);
+    if (!file) return;
+    e.preventDefault();
     setNewDesc(prev => `${prev}${prev ? '\n' : ''}[${file.name}](file://${file.id})`);
   };
 
@@ -451,6 +474,8 @@ const KanbanBoard: React.FC<EditorProps> = ({ initialContent, onSave, fileName, 
                 <textarea
                   value={newDesc}
                   onChange={(e) => setNewDesc(e.target.value)}
+                  onDragOver={handleDescriptionDragOver}
+                  onDrop={handleDescriptionDrop}
                   className="w-full bg-zinc-950 border border-zinc-800 rounded-lg p-3 text-white focus:ring-2 focus:ring-red-600 focus:border-transparent outline-none transition-all min-h-[100px]"
                   placeholder="Steps to reproduce..."
                 />

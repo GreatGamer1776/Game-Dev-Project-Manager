@@ -2,6 +2,8 @@ import React, { useState, useEffect, useRef } from 'react';
 import { Save, Plus, Trash2, CheckSquare, Square, Calendar, Flag, ChevronDown, ChevronUp, Search, Filter, ListChecks, Loader2, Check, AlertCircle, MoreHorizontal, Link as LinkIcon } from 'lucide-react';
 import { TodoItem, Priority, SubTask, EditorProps, TodoStatus } from '../types';
 
+const FILE_LINK_DRAG_MIME = 'application/x-gdpm-file-id';
+
 const TodoEditor: React.FC<EditorProps> = ({ initialContent, onSave, fileName, projectFiles = [], onOpenFile, activeFileId }) => {
   // Initialize items with migration logic for existing data (missing status)
   const [items, setItems] = useState<TodoItem[]>(() => {
@@ -132,6 +134,28 @@ const TodoEditor: React.FC<EditorProps> = ({ initialContent, onSave, fileName, p
     }
     const selected = availableFiles[idx];
     const snippet = `[${selected.name}](file://${selected.id})`;
+    setItems(items.map(item => item.id === itemId ? { ...item, description: `${item.description || ''}${item.description ? '\n' : ''}${snippet}` } : item));
+  };
+
+  const getDraggedProjectFile = (e: React.DragEvent): { id: string; name: string } | null => {
+    const fileId = e.dataTransfer.getData(FILE_LINK_DRAG_MIME) || e.dataTransfer.getData('text/plain');
+    if (!fileId) return null;
+    const file = projectFiles.find(f => f.id === fileId);
+    if (!file) return null;
+    return { id: file.id, name: file.name };
+  };
+
+  const handleDescriptionDragOver = (e: React.DragEvent<HTMLTextAreaElement>) => {
+    if (!getDraggedProjectFile(e)) return;
+    e.preventDefault();
+    e.dataTransfer.dropEffect = 'copy';
+  };
+
+  const handleDescriptionDrop = (e: React.DragEvent<HTMLTextAreaElement>, itemId: string) => {
+    const file = getDraggedProjectFile(e);
+    if (!file) return;
+    e.preventDefault();
+    const snippet = `[${file.name}](file://${file.id})`;
     setItems(items.map(item => item.id === itemId ? { ...item, description: `${item.description || ''}${item.description ? '\n' : ''}${snippet}` } : item));
   };
 
@@ -391,6 +415,8 @@ const TodoEditor: React.FC<EditorProps> = ({ initialContent, onSave, fileName, p
                                           <textarea
                                             value={item.description || ''}
                                             onChange={(e) => updateItemDescription(item.id, e.target.value)}
+                                            onDragOver={handleDescriptionDragOver}
+                                            onDrop={(e) => handleDescriptionDrop(e, item.id)}
                                             placeholder="Add notes..."
                                             className="w-full bg-zinc-950 border border-zinc-800 rounded p-2 text-xs text-zinc-300 focus:outline-none focus:border-zinc-700 min-h-[60px] resize-y"
                                           />

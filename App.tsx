@@ -125,9 +125,41 @@ const EDITOR_PLUGINS = [
   { type: 'asset-gallery', label: 'Asset Library', pluralLabel: 'Asset Libraries', icon: ImageIcon, component: AssetBrowser as React.FC<EditorProps>, createDefaultContent: () => ({}) }
 ];
 
+const ASSET_LIBRARY_TYPE: FileType = 'asset-gallery';
+const ASSET_LIBRARY_NAME = 'Asset Library';
+
+const createAssetLibraryFile = (): ProjectFile => ({
+  id: crypto.randomUUID(),
+  name: ASSET_LIBRARY_NAME,
+  type: ASSET_LIBRARY_TYPE,
+  content: {},
+  folderId: null
+});
+
+const normalizeProjectFiles = (project: Project): Project => {
+  const baseFiles = project.files || [];
+  const assetFiles = baseFiles.filter(f => f.type === ASSET_LIBRARY_TYPE);
+  const nonAssetFiles = baseFiles.filter(f => f.type !== ASSET_LIBRARY_TYPE);
+  let assetFile = assetFiles[0] || createAssetLibraryFile();
+
+  if (assetFile.name !== ASSET_LIBRARY_NAME || assetFile.folderId !== null) {
+    assetFile = { ...assetFile, name: ASSET_LIBRARY_NAME, folderId: null };
+  }
+
+  return {
+    ...project,
+    folders: project.folders || [],
+    assets: project.assets || {},
+    files: [...nonAssetFiles, assetFile]
+  };
+};
+
 const MOCK_PROJECTS: Project[] = [{
     id: '1', name: 'Cosmic Invaders', type: 'Game', description: 'A retro-style space shooter.', lastModified: Date.now(),
-    files: [{ id: 'f1', name: 'Game Design Document', type: 'doc', content: '# Cosmic Invaders', folderId: null }],
+    files: [
+      { id: 'f1', name: 'Game Design Document', type: 'doc', content: '# Cosmic Invaders', folderId: null },
+      { id: 'f-asset-lib', name: ASSET_LIBRARY_NAME, type: ASSET_LIBRARY_TYPE, content: {}, folderId: null }
+    ],
     folders: [], 
     assets: {}
 }];
@@ -164,13 +196,12 @@ const App: React.FC = () => {
                     const handle = await IDB.loadHandle(p.id);
                     if (handle) projectHandlesRef.current.set(p.id, handle);
                 }
-                // Ensure folders array exists for migrated projects
-                if (!p.folders) p.folders = [];
             }
-            setProjects(loaded.length > 0 ? loaded : MOCK_PROJECTS);
+            const normalizedLoaded = loaded.map(normalizeProjectFiles);
+            setProjects(normalizedLoaded.length > 0 ? normalizedLoaded : MOCK_PROJECTS.map(normalizeProjectFiles));
         } catch (e) {
             console.error("Init error", e);
-            setProjects(MOCK_PROJECTS);
+            setProjects(MOCK_PROJECTS.map(normalizeProjectFiles));
         } finally {
             setIsLoaded(true);
         }
@@ -283,7 +314,7 @@ const App: React.FC = () => {
 
           projectData.assets = assetsMap;
           projectData.isLocal = true;
-          return projectData;
+          return normalizeProjectFiles(projectData);
       } catch (e) {
           return null;
       }
@@ -330,21 +361,22 @@ const App: React.FC = () => {
   const handleSelectProject = async (id: string) => {
       const project = projects.find(p => p.id === id);
       if (!project) return;
+      const firstFile = project.files.find(f => f.type !== ASSET_LIBRARY_TYPE) || project.files.find(f => f.type === ASSET_LIBRARY_TYPE);
       
       setActiveProjectId(id);
-      setActiveFileId(project.files[0]?.id || null);
+      setActiveFileId(firstFile?.id || null);
       setCurrentView(ViewState.PROJECT);
   };
 
   const handleCreateProject = async (name: string, type: Project['type']) => {
     const defaultDocPlugin = EDITOR_PLUGINS.find(p => p.type === 'doc');
-    const newProject: Project = {
+    const newProject: Project = normalizeProjectFiles({
       id: crypto.randomUUID(),
       name, type, description: '', lastModified: Date.now(),
       files: [{ id: crypto.randomUUID(), name: 'Readme', type: 'doc', content: defaultDocPlugin ? defaultDocPlugin.createDefaultContent(name) : '', folderId: null }],
       folders: [],
       assets: {}
-    };
+    });
     
     setProjects(prev => [newProject, ...prev]);
     IDB.saveProject(newProject);
@@ -386,13 +418,14 @@ const App: React.FC = () => {
   };
 
   const updateProjectState = (updatedProject: Project) => {
-      setProjects(prev => prev.map(p => p.id === updatedProject.id ? updatedProject : p));
+      const normalizedProject = normalizeProjectFiles(updatedProject);
+      setProjects(prev => prev.map(p => p.id === normalizedProject.id ? normalizedProject : p));
       
-      if (updatedProject.isLocal) {
-          saveQueueRef.current = updatedProject;
+      if (normalizedProject.isLocal) {
+          saveQueueRef.current = normalizedProject;
           processSaveQueue();
       }
-      IDB.saveProject(updatedProject);
+      IDB.saveProject(normalizedProject);
   };
 
   // --- FOLDER & FILE LOGIC ---
@@ -447,7 +480,8 @@ const App: React.FC = () => {
           updateProjectState({ ...project, lastModified: Date.now(), files: newFiles, folders: newFolders });
 
           if (activeFileId && deletedFileIds.has(activeFileId)) {
-              setActiveFileId(newFiles[0]?.id || null);
+              const nextFile = newFiles.find(f => f.type !== ASSET_LIBRARY_TYPE) || newFiles.find(f => f.type === ASSET_LIBRARY_TYPE);
+              setActiveFileId(nextFile?.id || null);
           }
           setExpandedFolders(prev => {
               const next = new Set(prev);
@@ -468,6 +502,10 @@ const App: React.FC = () => {
   const handleConfirmCreateFile = (e: React.FormEvent) => {
       e.preventDefault();
       if (!activeProjectId || !newFileName) return;
+      if (newFileType === ASSET_LIBRARY_TYPE) {
+          alert("Asset Library is built into every project and can only exist once.");
+          return;
+      }
 
       const plugin = EDITOR_PLUGINS.find(p => p.type === newFileType);
       if (!plugin) return;
@@ -494,11 +532,20 @@ const App: React.FC = () => {
   const handleDeleteFile = (e: React.MouseEvent, fileId: string) => {
     e.stopPropagation();
     if (!activeProjectId) return;
+    const project = projects.find(p => p.id === activeProjectId);
+    if (!project) return;
+    const file = project.files.find(f => f.id === fileId);
+    if (!file) return;
+    if (file.type === ASSET_LIBRARY_TYPE) {
+        alert("Asset Library cannot be deleted.");
+        return;
+    }
     if (confirm("Delete file?")) {
-        const project = projects.find(p => p.id === activeProjectId);
-        if (project) {
-            updateProjectState({ ...project, files: project.files.filter(f => f.id !== fileId) });
-            if (activeFileId === fileId) setActiveFileId(null);
+        const remainingFiles = project.files.filter(f => f.id !== fileId);
+        updateProjectState({ ...project, files: remainingFiles });
+        if (activeFileId === fileId) {
+            const nextFile = remainingFiles.find(f => f.type !== ASSET_LIBRARY_TYPE) || remainingFiles.find(f => f.type === ASSET_LIBRARY_TYPE);
+            setActiveFileId(nextFile?.id || null);
         }
     }
   };
@@ -550,6 +597,8 @@ const App: React.FC = () => {
 
   const activeProject = projects.find(p => p.id === activeProjectId);
   const activeFile = activeProject?.files.find(f => f.id === activeFileId);
+  const assetLibraryFile = activeProject?.files.find(f => f.type === ASSET_LIBRARY_TYPE);
+  const nonAssetFileCount = activeProject ? activeProject.files.filter(f => f.type !== ASSET_LIBRARY_TYPE).length : 0;
 
   // --- SIDEBAR RENDERING ---
 
@@ -563,7 +612,7 @@ const App: React.FC = () => {
   const moveFileToFolder = (fileId: string, folderId: string | null) => {
       if (!activeProject) return;
       const file = activeProject.files.find(f => f.id === fileId);
-      if (!file || (file.folderId || null) === folderId) return;
+      if (!file || file.type === ASSET_LIBRARY_TYPE || (file.folderId || null) === folderId) return;
       updateProjectState({
           ...activeProject,
           lastModified: Date.now(),
@@ -625,7 +674,7 @@ const App: React.FC = () => {
       const folders = activeProject.folders.filter(f => f.parentId === parentId);
       const pluginOrder = new Map(EDITOR_PLUGINS.map((plugin, index) => [plugin.type, index]));
       const files = activeProject.files
-          .filter(f => (f.folderId || null) === parentId)
+          .filter(f => f.type !== ASSET_LIBRARY_TYPE && (f.folderId || null) === parentId)
           .sort((a, b) => {
               const typeRankA = pluginOrder.get(a.type) ?? Number.MAX_SAFE_INTEGER;
               const typeRankB = pluginOrder.get(b.type) ?? Number.MAX_SAFE_INTEGER;
@@ -732,6 +781,19 @@ const App: React.FC = () => {
             </button>
         </div>
 
+        {/* Asset Library (Always Available) */}
+        {assetLibraryFile && (
+          <div className="px-3 pt-3">
+            <button
+              onClick={() => setActiveFileId(assetLibraryFile.id)}
+              className={`w-full flex items-center gap-2 px-2 py-2 rounded-lg text-sm transition-colors ${activeFileId === assetLibraryFile.id ? 'bg-zinc-800 text-white' : 'text-zinc-300 hover:text-white hover:bg-zinc-900'}`}
+            >
+              <ImageIcon className={`w-4 h-4 ${activeFileId === assetLibraryFile.id ? 'text-blue-400' : 'text-zinc-500'}`} />
+              <span className="truncate">{assetLibraryFile.name}</span>
+            </button>
+          </div>
+        )}
+
         {/* Tree */}
         <div
           className={`p-3 flex-1 overflow-y-auto custom-scrollbar transition-colors ${activeDropFolderId === 'root' ? 'bg-blue-500/5 ring-1 ring-inset ring-blue-500/30 rounded-lg' : ''}`}
@@ -740,7 +802,7 @@ const App: React.FC = () => {
         >
           {renderFileTree(null)}
           
-          {activeProject.files.length === 0 && activeProject.folders.length === 0 && (
+          {nonAssetFileCount === 0 && activeProject.folders.length === 0 && (
               <div className="text-center py-8 text-zinc-600 text-xs italic">
                   Project is empty. Create a file or folder to get started.
               </div>
@@ -826,7 +888,7 @@ const App: React.FC = () => {
                                 onChange={e => setNewFileType(e.target.value as FileType)}
                                 className="w-full bg-zinc-950 border border-zinc-800 rounded p-2 text-white focus:ring-2 focus:ring-blue-600 outline-none"
                             >
-                                {EDITOR_PLUGINS.map(p => (
+                                {EDITOR_PLUGINS.filter(p => p.type !== ASSET_LIBRARY_TYPE).map(p => (
                                     <option key={p.type} value={p.type}>{p.label}</option>
                                 ))}
                             </select>

@@ -1,5 +1,5 @@
 import React, { useState, useEffect, useRef } from 'react';
-import { Search, FileText, Network, CheckSquare, Bug, Map, Table, PenTool, LayoutDashboard, FolderOpen, Plus } from 'lucide-react';
+import { Search, FileText, Network, CheckSquare, Bug, Map, Table, PenTool, LayoutDashboard, FolderOpen, Plus, Image as ImageIcon } from 'lucide-react';
 import { Project, ProjectFile, FileType } from '../types';
 
 interface CommandPaletteProps {
@@ -46,6 +46,7 @@ const CommandPalette: React.FC<CommandPaletteProps> = ({
       case 'roadmap': return <Map className="w-4 h-4" />;
       case 'grid': return <Table className="w-4 h-4" />;
       case 'whiteboard': return <PenTool className="w-4 h-4" />;
+      case 'asset-gallery': return <ImageIcon className="w-4 h-4" />;
       case 'project': return <LayoutDashboard className="w-4 h-4" />;
       case 'create': return <Plus className="w-4 h-4" />;
       default: return <FileText className="w-4 h-4" />;

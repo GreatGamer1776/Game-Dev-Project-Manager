@@ -1,10 +1,12 @@
 import React, { useState } from 'react';
-import { Upload, Trash2, Image as ImageIcon, Copy, Search, Grid, Check, Download } from 'lucide-react';
+import { Upload, Trash2, Image as ImageIcon, Copy, Search, Grid, Check, Download, FolderOpen } from 'lucide-react';
 import { EditorProps } from '../types';
 
 const AssetBrowser: React.FC<EditorProps> = ({ assets = {}, onAddAsset, onDeleteAsset, onSave, fileName }) => {
   const [searchQuery, setSearchQuery] = useState('');
   const [copiedId, setCopiedId] = useState<string | null>(null);
+  const [isUploading, setIsUploading] = useState(false);
+  const [uploadStatus, setUploadStatus] = useState('');
 
   const assetList = Object.entries(assets).map(([id, data]) => ({ id, data }));
 
@@ -12,15 +14,48 @@ const AssetBrowser: React.FC<EditorProps> = ({ assets = {}, onAddAsset, onDelete
     item.id.toLowerCase().includes(searchQuery.toLowerCase())
   );
 
-  const handleUpload = () => {
+  const uploadSelectedAssets = async (selected: FileList | File[] | null, source: 'files' | 'folder') => {
+    if (!selected || !onAddAsset) return;
+    const imageFiles = Array.from(selected).filter(file => file.type.startsWith('image/'));
+    if (imageFiles.length === 0) {
+      alert(`No image files found in selected ${source}.`);
+      return;
+    }
+
+    setIsUploading(true);
+    try {
+      for (let i = 0; i < imageFiles.length; i++) {
+        setUploadStatus(`Uploading ${i + 1}/${imageFiles.length}...`);
+        await onAddAsset(imageFiles[i]);
+      }
+      setUploadStatus(`Uploaded ${imageFiles.length} image${imageFiles.length === 1 ? '' : 's'}.`);
+      setTimeout(() => setUploadStatus(''), 2500);
+    } finally {
+      setIsUploading(false);
+    }
+  };
+
+  const handleUploadFiles = () => {
     const input = document.createElement('input');
     input.type = 'file';
+    input.multiple = true;
     input.accept = 'image/*';
     input.onchange = async (e) => {
-      const file = (e.target as HTMLInputElement).files?.[0];
-      if (file && onAddAsset) {
-        await onAddAsset(file);
-      }
+      await uploadSelectedAssets((e.target as HTMLInputElement).files, 'files');
+    };
+    input.click();
+  };
+
+  const handleUploadFolder = () => {
+    const input = document.createElement('input');
+    input.type = 'file';
+    input.multiple = true;
+    input.accept = 'image/*';
+    const folderInput = input as HTMLInputElement & { webkitdirectory?: boolean; directory?: boolean };
+    folderInput.webkitdirectory = true;
+    folderInput.directory = true;
+    input.onchange = async (e) => {
+      await uploadSelectedAssets((e.target as HTMLInputElement).files, 'folder');
     };
     input.click();
   };
@@ -66,13 +101,27 @@ const AssetBrowser: React.FC<EditorProps> = ({ assets = {}, onAddAsset, onDelete
                 />
             </div>
             <button 
-                onClick={handleUpload} 
-                className="flex items-center gap-2 bg-purple-600 hover:bg-purple-700 text-white px-4 py-2 rounded-md text-sm font-medium transition-colors shadow-lg shadow-purple-900/20"
+                onClick={handleUploadFiles}
+                disabled={isUploading}
+                className="flex items-center gap-2 bg-purple-600 hover:bg-purple-700 disabled:opacity-60 disabled:cursor-not-allowed text-white px-4 py-2 rounded-md text-sm font-medium transition-colors shadow-lg shadow-purple-900/20"
             >
-                <Upload className="w-4 h-4" /> Upload Asset
+                <Upload className="w-4 h-4" /> Upload Files
+            </button>
+            <button
+                onClick={handleUploadFolder}
+                disabled={isUploading}
+                className="flex items-center gap-2 bg-zinc-800 hover:bg-zinc-700 disabled:opacity-60 disabled:cursor-not-allowed text-zinc-200 px-4 py-2 rounded-md text-sm font-medium transition-colors border border-zinc-700"
+            >
+                <FolderOpen className="w-4 h-4" /> Upload Folder
             </button>
         </div>
       </div>
+
+      {uploadStatus && (
+        <div className="px-6 py-2 text-xs text-zinc-400 border-b border-zinc-800 bg-zinc-900/70">
+          {uploadStatus}
+        </div>
+      )}
 
       <div className="flex-1 overflow-y-auto p-6 custom-scrollbar">
         {assetList.length === 0 ? (

@@ -134,6 +134,12 @@ const SINGLE_INSTANCE_FILE_TYPES = new Set<FileType>([
   'kanban',
   'roadmap'
 ]);
+const MANDATORY_SINGLETON_FILES: Array<{ type: FileType; name: string }> = [
+  { type: ASSET_LIBRARY_TYPE, name: ASSET_LIBRARY_NAME },
+  { type: 'todo', name: 'Task List' },
+  { type: 'kanban', name: 'Bug Tracker' },
+  { type: 'roadmap', name: 'Roadmap' }
+];
 
 const createAssetLibraryFile = (): ProjectFile => ({
   id: crypto.randomUUID(),
@@ -143,21 +149,39 @@ const createAssetLibraryFile = (): ProjectFile => ({
   folderId: null
 });
 
+const createDefaultProjectFile = (type: FileType, name: string): ProjectFile => {
+  const plugin = EDITOR_PLUGINS.find(p => p.type === type);
+  return {
+    id: crypto.randomUUID(),
+    name,
+    type,
+    content: plugin ? plugin.createDefaultContent(name) : '',
+    folderId: null
+  };
+};
+
 const normalizeProjectFiles = (project: Project): Project => {
   const baseFiles = project.files || [];
   const assetFiles = baseFiles.filter(f => f.type === ASSET_LIBRARY_TYPE);
-  const nonAssetFiles = baseFiles.filter(f => f.type !== ASSET_LIBRARY_TYPE);
+  const files = baseFiles.filter(f => f.type !== ASSET_LIBRARY_TYPE);
   let assetFile = assetFiles[0] || createAssetLibraryFile();
 
   if (assetFile.name !== ASSET_LIBRARY_NAME || assetFile.folderId !== null) {
     assetFile = { ...assetFile, name: ASSET_LIBRARY_NAME, folderId: null };
   }
 
+  for (const def of MANDATORY_SINGLETON_FILES) {
+    if (def.type === ASSET_LIBRARY_TYPE) continue;
+    if (!files.some(f => f.type === def.type)) {
+      files.push(createDefaultProjectFile(def.type, def.name));
+    }
+  }
+
   return {
     ...project,
     folders: project.folders || [],
     assets: project.assets || {},
-    files: [...nonAssetFiles, assetFile]
+    files: [...files, assetFile]
   };
 };
 
@@ -560,9 +584,13 @@ const App: React.FC = () => {
     if (!project) return;
     const file = project.files.find(f => f.id === fileId);
     if (!file) return;
-    if (file.type === ASSET_LIBRARY_TYPE) {
-        alert("Asset Library cannot be deleted.");
-        return;
+    if (SINGLE_INSTANCE_FILE_TYPES.has(file.type)) {
+        const countForType = project.files.filter(f => f.type === file.type).length;
+        if (countForType <= 1) {
+            const plugin = EDITOR_PLUGINS.find(p => p.type === file.type);
+            alert(`${plugin?.label || file.type} is required in every project and cannot be deleted.`);
+            return;
+        }
     }
     if (confirm("Delete file?")) {
         const remainingFiles = project.files.filter(f => f.id !== fileId);
@@ -622,7 +650,7 @@ const App: React.FC = () => {
   const activeProject = projects.find(p => p.id === activeProjectId);
   const activeFile = activeProject?.files.find(f => f.id === activeFileId);
   const assetLibraryFile = activeProject?.files.find(f => f.type === ASSET_LIBRARY_TYPE);
-  const nonAssetFileCount = activeProject ? activeProject.files.filter(f => f.type !== ASSET_LIBRARY_TYPE).length : 0;
+  const nonSystemFileCount = activeProject ? activeProject.files.filter(f => !SINGLE_INSTANCE_FILE_TYPES.has(f.type)).length : 0;
 
   const handleOpenFileFromLink = (fileId: string) => {
     if (!activeProject) return;
@@ -842,7 +870,7 @@ const App: React.FC = () => {
         >
           {renderFileTree(null)}
           
-          {nonAssetFileCount === 0 && activeProject.folders.length === 0 && (
+          {nonSystemFileCount === 0 && activeProject.folders.length === 0 && (
               <div className="text-center py-8 text-zinc-600 text-xs italic">
                   Project is empty. Create a file or folder to get started.
               </div>

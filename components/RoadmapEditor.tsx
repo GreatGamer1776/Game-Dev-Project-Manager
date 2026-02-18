@@ -1,8 +1,10 @@
 import React, { useState, useEffect, useRef, useMemo } from 'react';
-import { Save, Plus, Trash2, Calendar, Flag, CheckCircle2, AlertCircle, Clock, Loader2, Check, TrendingUp, MoreHorizontal, ChevronRight, ChevronDown } from 'lucide-react';
+import { Save, Plus, Trash2, Calendar, Flag, CheckCircle2, AlertCircle, Clock, Loader2, Check, TrendingUp, MoreHorizontal, ChevronRight, ChevronDown, Link as LinkIcon } from 'lucide-react';
 import { EditorProps, RoadmapItem, RoadmapItemType, RoadmapStatus } from '../types';
 
-const RoadmapEditor: React.FC<EditorProps> = ({ initialContent, onSave, fileName }) => {
+const FILE_LINK_DRAG_MIME = 'application/x-gdpm-file-id';
+
+const RoadmapEditor: React.FC<EditorProps> = ({ initialContent, onSave, fileName, projectFiles = [], onOpenFile, activeFileId }) => {
   const [items, setItems] = useState<RoadmapItem[]>(initialContent?.items || []);
   
   // Save State
@@ -23,6 +25,7 @@ const RoadmapEditor: React.FC<EditorProps> = ({ initialContent, onSave, fileName
     progress: 0,
     description: ''
   });
+  const fileLookup = useMemo(() => new Map(projectFiles.map(f => [f.id, f.name])), [projectFiles]);
 
   // Sync Content
   useEffect(() => {
@@ -86,6 +89,80 @@ const RoadmapEditor: React.FC<EditorProps> = ({ initialContent, onSave, fileName
       setItems(items.filter(i => i.id !== id));
       if (editingId === id) setIsFormOpen(false);
     }
+  };
+
+  const appendFileLinkToDescription = () => {
+    const availableFiles = projectFiles.filter(f => f.id !== activeFileId);
+    if (availableFiles.length === 0) {
+      alert("No other files available to link.");
+      return;
+    }
+    const list = availableFiles.map((f, i) => `${i + 1}. ${f.name} (${f.type})`).join('\n');
+    const choice = prompt(`Link to which file?\n\n${list}\n\nEnter number:`);
+    if (!choice) return;
+    const idx = Number(choice) - 1;
+    if (Number.isNaN(idx) || idx < 0 || idx >= availableFiles.length) {
+      alert("Invalid file selection.");
+      return;
+    }
+    const selected = availableFiles[idx];
+    setFormData(prev => ({ ...prev, description: `${prev.description || ''}${prev.description ? '\n' : ''}[${selected.name}](file://${selected.id})` }));
+  };
+
+  const getDraggedProjectFile = (e: React.DragEvent): { id: string; name: string } | null => {
+    const fileId = e.dataTransfer.getData(FILE_LINK_DRAG_MIME) || e.dataTransfer.getData('text/plain');
+    if (!fileId) return null;
+    const file = projectFiles.find(f => f.id === fileId);
+    if (!file) return null;
+    return { id: file.id, name: file.name };
+  };
+
+  const handleDescriptionDragOver = (e: React.DragEvent<HTMLTextAreaElement>) => {
+    if (!getDraggedProjectFile(e)) return;
+    e.preventDefault();
+    e.dataTransfer.dropEffect = 'copy';
+  };
+
+  const handleDescriptionDrop = (e: React.DragEvent<HTMLTextAreaElement>) => {
+    const file = getDraggedProjectFile(e);
+    if (!file) return;
+    e.preventDefault();
+    setFormData(prev => ({ ...prev, description: `${prev.description || ''}${prev.description ? '\n' : ''}[${file.name}](file://${file.id})` }));
+  };
+
+  const renderTextWithFileLinks = (text: string) => {
+    const nodes: React.ReactNode[] = [];
+    const regex = /\[([^\]]+)\]\(file:\/\/([^)]+)\)/g;
+    let lastIdx = 0;
+    let match: RegExpExecArray | null = null;
+
+    while ((match = regex.exec(text)) !== null) {
+      if (match.index > lastIdx) {
+        nodes.push(<span key={`txt-${lastIdx}`}>{text.slice(lastIdx, match.index)}</span>);
+      }
+      const label = match[1];
+      const fileId = match[2];
+      const exists = fileLookup.has(fileId);
+      nodes.push(
+        <button
+          key={`lnk-${fileId}-${match.index}`}
+          onClick={(e) => {
+            e.stopPropagation();
+            onOpenFile?.(fileId);
+          }}
+          className={`underline underline-offset-2 ${exists ? 'text-cyan-400 hover:text-cyan-300' : 'text-zinc-500 line-through'}`}
+          title={exists ? `Open ${fileLookup.get(fileId)}` : 'Linked file not found'}
+        >
+          {label}
+        </button>
+      );
+      lastIdx = regex.lastIndex;
+    }
+
+    if (lastIdx < text.length) {
+      nodes.push(<span key={`txt-end-${lastIdx}`}>{text.slice(lastIdx)}</span>);
+    }
+    return nodes.length ? nodes : text;
   };
 
   const handleSubmit = (e: React.FormEvent) => {
@@ -421,12 +498,29 @@ const RoadmapEditor: React.FC<EditorProps> = ({ initialContent, onSave, fileName
                     )}
 
                     <div>
-                        <label className="block text-sm text-zinc-400 mb-1">Description</label>
+                        <div className="flex items-center justify-between mb-1">
+                            <label className="block text-sm text-zinc-400">Description</label>
+                            <button
+                                type="button"
+                                onClick={appendFileLinkToDescription}
+                                className="text-xs text-cyan-400 hover:text-cyan-300 flex items-center gap-1"
+                                title="Insert File Link"
+                            >
+                                <LinkIcon className="w-3 h-3" /> Link File
+                            </button>
+                        </div>
                         <textarea 
                             value={formData.description} 
                             onChange={e => setFormData({...formData, description: e.target.value})}
+                            onDragOver={handleDescriptionDragOver}
+                            onDrop={handleDescriptionDrop}
                             className="w-full bg-zinc-950 border border-zinc-800 rounded p-2 text-white focus:border-blue-500 outline-none min-h-[80px]" 
                         />
+                        {formData.description && formData.description.includes('file://') && (
+                            <div className="mt-2 text-xs text-zinc-400 bg-zinc-950 border border-zinc-800 rounded p-2 break-words">
+                                {renderTextWithFileLinks(formData.description)}
+                            </div>
+                        )}
                     </div>
 
                     <div className="flex gap-3 pt-4 border-t border-zinc-800 mt-4">

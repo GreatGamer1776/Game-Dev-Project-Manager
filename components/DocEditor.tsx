@@ -160,6 +160,8 @@ const DocEditor: React.FC<EditorProps> = ({ initialContent, onSave, fileName, as
   const [showColorPicker, setShowColorPicker] = useState(false);
   const [customColor, setCustomColor] = useState('#ef4444');
   const [selectedLinkFileId, setSelectedLinkFileId] = useState<string>('');
+  const [linkTargetId, setLinkTargetId] = useState('');
+  const [linkLabel, setLinkLabel] = useState('');
 
   const [saveStatus, setSaveStatus] = useState<'saved' | 'saving' | 'unsaved'>('saved');
   const lastSavedContent = useRef(initialContent);
@@ -286,18 +288,46 @@ const DocEditor: React.FC<EditorProps> = ({ initialContent, onSave, fileName, as
   };
 
   const insertFileLink = () => {
-      if (linkableFiles.length === 0) {
+      const targetId = linkTargetId.trim() || selectedLinkFileId;
+      if (!targetId) {
           alert("No other files available to link.");
           return;
       }
-      const selected = linkableFiles.find(f => f.id === selectedLinkFileId) || linkableFiles[0];
-      insertText(`[${selected.name}](file://${selected.id})`);
+      const selected = projectFiles.find(f => f.id === targetId);
+      const label = linkLabel.trim() || selected?.name || 'Linked File';
+      insertText(`[${label}](file://${targetId})`);
   };
 
   const getDraggedFile = (e: React.DragEvent): { id: string; name: string } | null => {
-      const fileId = e.dataTransfer.getData(FILE_LINK_DRAG_MIME) || e.dataTransfer.getData('text/plain');
-      if (!fileId) return null;
-      const file = projectFiles.find(f => f.id === fileId);
+      const raw = e.dataTransfer.getData(FILE_LINK_DRAG_MIME);
+      if (raw) {
+        try {
+          const parsed = JSON.parse(raw) as { id?: string; name?: string };
+          if (parsed?.id) {
+            return { id: parsed.id, name: parsed.name || projectFiles.find(f => f.id === parsed.id)?.name || 'Linked File' };
+          }
+        } catch {
+          const fallback = projectFiles.find(f => f.id === raw);
+          if (fallback) return { id: fallback.id, name: fallback.name };
+        }
+      }
+
+      const uri = e.dataTransfer.getData('text/uri-list');
+      if (uri?.startsWith('file://')) {
+        const uriId = uri.replace('file://', '').trim();
+        const file = projectFiles.find(f => f.id === uriId);
+        if (file) return { id: file.id, name: file.name };
+      }
+
+      const text = e.dataTransfer.getData('text/plain');
+      const mdMatch = text.match(/\[([^\]]+)\]\(file:\/\/([^)]+)\)/);
+      if (mdMatch) {
+        const fileId = mdMatch[2];
+        const file = projectFiles.find(f => f.id === fileId);
+        if (file) return { id: file.id, name: file.name };
+      }
+
+      const file = projectFiles.find(f => f.id === text.trim());
       if (!file) return null;
       return { id: file.id, name: file.name };
   };
@@ -432,6 +462,22 @@ const DocEditor: React.FC<EditorProps> = ({ initialContent, onSave, fileName, as
                   ))
                 )}
               </select>
+              <input
+                type="text"
+                value={linkTargetId}
+                onChange={(e) => setLinkTargetId(e.target.value)}
+                placeholder="Paste File ID"
+                className="bg-zinc-950 border border-zinc-800 rounded px-2 py-1 text-[11px] text-zinc-300 w-32"
+                title="Paste file ID"
+              />
+              <input
+                type="text"
+                value={linkLabel}
+                onChange={(e) => setLinkLabel(e.target.value)}
+                placeholder="Link Label"
+                className="bg-zinc-950 border border-zinc-800 rounded px-2 py-1 text-[11px] text-zinc-300 w-28"
+                title="Optional link label"
+              />
               
               <div className="w-px h-4 bg-zinc-800 mx-1"></div>
 

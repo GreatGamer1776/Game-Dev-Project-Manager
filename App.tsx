@@ -1,5 +1,5 @@
 import React, { useState, useEffect } from 'react';
-import { LayoutDashboard, FileText, Network, ArrowLeft, Plus, Folder, File, CheckSquare, Bug as BugIcon, Trash2, HardDrive, Download, Upload, Map as MapIcon, Table, PenTool, Image as ImageIcon, HelpCircle, ChevronRight, ChevronDown, FolderPlus, FilePlus, X } from 'lucide-react';
+import { LayoutDashboard, FileText, Network, ArrowLeft, Plus, Folder, File, CheckSquare, Bug as BugIcon, Trash2, HardDrive, Download, Upload, Map as MapIcon, Table, PenTool, Image as ImageIcon, HelpCircle, ChevronRight, ChevronDown, FolderPlus, FilePlus, X, Copy as CopyIcon } from 'lucide-react';
 import JSZip from 'jszip';
 import Dashboard from './components/Dashboard';
 import FlowchartEditor from './components/FlowchartEditor';
@@ -681,6 +681,42 @@ const App: React.FC = () => {
     setActiveFileId(fileId);
   };
 
+  const extractDraggedFileId = (e: React.DragEvent): string | null => {
+    const raw = e.dataTransfer.getData(FILE_LINK_DRAG_MIME);
+    if (raw) {
+      try {
+        const parsed = JSON.parse(raw) as { id?: string };
+        if (parsed?.id) return parsed.id;
+      } catch {
+        if (activeProject?.files.some(f => f.id === raw)) return raw;
+      }
+    }
+
+    const uri = e.dataTransfer.getData('text/uri-list');
+    if (uri?.startsWith('file://')) {
+      const id = uri.replace('file://', '').trim();
+      if (activeProject?.files.some(f => f.id === id)) return id;
+    }
+
+    const text = e.dataTransfer.getData('text/plain');
+    const markdownMatch = text.match(/\(file:\/\/([^)]+)\)/);
+    if (markdownMatch?.[1] && activeProject?.files.some(f => f.id === markdownMatch[1])) {
+      return markdownMatch[1];
+    }
+    if (text && activeProject?.files.some(f => f.id === text.trim())) {
+      return text.trim();
+    }
+    return draggedFileId;
+  };
+
+  const handleCopyFileId = async (fileId: string) => {
+    try {
+      await navigator.clipboard.writeText(fileId);
+    } catch {
+      alert("Failed to copy file ID.");
+    }
+  };
+
   // --- SIDEBAR RENDERING ---
 
   const toggleFolder = (folderId: string) => {
@@ -704,9 +740,10 @@ const App: React.FC = () => {
   const handleFileDragStart = (e: React.DragEvent, fileId: string, fileName: string) => {
       setDraggedFileId(fileId);
       e.dataTransfer.effectAllowed = 'move';
-      e.dataTransfer.setData(FILE_LINK_DRAG_MIME, fileId);
+      e.dataTransfer.setData(FILE_LINK_DRAG_MIME, JSON.stringify({ id: fileId, name: fileName }));
       e.dataTransfer.setData('application/x-gdpm-file-name', fileName);
-      e.dataTransfer.setData('text/plain', fileId);
+      e.dataTransfer.setData('text/uri-list', `file://${fileId}`);
+      e.dataTransfer.setData('text/plain', `[${fileName}](file://${fileId})`);
   };
 
   const handleFileDragEnd = () => {
@@ -726,7 +763,7 @@ const App: React.FC = () => {
   const handleFolderDrop = (e: React.DragEvent, folderId: string) => {
       e.preventDefault();
       e.stopPropagation();
-      const fileId = e.dataTransfer.getData('text/plain') || draggedFileId;
+      const fileId = extractDraggedFileId(e);
       setActiveDropFolderId(null);
       setDraggedFileId(null);
       if (!fileId) return;
@@ -744,7 +781,7 @@ const App: React.FC = () => {
 
   const handleRootDrop = (e: React.DragEvent) => {
       e.preventDefault();
-      const fileId = e.dataTransfer.getData('text/plain') || draggedFileId;
+      const fileId = extractDraggedFileId(e);
       setActiveDropFolderId(null);
       setDraggedFileId(null);
       if (!fileId) return;
@@ -820,6 +857,13 @@ const App: React.FC = () => {
                              <Icon className={`w-4 h-4 shrink-0 ${activeFileId === file.id ? 'text-blue-400' : 'text-zinc-500'}`} />
                              <span className="truncate">{file.name}</span>
                           </button>
+                          <button
+                            onClick={(e) => { e.stopPropagation(); handleCopyFileId(file.id); }}
+                            className="p-1.5 text-zinc-600 hover:text-cyan-300 hover:bg-zinc-800 rounded opacity-0 group-hover:opacity-100"
+                            title="Copy File ID"
+                          >
+                            <CopyIcon className="w-3.5 h-3.5" />
+                          </button>
                           <button onClick={(e) => handleDeleteFile(e, file.id)} className="p-1.5 text-zinc-600 hover:text-red-400 hover:bg-zinc-800 rounded opacity-0 group-hover:opacity-100"><Trash2 className="w-3.5 h-3.5" /></button>
                       </div>
                   );
@@ -882,11 +926,18 @@ const App: React.FC = () => {
                     draggable
                     onDragStart={(e) => handleFileDragStart(e, file.id, file.name)}
                     onDragEnd={handleFileDragEnd}
-                    className={`w-full flex items-center gap-2 px-2 py-2 rounded-lg text-sm transition-colors border cursor-grab active:cursor-grabbing ${activeFileId === file.id ? 'bg-zinc-800 text-white border-blue-500/40' : 'text-zinc-300 hover:text-white hover:bg-zinc-900 border-zinc-800'}`}
+                    className={`w-full flex items-center gap-2 px-2 py-2 rounded-lg text-sm transition-colors border cursor-grab active:cursor-grabbing group ${activeFileId === file.id ? 'bg-zinc-800 text-white border-blue-500/40' : 'text-zinc-300 hover:text-white hover:bg-zinc-900 border-zinc-800'}`}
                     title={`Drag to create link to ${file.name}`}
                   >
                     <Icon className={`w-4 h-4 ${activeFileId === file.id ? 'text-blue-400' : 'text-zinc-500'}`} />
-                    <span className="truncate">{file.name}</span>
+                    <span className="truncate flex-1">{file.name}</span>
+                    <span
+                      onClick={(e) => { e.stopPropagation(); handleCopyFileId(file.id); }}
+                      className="p-1 text-zinc-500 hover:text-cyan-300 hover:bg-zinc-800 rounded opacity-0 group-hover:opacity-100"
+                      title="Copy File ID"
+                    >
+                      <CopyIcon className="w-3.5 h-3.5" />
+                    </span>
                   </button>
                 );
               })}

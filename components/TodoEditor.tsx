@@ -33,6 +33,8 @@ const TodoEditor: React.FC<EditorProps> = ({ initialContent, onSave, fileName, p
   const [expandedId, setExpandedId] = useState<string | null>(null);
   const [newSubTaskText, setNewSubTaskText] = useState('');
   const [selectedLinkFileId, setSelectedLinkFileId] = useState<string>('');
+  const [linkTargetId, setLinkTargetId] = useState('');
+  const [linkLabel, setLinkLabel] = useState('');
   const fileLookup = React.useMemo(() => new Map(projectFiles.map(f => [f.id, f.name])), [projectFiles]);
   const linkableFiles = React.useMemo(
     () => projectFiles.filter(f => f.id !== activeFileId).sort((a, b) => a.name.localeCompare(b.name, undefined, { sensitivity: 'base' })),
@@ -134,19 +136,41 @@ const TodoEditor: React.FC<EditorProps> = ({ initialContent, onSave, fileName, p
   };
 
   const appendFileLinkToDescription = (itemId: string) => {
-    if (linkableFiles.length === 0) {
-      alert("No other files available to link.");
+    const targetId = linkTargetId.trim() || selectedLinkFileId;
+    if (!targetId) {
+      alert("Provide a file ID or choose a file.");
       return;
     }
-    const selected = linkableFiles.find(f => f.id === selectedLinkFileId) || linkableFiles[0];
-    const snippet = `[${selected.name}](file://${selected.id})`;
+    const selected = projectFiles.find(f => f.id === targetId);
+    const label = linkLabel.trim() || selected?.name || 'Linked File';
+    const snippet = `[${label}](file://${targetId})`;
     setItems(items.map(item => item.id === itemId ? { ...item, description: `${item.description || ''}${item.description ? '\n' : ''}${snippet}` } : item));
   };
 
   const getDraggedProjectFile = (e: React.DragEvent): { id: string; name: string } | null => {
-    const fileId = e.dataTransfer.getData(FILE_LINK_DRAG_MIME) || e.dataTransfer.getData('text/plain');
-    if (!fileId) return null;
-    const file = projectFiles.find(f => f.id === fileId);
+    const raw = e.dataTransfer.getData(FILE_LINK_DRAG_MIME);
+    if (raw) {
+      try {
+        const parsed = JSON.parse(raw) as { id?: string; name?: string };
+        if (parsed?.id) return { id: parsed.id, name: parsed.name || projectFiles.find(f => f.id === parsed.id)?.name || 'Linked File' };
+      } catch {
+        const fallback = projectFiles.find(f => f.id === raw);
+        if (fallback) return { id: fallback.id, name: fallback.name };
+      }
+    }
+    const uri = e.dataTransfer.getData('text/uri-list');
+    if (uri?.startsWith('file://')) {
+      const uriId = uri.replace('file://', '').trim();
+      const file = projectFiles.find(f => f.id === uriId);
+      if (file) return { id: file.id, name: file.name };
+    }
+    const text = e.dataTransfer.getData('text/plain');
+    const mdMatch = text.match(/\[([^\]]+)\]\(file:\/\/([^)]+)\)/);
+    if (mdMatch?.[2]) {
+      const mdFile = projectFiles.find(f => f.id === mdMatch[2]);
+      if (mdFile) return { id: mdFile.id, name: mdFile.name };
+    }
+    const file = projectFiles.find(f => f.id === text.trim());
     if (!file) return null;
     return { id: file.id, name: file.name };
   };
@@ -431,6 +455,20 @@ const TodoEditor: React.FC<EditorProps> = ({ initialContent, onSave, fileName, p
                                                   ))
                                                 )}
                                               </select>
+                                              <input
+                                                type="text"
+                                                value={linkTargetId}
+                                                onChange={(e) => setLinkTargetId(e.target.value)}
+                                                placeholder="File ID"
+                                                className="bg-zinc-950 border border-zinc-800 rounded px-2 py-1 text-[10px] text-zinc-300 w-24"
+                                              />
+                                              <input
+                                                type="text"
+                                                value={linkLabel}
+                                                onChange={(e) => setLinkLabel(e.target.value)}
+                                                placeholder="Label"
+                                                className="bg-zinc-950 border border-zinc-800 rounded px-2 py-1 text-[10px] text-zinc-300 w-20"
+                                              />
                                           </div>
                                           <textarea
                                             value={item.description || ''}

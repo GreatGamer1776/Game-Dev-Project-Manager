@@ -113,6 +113,14 @@ export interface ProjectFile {
   name: string;
   type: FileType;
   content: FileContent;
+  folderId?: string | null; // Added for folder support
+}
+
+// Added Folder Interface
+export interface ProjectFolder {
+  id: string;
+  name: string;
+  parentId: string | null;
 }
 
 export interface Project {
@@ -122,6 +130,7 @@ export interface Project {
   description: string;
   lastModified: number;
   files: ProjectFile[];
+  folders: ProjectFolder[]; // Added folders list
   assets: Record<string, string>; 
   isLocal?: boolean;
 }
@@ -137,5 +146,5 @@ export interface EditorProps {
   fileName: string;
   assets?: Record<string, string>;
   onAddAsset?: (file: File) => Promise<string>; 
-  onDeleteAsset?: (assetId: string) => void; // NEW
+  onDeleteAsset?: (assetId: string) => void;
 }

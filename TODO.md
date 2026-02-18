@@ -1,4 +1,3 @@
-add folders to the side view
 undo and redo buttons on whiteboard
 linking other documents in document editor and roadmap
 multiple file upload

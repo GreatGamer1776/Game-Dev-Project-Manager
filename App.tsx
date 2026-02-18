@@ -1,5 +1,5 @@
 import React, { useState, useEffect } from 'react';
-import { LayoutDashboard, FileText, Network, ArrowLeft, Plus, Folder, File, CheckSquare, Bug as BugIcon, Trash2, HardDrive, Download, Upload, Map as MapIcon, Table, PenTool, Image as ImageIcon, HelpCircle } from 'lucide-react';
+import { LayoutDashboard, FileText, Network, ArrowLeft, Plus, Folder, File, CheckSquare, Bug as BugIcon, Trash2, HardDrive, Download, Upload, Map as MapIcon, Table, PenTool, Image as ImageIcon, HelpCircle, ChevronRight, ChevronDown, FolderPlus, FilePlus, X } from 'lucide-react';
 import JSZip from 'jszip';
 import Dashboard from './components/Dashboard';
 import FlowchartEditor from './components/FlowchartEditor';
@@ -12,7 +12,7 @@ import WhiteboardEditor from './components/WhiteboardEditor';
 import AssetBrowser from './components/AssetBrowser';
 import CommandPalette from './components/CommandPalette';
 import HelpModal from './components/HelpModal';
-import { Project, ViewState, ProjectFile, FileType, EditorProps } from './types';
+import { Project, ViewState, ProjectFile, FileType, EditorProps, ProjectFolder } from './types';
 
 // --- UTILS ---
 
@@ -127,7 +127,9 @@ const EDITOR_PLUGINS = [
 
 const MOCK_PROJECTS: Project[] = [{
     id: '1', name: 'Cosmic Invaders', type: 'Game', description: 'A retro-style space shooter.', lastModified: Date.now(),
-    files: [{ id: 'f1', name: 'Game Design Document', type: 'doc', content: '# Cosmic Invaders' }], assets: {}
+    files: [{ id: 'f1', name: 'Game Design Document', type: 'doc', content: '# Cosmic Invaders', folderId: null }],
+    folders: [], 
+    assets: {}
 }];
 
 const App: React.FC = () => {
@@ -139,6 +141,12 @@ const App: React.FC = () => {
   
   const [isPaletteOpen, setIsPaletteOpen] = useState(false);
   const [isHelpOpen, setIsHelpOpen] = useState(false);
+  
+  // Folder & File Creation UI
+  const [expandedFolders, setExpandedFolders] = useState<Set<string>>(new Set());
+  const [createFileModal, setCreateFileModal] = useState<{ open: boolean, folderId: string | null }>({ open: false, folderId: null });
+  const [newFileName, setNewFileName] = useState('');
+  const [newFileType, setNewFileType] = useState<FileType>('doc');
 
   const isSavingRef = React.useRef(false);
   const saveQueueRef = React.useRef<Project | null>(null);
@@ -154,6 +162,8 @@ const App: React.FC = () => {
                     const handle = await IDB.loadHandle(p.id);
                     if (handle) projectHandlesRef.current.set(p.id, handle);
                 }
+                // Ensure folders array exists for migrated projects
+                if (!p.folders) p.folders = [];
             }
             setProjects(loaded.length > 0 ? loaded : MOCK_PROJECTS);
         } catch (e) {
@@ -245,6 +255,12 @@ const App: React.FC = () => {
           const jsonText = await jsonFile.text();
           const projectData = JSON.parse(jsonText);
 
+          // Migration check
+          if (!projectData.folders) projectData.folders = [];
+          if (projectData.files) {
+             projectData.files = projectData.files.map((f: any) => ({ ...f, folderId: f.folderId || null }));
+          }
+
           const assetsMap: Record<string, string> = {};
           try {
             const assetsDir = await folderHandle.getDirectoryHandle('assets');
@@ -294,19 +310,6 @@ const App: React.FC = () => {
               newProjects.push(rootProject);
               await IDB.saveHandle(rootProject.id, handle);
               projectHandlesRef.current.set(rootProject.id, handle);
-          } else {
-              // @ts-ignore
-              for await (const entry of handle.values()) {
-                  if (entry.kind === 'directory') {
-                      const subHandle = await handle.getDirectoryHandle(entry.name);
-                      const subProject = await loadProjectFromHandle(subHandle);
-                      if (subProject) {
-                          newProjects.push(subProject);
-                          await IDB.saveHandle(subProject.id, subHandle);
-                          projectHandlesRef.current.set(subProject.id, subHandle);
-                      }
-                  }
-              }
           }
 
           if (newProjects.length > 0) {
@@ -314,7 +317,7 @@ const App: React.FC = () => {
               setProjects(prev => [...newProjects, ...prev.filter(p => !newIds.has(p.id))]);
               newProjects.forEach(p => IDB.saveProject(p));
           } else {
-              alert("No 'project.json' found in selected folder or its immediate subfolders.");
+              alert("No 'project.json' found in selected folder.");
           }
       } catch (err: any) {
           if (err.name === 'AbortError') return;
@@ -322,36 +325,9 @@ const App: React.FC = () => {
       }
   };
 
-  const verifyPermission = async (project: Project): Promise<boolean> => {
-      if (!project.isLocal) return true;
-      const handle = projectHandlesRef.current.get(project.id);
-      if (!handle) return false;
-
-      if ((await handle.queryPermission({ mode: 'readwrite' })) === 'granted') {
-          return true;
-      }
-      if ((await handle.requestPermission({ mode: 'readwrite' })) === 'granted') {
-          return true;
-      }
-      return false;
-  };
-
   const handleSelectProject = async (id: string) => {
       const project = projects.find(p => p.id === id);
       if (!project) return;
-
-      if (project.isLocal) {
-          const hasPerm = await verifyPermission(project);
-          if (!hasPerm) {
-              alert("Permission to access local folder was denied.");
-              return;
-          }
-          const handle = projectHandlesRef.current.get(id);
-          const freshData = await loadProjectFromHandle(handle);
-          if (freshData) {
-              setProjects(prev => prev.map(p => p.id === id ? freshData : p));
-          }
-      }
       
       setActiveProjectId(id);
       setActiveFileId(project.files[0]?.id || null);
@@ -363,7 +339,8 @@ const App: React.FC = () => {
     const newProject: Project = {
       id: crypto.randomUUID(),
       name, type, description: '', lastModified: Date.now(),
-      files: [{ id: crypto.randomUUID(), name: 'Readme', type: 'doc', content: defaultDocPlugin ? defaultDocPlugin.createDefaultContent(name) : '' }],
+      files: [{ id: crypto.randomUUID(), name: 'Readme', type: 'doc', content: defaultDocPlugin ? defaultDocPlugin.createDefaultContent(name) : '', folderId: null }],
+      folders: [],
       assets: {}
     };
     
@@ -375,11 +352,7 @@ const App: React.FC = () => {
     const project = projects.find(p => p.id === id);
     if (!project) return;
     
-    const msg = project.isLocal 
-        ? "Remove this project from the list? (Files on disk will NOT be deleted)" 
-        : "Delete project permanently?";
-
-    if (confirm(msg)) {
+    if (confirm("Delete project?")) {
       await IDB.delete(id);
       projectHandlesRef.current.delete(id);
       setProjects(prev => prev.filter(p => p.id !== id));
@@ -420,6 +393,83 @@ const App: React.FC = () => {
       IDB.saveProject(updatedProject);
   };
 
+  // --- FOLDER & FILE LOGIC ---
+
+  const handleCreateFolder = (parentId: string | null) => {
+    if (!activeProjectId) return;
+    const name = prompt("Folder Name:");
+    if (!name) return;
+    
+    const project = projects.find(p => p.id === activeProjectId);
+    if (project) {
+        const newFolder: ProjectFolder = { id: crypto.randomUUID(), name, parentId };
+        updateProjectState({
+            ...project,
+            folders: [...project.folders, newFolder]
+        });
+        setExpandedFolders(prev => new Set(prev).add(newFolder.id).add(parentId || ''));
+    }
+  };
+
+  const handleDeleteFolder = (folderId: string) => {
+      if (!confirm("Delete folder? Files inside will be moved to root.")) return;
+      if (!activeProjectId) return;
+      const project = projects.find(p => p.id === activeProjectId);
+      if (project) {
+          // Recursive delete not fully implemented for simplicity, just moves children to root
+          const newFiles = project.files.map(f => f.folderId === folderId ? { ...f, folderId: null } : f);
+          const newFolders = project.folders.map(f => f.parentId === folderId ? { ...f, parentId: null } : f).filter(f => f.id !== folderId);
+          
+          updateProjectState({ ...project, files: newFiles, folders: newFolders });
+      }
+  };
+
+  const openCreateFileModal = (folderId: string | null) => {
+      setCreateFileModal({ open: true, folderId });
+      setNewFileName('');
+      setNewFileType('doc');
+  };
+
+  const handleConfirmCreateFile = (e: React.FormEvent) => {
+      e.preventDefault();
+      if (!activeProjectId || !newFileName) return;
+
+      const plugin = EDITOR_PLUGINS.find(p => p.type === newFileType);
+      if (!plugin) return;
+
+      const newFile: ProjectFile = {
+          id: crypto.randomUUID(),
+          name: newFileName,
+          type: newFileType,
+          content: plugin.createDefaultContent(newFileName),
+          folderId: createFileModal.folderId
+      };
+
+      const project = projects.find(p => p.id === activeProjectId);
+      if (project) {
+          updateProjectState({ ...project, lastModified: Date.now(), files: [...project.files, newFile] });
+          setActiveFileId(newFile.id);
+          if (createFileModal.folderId) {
+             setExpandedFolders(prev => new Set(prev).add(createFileModal.folderId!));
+          }
+      }
+      setCreateFileModal({ open: false, folderId: null });
+  };
+
+  const handleDeleteFile = (e: React.MouseEvent, fileId: string) => {
+    e.stopPropagation();
+    if (!activeProjectId) return;
+    if (confirm("Delete file?")) {
+        const project = projects.find(p => p.id === activeProjectId);
+        if (project) {
+            updateProjectState({ ...project, files: project.files.filter(f => f.id !== fileId) });
+            if (activeFileId === fileId) setActiveFileId(null);
+        }
+    }
+  };
+
+  // --- ASSETS ---
+
   const handleAddAsset = async (file: File): Promise<string> => {
     if (!activeProjectId) throw new Error("No active project");
     const reader = new FileReader();
@@ -448,58 +498,7 @@ const App: React.FC = () => {
     if (project) {
         const newAssets = { ...project.assets };
         delete newAssets[assetId];
-        
-        const updatedProject = {
-            ...project,
-            lastModified: Date.now(),
-            assets: newAssets
-        };
-        updateProjectState(updatedProject);
-
-        if (project.isLocal) {
-             const handle = projectHandlesRef.current.get(project.id);
-             if (handle) {
-                 try {
-                     const assetsDir = await handle.getDirectoryHandle('assets');
-                     // We try to find any file starting with ID to delete
-                     // @ts-ignore
-                     for await (const entry of assetsDir.values()) {
-                         if (entry.name.startsWith(assetId + '.')) {
-                             await assetsDir.removeEntry(entry.name);
-                             break;
-                         }
-                     }
-                 } catch (e) {
-                     console.error("Failed to delete asset file from disk", e);
-                 }
-             }
-        }
-    }
-  };
-
-  const handleCreateFile = (type: FileType) => {
-    if (!activeProjectId) return;
-    const plugin = EDITOR_PLUGINS.find(p => p.type === type);
-    if (!plugin) return;
-    const name = prompt(`Enter name for new ${plugin.label}:`);
-    if (!name) return;
-    const newFile: ProjectFile = { id: crypto.randomUUID(), name, type, content: plugin.createDefaultContent(name) };
-    const project = projects.find(p => p.id === activeProjectId);
-    if (project) {
-        updateProjectState({ ...project, lastModified: Date.now(), files: [...project.files, newFile] });
-        setActiveFileId(newFile.id);
-    }
-  };
-
-  const handleDeleteFile = (e: React.MouseEvent, fileId: string) => {
-    e.stopPropagation();
-    if (!activeProjectId) return;
-    if (confirm("Delete file?")) {
-        const project = projects.find(p => p.id === activeProjectId);
-        if (project) {
-            updateProjectState({ ...project, files: project.files.filter(f => f.id !== fileId) });
-            if (activeFileId === fileId) setActiveFileId(null);
-        }
+        updateProjectState({ ...project, lastModified: Date.now(), assets: newAssets });
     }
   };
 
@@ -516,6 +515,66 @@ const App: React.FC = () => {
 
   const activeProject = projects.find(p => p.id === activeProjectId);
   const activeFile = activeProject?.files.find(f => f.id === activeFileId);
+
+  // --- SIDEBAR RENDERING ---
+
+  const toggleFolder = (folderId: string) => {
+      const newSet = new Set(expandedFolders);
+      if (newSet.has(folderId)) newSet.delete(folderId);
+      else newSet.add(folderId);
+      setExpandedFolders(newSet);
+  };
+
+  const renderFileTree = (parentId: string | null, depth: number = 0) => {
+      if (!activeProject) return null;
+
+      const folders = activeProject.folders.filter(f => f.parentId === parentId);
+      const files = activeProject.files.filter(f => (f.folderId || null) === parentId);
+
+      return (
+          <div style={{ paddingLeft: depth > 0 ? 12 : 0 }}>
+              {folders.map(folder => {
+                  const isExpanded = expandedFolders.has(folder.id);
+                  return (
+                      <div key={folder.id}>
+                          <div className="group flex items-center justify-between hover:bg-zinc-900 rounded-lg pr-1 py-1 mb-0.5">
+                              <button 
+                                onClick={() => toggleFolder(folder.id)} 
+                                className="flex-1 flex items-center gap-2 px-2 text-sm text-zinc-400 hover:text-zinc-200 truncate"
+                              >
+                                  {isExpanded ? <ChevronDown className="w-4 h-4" /> : <ChevronRight className="w-4 h-4" />}
+                                  <Folder className="w-4 h-4 text-blue-500/80" />
+                                  <span className="truncate">{folder.name}</span>
+                              </button>
+                              <div className="opacity-0 group-hover:opacity-100 flex items-center gap-1">
+                                  <button onClick={() => openCreateFileModal(folder.id)} className="p-1 hover:bg-zinc-800 text-zinc-500 hover:text-white rounded" title="New File"><FilePlus className="w-3.5 h-3.5" /></button>
+                                  <button onClick={() => handleCreateFolder(folder.id)} className="p-1 hover:bg-zinc-800 text-zinc-500 hover:text-white rounded" title="New Subfolder"><FolderPlus className="w-3.5 h-3.5" /></button>
+                                  <button onClick={() => handleDeleteFolder(folder.id)} className="p-1 hover:bg-zinc-800 text-zinc-500 hover:text-red-400 rounded" title="Delete Folder"><Trash2 className="w-3.5 h-3.5" /></button>
+                              </div>
+                          </div>
+                          {isExpanded && renderFileTree(folder.id, depth + 1)}
+                      </div>
+                  )
+              })}
+              {files.map(file => {
+                  const plugin = EDITOR_PLUGINS.find(p => p.type === file.type);
+                  const Icon = plugin?.icon || File;
+                  return (
+                      <div key={file.id} className="group flex items-center gap-1 rounded-lg hover:bg-zinc-900 pr-1 mb-0.5">
+                          <button 
+                            onClick={() => setActiveFileId(file.id)} 
+                            className={`flex-1 flex items-center gap-2 px-2 py-1.5 text-sm text-left truncate ${activeFileId === file.id ? 'bg-zinc-800 text-white' : 'text-zinc-400 hover:text-zinc-200'}`}
+                          >
+                             <Icon className={`w-4 h-4 shrink-0 ${activeFileId === file.id ? 'text-blue-400' : 'text-zinc-500'}`} />
+                             <span className="truncate">{file.name}</span>
+                          </button>
+                          <button onClick={(e) => handleDeleteFile(e, file.id)} className="p-1.5 text-zinc-600 hover:text-red-400 hover:bg-zinc-800 rounded opacity-0 group-hover:opacity-100"><Trash2 className="w-3.5 h-3.5" /></button>
+                      </div>
+                  );
+              })}
+          </div>
+      );
+  };
 
   const renderSidebar = () => {
     if (currentView === ViewState.DASHBOARD || !activeProject) {
@@ -534,33 +593,37 @@ const App: React.FC = () => {
     }
     return (
       <aside className="w-64 bg-zinc-950 border-r border-zinc-800 flex flex-col z-20">
-        <div className="h-16 flex items-center px-6 border-b border-zinc-800 shrink-0">
-          <button onClick={() => { setActiveProjectId(null); setCurrentView(ViewState.DASHBOARD); }} className="flex items-center gap-2 text-zinc-400 hover:text-white text-sm font-medium"><ArrowLeft className="w-4 h-4" /> Back to Dashboard</button>
+        <div className="h-16 flex items-center px-4 border-b border-zinc-800 shrink-0 gap-2">
+          <button onClick={() => { setActiveProjectId(null); setCurrentView(ViewState.DASHBOARD); }} className="p-2 hover:bg-zinc-900 rounded-lg text-zinc-400 hover:text-white"><ArrowLeft className="w-4 h-4" /></button>
+          <span className="font-semibold text-zinc-200 truncate flex-1">{activeProject.name}</span>
         </div>
-        <div className="p-4 flex-1 overflow-y-auto custom-scrollbar">
-          <div className="mb-6">
-             <div className="flex items-center gap-2 mb-1">
-                 <h2 className="text-zinc-100 font-semibold truncate">{activeProject.name}</h2>
-                 {activeProject.isLocal && <HardDrive className="w-3.5 h-3.5 text-blue-400" title="Local Repository" />}
-             </div>
-             <p className="text-xs text-zinc-500 uppercase tracking-wider">{activeProject.type} Project</p>
-          </div>
-          <div className="space-y-6">{EDITOR_PLUGINS.map(plugin => {
-                const PluginIcon = plugin.icon;
-                const files = activeProject.files.filter(f => f.type === plugin.type);
-                return (
-                    <div key={plugin.type}>
-                        <div className="flex items-center justify-between mb-2 px-2"><span className="text-xs font-semibold text-zinc-500 uppercase">{plugin.pluralLabel}</span><button onClick={() => handleCreateFile(plugin.type)} className="text-zinc-400 hover:text-white p-1 rounded hover:bg-zinc-800"><Plus className="w-3.5 h-3.5" /></button></div>
-                        <div className="space-y-1">{files.map(file => (
-                                <div key={file.id} className="group flex items-center gap-1 rounded-lg hover:bg-zinc-900 pr-1 transition-colors">
-                                    <button onClick={() => setActiveFileId(file.id)} className={`flex-1 flex items-center gap-3 px-3 py-2 rounded-lg text-sm text-left ${activeFileId === file.id ? 'bg-zinc-800 text-white' : 'text-zinc-400 hover:text-zinc-200'}`}><PluginIcon className="w-4 h-4 shrink-0" /><span className="truncate">{file.name}</span></button>
-                                    <button onClick={(e) => handleDeleteFile(e, file.id)} className="p-1.5 text-zinc-600 hover:text-red-400 hover:bg-zinc-800 rounded opacity-0 group-hover:opacity-100"><Trash2 className="w-3.5 h-3.5" /></button>
-                                </div>
-                            ))}{files.length === 0 && <p className="text-xs text-zinc-600 px-3 italic">No {plugin.pluralLabel.toLowerCase()}</p>}
-                        </div>
-                    </div>
-                );
-            })}</div>
+        
+        {/* Actions Bar */}
+        <div className="px-3 py-3 border-b border-zinc-900 flex gap-2">
+            <button 
+                onClick={() => openCreateFileModal(null)} 
+                className="flex-1 flex items-center justify-center gap-2 bg-blue-600 hover:bg-blue-700 text-white py-1.5 rounded-md text-xs font-medium transition-colors"
+            >
+                <FilePlus className="w-3.5 h-3.5" /> New File
+            </button>
+            <button 
+                onClick={() => handleCreateFolder(null)} 
+                className="px-3 bg-zinc-800 hover:bg-zinc-700 text-zinc-300 py-1.5 rounded-md text-xs font-medium transition-colors"
+                title="New Folder"
+            >
+                <FolderPlus className="w-3.5 h-3.5" />
+            </button>
+        </div>
+
+        {/* Tree */}
+        <div className="p-3 flex-1 overflow-y-auto custom-scrollbar">
+          {renderFileTree(null)}
+          
+          {activeProject.files.length === 0 && activeProject.folders.length === 0 && (
+              <div className="text-center py-8 text-zinc-600 text-xs italic">
+                  Project is empty. Create a file or folder to get started.
+              </div>
+          )}
         </div>
         
         <div className="p-4 border-t border-zinc-800">
@@ -609,10 +672,49 @@ const App: React.FC = () => {
             activeProject={activeProject}
             onSelectFile={(id) => { setActiveFileId(id); }}
             onSelectProject={handleSelectProject}
-            onCreateFile={handleCreateFile}
+            onCreateFile={(type) => openCreateFileModal(null)} // Hook palette to new modal
         />
         
         <HelpModal isOpen={isHelpOpen} onClose={() => setIsHelpOpen(false)} />
+
+        {/* Create File Modal */}
+        {createFileModal.open && (
+            <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/80 backdrop-blur-sm p-4">
+                <div className="bg-zinc-900 border border-zinc-800 rounded-xl w-full max-w-sm p-6 shadow-2xl">
+                    <div className="flex justify-between items-center mb-4">
+                        <h3 className="text-lg font-bold text-white">Create New File</h3>
+                        <button onClick={() => setCreateFileModal({open:false, folderId:null})}><X className="w-5 h-5 text-zinc-500" /></button>
+                    </div>
+                    <form onSubmit={handleConfirmCreateFile} className="space-y-4">
+                        <div>
+                            <label className="block text-xs font-medium text-zinc-400 mb-1">Name</label>
+                            <input 
+                                autoFocus
+                                type="text" 
+                                required 
+                                value={newFileName} 
+                                onChange={e => setNewFileName(e.target.value)}
+                                className="w-full bg-zinc-950 border border-zinc-800 rounded p-2 text-white focus:ring-2 focus:ring-blue-600 outline-none"
+                                placeholder="e.g. Character Specs"
+                            />
+                        </div>
+                        <div>
+                            <label className="block text-xs font-medium text-zinc-400 mb-1">Type</label>
+                            <select 
+                                value={newFileType} 
+                                onChange={e => setNewFileType(e.target.value as FileType)}
+                                className="w-full bg-zinc-950 border border-zinc-800 rounded p-2 text-white focus:ring-2 focus:ring-blue-600 outline-none"
+                            >
+                                {EDITOR_PLUGINS.map(p => (
+                                    <option key={p.type} value={p.type}>{p.label}</option>
+                                ))}
+                            </select>
+                        </div>
+                        <button type="submit" className="w-full bg-blue-600 hover:bg-blue-700 text-white py-2 rounded-lg font-medium transition-colors">Create File</button>
+                    </form>
+                </div>
+            </div>
+        )}
       </main>
     </div>
   );

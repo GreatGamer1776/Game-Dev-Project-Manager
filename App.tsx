@@ -163,7 +163,19 @@ const createDefaultProjectFile = (type: FileType, name: string): ProjectFile => 
 const normalizeProjectFiles = (project: Project): Project => {
   const baseFiles = project.files || [];
   const assetFiles = baseFiles.filter(f => f.type === ASSET_LIBRARY_TYPE);
-  const files = baseFiles.filter(f => f.type !== ASSET_LIBRARY_TYPE);
+  const singletonByType = new Map<FileType, ProjectFile>();
+  const files: ProjectFile[] = [];
+
+  for (const file of baseFiles.filter(f => f.type !== ASSET_LIBRARY_TYPE)) {
+    if (SINGLE_INSTANCE_FILE_TYPES.has(file.type)) {
+      if (!singletonByType.has(file.type)) {
+        singletonByType.set(file.type, { ...file, folderId: null });
+      }
+      continue;
+    }
+    files.push(file);
+  }
+
   let assetFile = assetFiles[0] || createAssetLibraryFile();
 
   if (assetFile.name !== ASSET_LIBRARY_NAME || assetFile.folderId !== null) {
@@ -172,7 +184,10 @@ const normalizeProjectFiles = (project: Project): Project => {
 
   for (const def of MANDATORY_SINGLETON_FILES) {
     if (def.type === ASSET_LIBRARY_TYPE) continue;
-    if (!files.some(f => f.type === def.type)) {
+    const existing = singletonByType.get(def.type);
+    if (existing) {
+      files.push({ ...existing, name: def.name, folderId: null });
+    } else {
       files.push(createDefaultProjectFile(def.type, def.name));
     }
   }
@@ -649,7 +664,12 @@ const App: React.FC = () => {
 
   const activeProject = projects.find(p => p.id === activeProjectId);
   const activeFile = activeProject?.files.find(f => f.id === activeFileId);
-  const assetLibraryFile = activeProject?.files.find(f => f.type === ASSET_LIBRARY_TYPE);
+  const systemFileOrder = new Map(MANDATORY_SINGLETON_FILES.map((file, index) => [file.type, index]));
+  const systemFiles = activeProject
+    ? activeProject.files
+        .filter(f => SINGLE_INSTANCE_FILE_TYPES.has(f.type))
+        .sort((a, b) => (systemFileOrder.get(a.type) ?? Number.MAX_SAFE_INTEGER) - (systemFileOrder.get(b.type) ?? Number.MAX_SAFE_INTEGER))
+    : [];
   const nonSystemFileCount = activeProject ? activeProject.files.filter(f => !SINGLE_INSTANCE_FILE_TYPES.has(f.type)).length : 0;
 
   const handleOpenFileFromLink = (fileId: string) => {
@@ -673,7 +693,7 @@ const App: React.FC = () => {
   const moveFileToFolder = (fileId: string, folderId: string | null) => {
       if (!activeProject) return;
       const file = activeProject.files.find(f => f.id === fileId);
-      if (!file || file.type === ASSET_LIBRARY_TYPE || (file.folderId || null) === folderId) return;
+      if (!file || SINGLE_INSTANCE_FILE_TYPES.has(file.type) || (file.folderId || null) === folderId) return;
       updateProjectState({
           ...activeProject,
           lastModified: Date.now(),
@@ -681,10 +701,11 @@ const App: React.FC = () => {
       });
   };
 
-  const handleFileDragStart = (e: React.DragEvent, fileId: string) => {
+  const handleFileDragStart = (e: React.DragEvent, fileId: string, fileName: string) => {
       setDraggedFileId(fileId);
       e.dataTransfer.effectAllowed = 'move';
       e.dataTransfer.setData(FILE_LINK_DRAG_MIME, fileId);
+      e.dataTransfer.setData('application/x-gdpm-file-name', fileName);
       e.dataTransfer.setData('text/plain', fileId);
   };
 
@@ -736,7 +757,7 @@ const App: React.FC = () => {
       const folders = activeProject.folders.filter(f => f.parentId === parentId);
       const pluginOrder = new Map(EDITOR_PLUGINS.map((plugin, index) => [plugin.type, index]));
       const files = activeProject.files
-          .filter(f => f.type !== ASSET_LIBRARY_TYPE && (f.folderId || null) === parentId)
+          .filter(f => !SINGLE_INSTANCE_FILE_TYPES.has(f.type) && (f.folderId || null) === parentId)
           .sort((a, b) => {
               const typeRankA = pluginOrder.get(a.type) ?? Number.MAX_SAFE_INTEGER;
               const typeRankB = pluginOrder.get(b.type) ?? Number.MAX_SAFE_INTEGER;
@@ -784,12 +805,15 @@ const App: React.FC = () => {
                         key={file.id}
                         style={{ marginLeft: depth * 12 }}
                         draggable
-                        onDragStart={(e) => handleFileDragStart(e, file.id)}
+                        onDragStart={(e) => handleFileDragStart(e, file.id, file.name)}
                         onDragEnd={handleFileDragEnd}
                         className={`group flex items-center gap-1 rounded-lg pr-1 mb-0.5 transition-colors cursor-grab active:cursor-grabbing ${isDragging ? 'opacity-45 grayscale' : 'opacity-100 hover:bg-zinc-900'}`}
                       >
                           <button 
                             onClick={() => setActiveFileId(file.id)} 
+                            draggable
+                            onDragStart={(e) => handleFileDragStart(e, file.id, file.name)}
+                            onDragEnd={handleFileDragEnd}
                             className={`flex-1 flex items-center gap-2 px-2 py-1.5 text-sm text-left truncate ${activeFileId === file.id ? 'bg-zinc-800 text-white' : 'text-zinc-400 hover:text-zinc-200'}`}
                           >
                              <span className="w-4 shrink-0" />
@@ -843,20 +867,30 @@ const App: React.FC = () => {
             </button>
         </div>
 
-        {/* Asset Library (Always Available) */}
-        {assetLibraryFile && (
+        {/* Project Systems */}
+        {systemFiles.length > 0 && (
           <div className="px-3 pt-3">
-            <div className="px-2 pb-1 text-[10px] uppercase tracking-wide text-zinc-500">Asset Library</div>
-            <button
-              onClick={() => setActiveFileId(assetLibraryFile.id)}
-              draggable
-              onDragStart={(e) => handleFileDragStart(e, assetLibraryFile.id)}
-              onDragEnd={handleFileDragEnd}
-              className={`w-full flex items-center gap-2 px-2 py-2 rounded-lg text-sm transition-colors border cursor-grab active:cursor-grabbing ${activeFileId === assetLibraryFile.id ? 'bg-zinc-800 text-white border-blue-500/40' : 'text-zinc-300 hover:text-white hover:bg-zinc-900 border-zinc-800'}`}
-            >
-              <ImageIcon className={`w-4 h-4 ${activeFileId === assetLibraryFile.id ? 'text-blue-400' : 'text-zinc-500'}`} />
-              <span className="truncate">{assetLibraryFile.name}</span>
-            </button>
+            <div className="px-2 pb-1 text-[10px] uppercase tracking-wide text-zinc-500">Project Systems</div>
+            <div className="space-y-1">
+              {systemFiles.map(file => {
+                const plugin = EDITOR_PLUGINS.find(p => p.type === file.type);
+                const Icon = plugin?.icon || File;
+                return (
+                  <button
+                    key={file.id}
+                    onClick={() => setActiveFileId(file.id)}
+                    draggable
+                    onDragStart={(e) => handleFileDragStart(e, file.id, file.name)}
+                    onDragEnd={handleFileDragEnd}
+                    className={`w-full flex items-center gap-2 px-2 py-2 rounded-lg text-sm transition-colors border cursor-grab active:cursor-grabbing ${activeFileId === file.id ? 'bg-zinc-800 text-white border-blue-500/40' : 'text-zinc-300 hover:text-white hover:bg-zinc-900 border-zinc-800'}`}
+                    title={`Drag to create link to ${file.name}`}
+                  >
+                    <Icon className={`w-4 h-4 ${activeFileId === file.id ? 'text-blue-400' : 'text-zinc-500'}`} />
+                    <span className="truncate">{file.name}</span>
+                  </button>
+                );
+              })}
+            </div>
             <div className="my-3 border-t border-zinc-800" />
             <div className="px-2 pb-1 text-[10px] uppercase tracking-wide text-zinc-600">Project Files</div>
           </div>

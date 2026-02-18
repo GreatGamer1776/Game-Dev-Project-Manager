@@ -159,6 +159,7 @@ const DocEditor: React.FC<EditorProps> = ({ initialContent, onSave, fileName, as
   // Color Picker State
   const [showColorPicker, setShowColorPicker] = useState(false);
   const [customColor, setCustomColor] = useState('#ef4444');
+  const [selectedLinkFileId, setSelectedLinkFileId] = useState<string>('');
 
   const [saveStatus, setSaveStatus] = useState<'saved' | 'saving' | 'unsaved'>('saved');
   const lastSavedContent = useRef(initialContent);
@@ -168,6 +169,10 @@ const DocEditor: React.FC<EditorProps> = ({ initialContent, onSave, fileName, as
   const popoverRef = useRef<HTMLDivElement>(null);
   const previewPaneRef = useRef<HTMLDivElement>(null);
   const fileLookup = React.useMemo(() => new Map(projectFiles.map(f => [f.id, f.name])), [projectFiles]);
+  const linkableFiles = React.useMemo(
+    () => projectFiles.filter(f => f.id !== activeFileId).sort((a, b) => a.name.localeCompare(b.name, undefined, { sensitivity: 'base' })),
+    [projectFiles, activeFileId]
+  );
 
   // Sync initial content
   useEffect(() => {
@@ -188,6 +193,16 @@ const DocEditor: React.FC<EditorProps> = ({ initialContent, onSave, fileName, as
 
       return () => clearTimeout(timer);
   }, [content, assets, fileLookup, viewMode]);
+
+  useEffect(() => {
+    if (linkableFiles.length === 0) {
+      setSelectedLinkFileId('');
+      return;
+    }
+    if (!linkableFiles.some(f => f.id === selectedLinkFileId)) {
+      setSelectedLinkFileId(linkableFiles[0].id);
+    }
+  }, [linkableFiles, selectedLinkFileId]);
 
   // Autosave
   useEffect(() => {
@@ -271,22 +286,11 @@ const DocEditor: React.FC<EditorProps> = ({ initialContent, onSave, fileName, as
   };
 
   const insertFileLink = () => {
-      const availableFiles = projectFiles.filter(f => f.id !== activeFileId);
-      if (availableFiles.length === 0) {
+      if (linkableFiles.length === 0) {
           alert("No other files available to link.");
           return;
       }
-      const list = availableFiles
-        .map((f, i) => `${i + 1}. ${f.name} (${f.type})`)
-        .join('\n');
-      const choice = prompt(`Link to which file?\n\n${list}\n\nEnter number:`);
-      if (!choice) return;
-      const idx = Number(choice) - 1;
-      if (Number.isNaN(idx) || idx < 0 || idx >= availableFiles.length) {
-          alert("Invalid file selection.");
-          return;
-      }
-      const selected = availableFiles[idx];
+      const selected = linkableFiles.find(f => f.id === selectedLinkFileId) || linkableFiles[0];
       insertText(`[${selected.name}](file://${selected.id})`);
   };
 
@@ -413,6 +417,21 @@ const DocEditor: React.FC<EditorProps> = ({ initialContent, onSave, fileName, as
               <ToolbarButton icon={Quote} onClick={() => insertText('> ')} title="Quote" />
               <ToolbarButton icon={Code} onClick={() => insertText('```\n', '\n```')} title="Code Block" />
               <ToolbarButton icon={LinkIcon} onClick={insertFileLink} title="Insert File Link" color="text-cyan-400" />
+              <select
+                value={selectedLinkFileId}
+                onChange={(e) => setSelectedLinkFileId(e.target.value)}
+                className="bg-zinc-950 border border-zinc-800 rounded px-2 py-1 text-[11px] text-zinc-300 max-w-[160px]"
+                title="Select file to link"
+                disabled={linkableFiles.length === 0}
+              >
+                {linkableFiles.length === 0 ? (
+                  <option value="">No link targets</option>
+                ) : (
+                  linkableFiles.map(f => (
+                    <option key={f.id} value={f.id}>{f.name}</option>
+                  ))
+                )}
+              </select>
               
               <div className="w-px h-4 bg-zinc-800 mx-1"></div>
 

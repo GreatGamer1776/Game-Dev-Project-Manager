@@ -25,13 +25,28 @@ const RoadmapEditor: React.FC<EditorProps> = ({ initialContent, onSave, fileName
     progress: 0,
     description: ''
   });
+  const [selectedLinkFileId, setSelectedLinkFileId] = useState<string>('');
   const fileLookup = useMemo(() => new Map(projectFiles.map(f => [f.id, f.name])), [projectFiles]);
+  const linkableFiles = useMemo(
+    () => projectFiles.filter(f => f.id !== activeFileId).sort((a, b) => a.name.localeCompare(b.name, undefined, { sensitivity: 'base' })),
+    [projectFiles, activeFileId]
+  );
 
   // Sync Content
   useEffect(() => {
     setItems(initialContent?.items || []);
     lastSavedData.current = JSON.stringify(initialContent?.items || []);
   }, [initialContent]);
+
+  useEffect(() => {
+    if (linkableFiles.length === 0) {
+      setSelectedLinkFileId('');
+      return;
+    }
+    if (!linkableFiles.some(f => f.id === selectedLinkFileId)) {
+      setSelectedLinkFileId(linkableFiles[0].id);
+    }
+  }, [linkableFiles, selectedLinkFileId]);
 
   // Autosave
   useEffect(() => {
@@ -92,20 +107,11 @@ const RoadmapEditor: React.FC<EditorProps> = ({ initialContent, onSave, fileName
   };
 
   const appendFileLinkToDescription = () => {
-    const availableFiles = projectFiles.filter(f => f.id !== activeFileId);
-    if (availableFiles.length === 0) {
+    if (linkableFiles.length === 0) {
       alert("No other files available to link.");
       return;
     }
-    const list = availableFiles.map((f, i) => `${i + 1}. ${f.name} (${f.type})`).join('\n');
-    const choice = prompt(`Link to which file?\n\n${list}\n\nEnter number:`);
-    if (!choice) return;
-    const idx = Number(choice) - 1;
-    if (Number.isNaN(idx) || idx < 0 || idx >= availableFiles.length) {
-      alert("Invalid file selection.");
-      return;
-    }
-    const selected = availableFiles[idx];
+    const selected = linkableFiles.find(f => f.id === selectedLinkFileId) || linkableFiles[0];
     setFormData(prev => ({ ...prev, description: `${prev.description || ''}${prev.description ? '\n' : ''}[${selected.name}](file://${selected.id})` }));
   };
 
@@ -500,14 +506,30 @@ const RoadmapEditor: React.FC<EditorProps> = ({ initialContent, onSave, fileName
                     <div>
                         <div className="flex items-center justify-between mb-1">
                             <label className="block text-sm text-zinc-400">Description</label>
-                            <button
-                                type="button"
-                                onClick={appendFileLinkToDescription}
-                                className="text-xs text-cyan-400 hover:text-cyan-300 flex items-center gap-1"
-                                title="Insert File Link"
-                            >
-                                <LinkIcon className="w-3 h-3" /> Link File
-                            </button>
+                            <div className="flex items-center gap-2">
+                                <select
+                                    value={selectedLinkFileId}
+                                    onChange={(e) => setSelectedLinkFileId(e.target.value)}
+                                    className="bg-zinc-950 border border-zinc-800 rounded px-2 py-1 text-xs text-zinc-300 max-w-[170px]"
+                                    disabled={linkableFiles.length === 0}
+                                >
+                                    {linkableFiles.length === 0 ? (
+                                        <option value="">No link targets</option>
+                                    ) : (
+                                        linkableFiles.map(f => (
+                                            <option key={f.id} value={f.id}>{f.name}</option>
+                                        ))
+                                    )}
+                                </select>
+                                <button
+                                    type="button"
+                                    onClick={appendFileLinkToDescription}
+                                    className="text-xs text-cyan-400 hover:text-cyan-300 flex items-center gap-1"
+                                    title="Insert File Link"
+                                >
+                                    <LinkIcon className="w-3 h-3" /> Link File
+                                </button>
+                            </div>
                         </div>
                         <textarea 
                             value={formData.description} 

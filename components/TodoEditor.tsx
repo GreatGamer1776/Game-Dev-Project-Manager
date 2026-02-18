@@ -32,7 +32,12 @@ const TodoEditor: React.FC<EditorProps> = ({ initialContent, onSave, fileName, p
   
   const [expandedId, setExpandedId] = useState<string | null>(null);
   const [newSubTaskText, setNewSubTaskText] = useState('');
+  const [selectedLinkFileId, setSelectedLinkFileId] = useState<string>('');
   const fileLookup = React.useMemo(() => new Map(projectFiles.map(f => [f.id, f.name])), [projectFiles]);
+  const linkableFiles = React.useMemo(
+    () => projectFiles.filter(f => f.id !== activeFileId).sort((a, b) => a.name.localeCompare(b.name, undefined, { sensitivity: 'base' })),
+    [projectFiles, activeFileId]
+  );
 
   const COLUMNS: TodoStatus[] = ['To Do', 'In Progress', 'Done'];
 
@@ -46,6 +51,16 @@ const TodoEditor: React.FC<EditorProps> = ({ initialContent, onSave, fileName, p
     setItems(migratedItems);
     lastSavedData.current = JSON.stringify(migratedItems);
   }, [initialContent]);
+
+  useEffect(() => {
+    if (linkableFiles.length === 0) {
+      setSelectedLinkFileId('');
+      return;
+    }
+    if (!linkableFiles.some(f => f.id === selectedLinkFileId)) {
+      setSelectedLinkFileId(linkableFiles[0].id);
+    }
+  }, [linkableFiles, selectedLinkFileId]);
 
   // Autosave
   useEffect(() => {
@@ -119,20 +134,11 @@ const TodoEditor: React.FC<EditorProps> = ({ initialContent, onSave, fileName, p
   };
 
   const appendFileLinkToDescription = (itemId: string) => {
-    const availableFiles = projectFiles.filter(f => f.id !== activeFileId);
-    if (availableFiles.length === 0) {
+    if (linkableFiles.length === 0) {
       alert("No other files available to link.");
       return;
     }
-    const list = availableFiles.map((f, i) => `${i + 1}. ${f.name} (${f.type})`).join('\n');
-    const choice = prompt(`Link to which file?\n\n${list}\n\nEnter number:`);
-    if (!choice) return;
-    const idx = Number(choice) - 1;
-    if (Number.isNaN(idx) || idx < 0 || idx >= availableFiles.length) {
-      alert("Invalid file selection.");
-      return;
-    }
-    const selected = availableFiles[idx];
+    const selected = linkableFiles.find(f => f.id === selectedLinkFileId) || linkableFiles[0];
     const snippet = `[${selected.name}](file://${selected.id})`;
     setItems(items.map(item => item.id === itemId ? { ...item, description: `${item.description || ''}${item.description ? '\n' : ''}${snippet}` } : item));
   };
@@ -411,6 +417,20 @@ const TodoEditor: React.FC<EditorProps> = ({ initialContent, onSave, fileName, p
                                               >
                                                 <LinkIcon className="w-3 h-3" /> Link File
                                               </button>
+                                              <select
+                                                value={selectedLinkFileId}
+                                                onChange={(e) => setSelectedLinkFileId(e.target.value)}
+                                                className="bg-zinc-950 border border-zinc-800 rounded px-2 py-1 text-[10px] text-zinc-300 max-w-[150px]"
+                                                disabled={linkableFiles.length === 0}
+                                              >
+                                                {linkableFiles.length === 0 ? (
+                                                  <option value="">No link targets</option>
+                                                ) : (
+                                                  linkableFiles.map(f => (
+                                                    <option key={f.id} value={f.id}>{f.name}</option>
+                                                  ))
+                                                )}
+                                              </select>
                                           </div>
                                           <textarea
                                             value={item.description || ''}

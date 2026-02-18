@@ -147,6 +147,8 @@ const App: React.FC = () => {
   const [createFileModal, setCreateFileModal] = useState<{ open: boolean, folderId: string | null }>({ open: false, folderId: null });
   const [newFileName, setNewFileName] = useState('');
   const [newFileType, setNewFileType] = useState<FileType>('doc');
+  const [draggedFileId, setDraggedFileId] = useState<string | null>(null);
+  const [activeDropFolderId, setActiveDropFolderId] = useState<string | 'root' | null>(null);
 
   const isSavingRef = React.useRef(false);
   const saveQueueRef = React.useRef<Project | null>(null);
@@ -525,6 +527,65 @@ const App: React.FC = () => {
       setExpandedFolders(newSet);
   };
 
+  const moveFileToFolder = (fileId: string, folderId: string | null) => {
+      if (!activeProject) return;
+      const file = activeProject.files.find(f => f.id === fileId);
+      if (!file || (file.folderId || null) === folderId) return;
+      updateProjectState({
+          ...activeProject,
+          lastModified: Date.now(),
+          files: activeProject.files.map(f => f.id === fileId ? { ...f, folderId } : f)
+      });
+  };
+
+  const handleFileDragStart = (e: React.DragEvent, fileId: string) => {
+      setDraggedFileId(fileId);
+      e.dataTransfer.effectAllowed = 'move';
+      e.dataTransfer.setData('text/plain', fileId);
+  };
+
+  const handleFileDragEnd = () => {
+      setDraggedFileId(null);
+      setActiveDropFolderId(null);
+  };
+
+  const handleFolderDragOver = (e: React.DragEvent, folderId: string) => {
+      e.preventDefault();
+      e.stopPropagation();
+      e.dataTransfer.dropEffect = 'move';
+      if (activeDropFolderId !== folderId) {
+          setActiveDropFolderId(folderId);
+      }
+  };
+
+  const handleFolderDrop = (e: React.DragEvent, folderId: string) => {
+      e.preventDefault();
+      e.stopPropagation();
+      const fileId = e.dataTransfer.getData('text/plain') || draggedFileId;
+      setActiveDropFolderId(null);
+      setDraggedFileId(null);
+      if (!fileId) return;
+      moveFileToFolder(fileId, folderId);
+      setExpandedFolders(prev => new Set(prev).add(folderId));
+  };
+
+  const handleRootDragOver = (e: React.DragEvent) => {
+      e.preventDefault();
+      e.dataTransfer.dropEffect = 'move';
+      if (activeDropFolderId !== 'root') {
+          setActiveDropFolderId('root');
+      }
+  };
+
+  const handleRootDrop = (e: React.DragEvent) => {
+      e.preventDefault();
+      const fileId = e.dataTransfer.getData('text/plain') || draggedFileId;
+      setActiveDropFolderId(null);
+      setDraggedFileId(null);
+      if (!fileId) return;
+      moveFileToFolder(fileId, null);
+  };
+
   const renderFileTree = (parentId: string | null, depth: number = 0) => {
       if (!activeProject) return null;
 
@@ -532,12 +593,18 @@ const App: React.FC = () => {
       const files = activeProject.files.filter(f => (f.folderId || null) === parentId);
 
       return (
-          <div style={{ paddingLeft: depth > 0 ? 12 : 0 }}>
+          <div>
               {folders.map(folder => {
                   const isExpanded = expandedFolders.has(folder.id);
+                  const isDropActive = activeDropFolderId === folder.id;
                   return (
                       <div key={folder.id}>
-                          <div className="group flex items-center justify-between hover:bg-zinc-900 rounded-lg pr-1 py-1 mb-0.5">
+                          <div
+                            style={{ marginLeft: depth * 12 }}
+                            onDragOver={(e) => handleFolderDragOver(e, folder.id)}
+                            onDrop={(e) => handleFolderDrop(e, folder.id)}
+                            className={`group flex items-center justify-between rounded-lg pr-1 py-1 mb-0.5 transition-colors ${isDropActive ? 'bg-blue-500/10 ring-1 ring-blue-500/40' : 'hover:bg-zinc-900'}`}
+                          >
                               <button 
                                 onClick={() => toggleFolder(folder.id)} 
                                 className="flex-1 flex items-center gap-2 px-2 text-sm text-zinc-400 hover:text-zinc-200 truncate"
@@ -559,12 +626,21 @@ const App: React.FC = () => {
               {files.map(file => {
                   const plugin = EDITOR_PLUGINS.find(p => p.type === file.type);
                   const Icon = plugin?.icon || File;
+                  const isDragging = draggedFileId === file.id;
                   return (
-                      <div key={file.id} className="group flex items-center gap-1 rounded-lg hover:bg-zinc-900 pr-1 mb-0.5">
+                      <div
+                        key={file.id}
+                        style={{ marginLeft: depth * 12 }}
+                        draggable
+                        onDragStart={(e) => handleFileDragStart(e, file.id)}
+                        onDragEnd={handleFileDragEnd}
+                        className={`group flex items-center gap-1 rounded-lg pr-1 mb-0.5 transition-colors cursor-grab active:cursor-grabbing ${isDragging ? 'opacity-45 grayscale' : 'opacity-100 hover:bg-zinc-900'}`}
+                      >
                           <button 
                             onClick={() => setActiveFileId(file.id)} 
                             className={`flex-1 flex items-center gap-2 px-2 py-1.5 text-sm text-left truncate ${activeFileId === file.id ? 'bg-zinc-800 text-white' : 'text-zinc-400 hover:text-zinc-200'}`}
                           >
+                             <span className="w-4 shrink-0" />
                              <Icon className={`w-4 h-4 shrink-0 ${activeFileId === file.id ? 'text-blue-400' : 'text-zinc-500'}`} />
                              <span className="truncate">{file.name}</span>
                           </button>
@@ -616,7 +692,11 @@ const App: React.FC = () => {
         </div>
 
         {/* Tree */}
-        <div className="p-3 flex-1 overflow-y-auto custom-scrollbar">
+        <div
+          className={`p-3 flex-1 overflow-y-auto custom-scrollbar transition-colors ${activeDropFolderId === 'root' ? 'bg-blue-500/5 ring-1 ring-inset ring-blue-500/30 rounded-lg' : ''}`}
+          onDragOver={handleRootDragOver}
+          onDrop={handleRootDrop}
+        >
           {renderFileTree(null)}
           
           {activeProject.files.length === 0 && activeProject.folders.length === 0 && (

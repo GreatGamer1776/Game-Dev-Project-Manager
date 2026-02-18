@@ -1,8 +1,8 @@
 import React, { useRef, useState, useEffect } from 'react';
-import { Save, Eraser, Pen, Trash2, Loader2, Check, AlertCircle, Image as ImageIcon, X, Maximize2 } from 'lucide-react';
+import { Save, Eraser, Pen, Highlighter, Trash2, Loader2, Check, AlertCircle, Image as ImageIcon, X, Maximize2, Undo2, Redo2 } from 'lucide-react';
 import { EditorProps } from '../types';
 
-type ToolType = 'pen' | 'eraser';
+type ToolType = 'pen' | 'highlighter' | 'eraser';
 
 interface ToolSettings {
   color: string;
@@ -18,6 +18,8 @@ interface PendingImage {
   originalAspect: number;
 }
 
+const HISTORY_LIMIT = 80;
+
 const WhiteboardEditor: React.FC<EditorProps> = ({ initialContent, onSave, fileName, assets = {} }) => {
   const canvasRef = useRef<HTMLCanvasElement>(null);
   const containerRef = useRef<HTMLDivElement>(null);
@@ -26,6 +28,7 @@ const WhiteboardEditor: React.FC<EditorProps> = ({ initialContent, onSave, fileN
   const [activeTool, setActiveTool] = useState<ToolType>('pen');
   const [settings, setSettings] = useState<Record<ToolType, ToolSettings>>({
     pen: { color: '#ffffff', width: 2 },
+    highlighter: { color: '#facc15', width: 18 },
     eraser: { color: '#09090b', width: 20 }
   });
   
@@ -34,6 +37,9 @@ const WhiteboardEditor: React.FC<EditorProps> = ({ initialContent, onSave, fileN
   const [isAssetMenuOpen, setIsAssetMenuOpen] = useState(false);
   const [saveStatus, setSaveStatus] = useState<'saved' | 'saving' | 'unsaved'>('saved');
   const lastSavedData = useRef(initialContent);
+  const historyRef = useRef<string[]>([]);
+  const historyIndexRef = useRef<number>(-1);
+  const [historyState, setHistoryState] = useState({ index: -1, length: 0 });
 
   // Floating Image State
   const [floatingImage, setFloatingImage] = useState<PendingImage | null>(null);
@@ -41,26 +47,108 @@ const WhiteboardEditor: React.FC<EditorProps> = ({ initialContent, onSave, fileN
   const [isResizingImage, setIsResizingImage] = useState(false);
   const dragOffset = useRef({ x: 0, y: 0 });
 
-  // Initialize Canvas
-  useEffect(() => {
+  const getCanvasContext = () => {
     const canvas = canvasRef.current;
-    if (!canvas) return;
-    
+    if (!canvas) return null;
     const ctx = canvas.getContext('2d', { willReadFrequently: true });
-    if (!ctx) return;
+    if (!ctx) return null;
+    return { canvas, ctx };
+  };
 
-    // 1. Fill background immediately
+  const fillCanvasBackground = (ctx: CanvasRenderingContext2D, canvas: HTMLCanvasElement) => {
+    ctx.globalCompositeOperation = 'source-over';
+    ctx.globalAlpha = 1;
     ctx.fillStyle = '#09090b';
     ctx.fillRect(0, 0, canvas.width, canvas.height);
+  };
 
-    // 2. Load content
-    if (initialContent) {
-        const img = new Image();
-        img.src = initialContent;
-        img.onload = () => {
-            ctx.drawImage(img, 0, 0);
-        };
+  const loadCanvasFromData = async (dataUrl: string | null | undefined) => {
+    const refs = getCanvasContext();
+    if (!refs) return;
+    const { canvas, ctx } = refs;
+    fillCanvasBackground(ctx, canvas);
+    if (!dataUrl) return;
+
+    await new Promise<void>((resolve) => {
+      const img = new Image();
+      img.src = dataUrl;
+      img.onload = () => {
+        ctx.drawImage(img, 0, 0);
+        resolve();
+      };
+      img.onerror = () => resolve();
+    });
+  };
+
+  const captureCanvasData = () => {
+    const refs = getCanvasContext();
+    if (!refs) return '';
+    return refs.canvas.toDataURL('image/png');
+  };
+
+  const syncHistoryState = () => {
+    setHistoryState({ index: historyIndexRef.current, length: historyRef.current.length });
+  };
+
+  const pushHistorySnapshot = (snapshot: string) => {
+    if (!snapshot) return false;
+    const base = historyRef.current.slice(0, historyIndexRef.current + 1);
+    if (base[base.length - 1] === snapshot) return false;
+    base.push(snapshot);
+    if (base.length > HISTORY_LIMIT) {
+      base.splice(0, base.length - HISTORY_LIMIT);
     }
+    historyRef.current = base;
+    historyIndexRef.current = base.length - 1;
+    syncHistoryState();
+    return true;
+  };
+
+  const commitCanvasSnapshot = (autoSave: boolean = true) => {
+    const snapshot = captureCanvasData();
+    if (!snapshot) return;
+    const changed = pushHistorySnapshot(snapshot);
+    if (changed) {
+      setSaveStatus('unsaved');
+      if (autoSave) {
+        setTimeout(() => handleManualSave(), 250);
+      }
+    }
+  };
+
+  const restoreHistoryIndex = async (nextIndex: number) => {
+    const snapshot = historyRef.current[nextIndex];
+    if (!snapshot) return;
+    await loadCanvasFromData(snapshot);
+    historyIndexRef.current = nextIndex;
+    syncHistoryState();
+    setSaveStatus('unsaved');
+    setTimeout(() => handleManualSave(), 150);
+  };
+
+  const handleUndo = async () => {
+    if (historyIndexRef.current <= 0) return;
+    await restoreHistoryIndex(historyIndexRef.current - 1);
+  };
+
+  const handleRedo = async () => {
+    if (historyIndexRef.current >= historyRef.current.length - 1) return;
+    await restoreHistoryIndex(historyIndexRef.current + 1);
+  };
+
+  // Initialize Canvas + History
+  useEffect(() => {
+    const init = async () => {
+      await loadCanvasFromData(initialContent);
+      const snapshot = captureCanvasData();
+      historyRef.current = snapshot ? [snapshot] : [];
+      historyIndexRef.current = historyRef.current.length - 1;
+      syncHistoryState();
+      if (snapshot) {
+        lastSavedData.current = snapshot;
+      }
+    };
+    init();
   }, []);
 
   // --- MOUSE / DRAWING LOGIC ---
@@ -89,9 +177,21 @@ const WhiteboardEditor: React.FC<EditorProps> = ({ initialContent, onSave, fileN
     ctx.beginPath();
     ctx.moveTo(x, y);
     
-    // Explicitly grab latest state
     const currentSettings = settings[activeTool];
-    ctx.strokeStyle = activeTool === 'eraser' ? '#09090b' : currentSettings.color;
+    ctx.globalCompositeOperation = 'source-over';
+    ctx.globalAlpha = 1;
+    ctx.strokeStyle = currentSettings.color;
+
+    if (activeTool === 'eraser') {
+      ctx.globalCompositeOperation = 'destination-out';
+      ctx.strokeStyle = 'rgba(0,0,0,1)';
+    }
+    if (activeTool === 'highlighter') {
+      ctx.globalCompositeOperation = 'source-over';
+      ctx.globalAlpha = 0.28;
+      ctx.strokeStyle = currentSettings.color;
+    }
+
     ctx.lineWidth = currentSettings.width;
     ctx.lineCap = 'round';
     ctx.lineJoin = 'round';
@@ -113,8 +213,12 @@ const WhiteboardEditor: React.FC<EditorProps> = ({ initialContent, onSave, fileN
     if (isDrawing) {
         setIsDrawing(false);
         const ctx = canvasRef.current?.getContext('2d');
-        ctx?.closePath();
-        setTimeout(handleManualSave, 1000);
+        if (ctx) {
+          ctx.closePath();
+          ctx.globalAlpha = 1;
+          ctx.globalCompositeOperation = 'source-over';
+        }
+        commitCanvasSnapshot(true);
     }
   };
 
@@ -157,10 +261,11 @@ const WhiteboardEditor: React.FC<EditorProps> = ({ initialContent, onSave, fileN
       const img = new Image();
       img.src = floatingImage.src;
       img.onload = () => {
+          ctx.globalAlpha = 1;
+          ctx.globalCompositeOperation = 'source-over';
           ctx.drawImage(img, floatingImage.x, floatingImage.y, floatingImage.width, floatingImage.height);
           setFloatingImage(null); 
-          setSaveStatus('unsaved');
-          handleManualSave();
+          commitCanvasSnapshot(true);
       };
   };
 
@@ -242,17 +347,38 @@ const WhiteboardEditor: React.FC<EditorProps> = ({ initialContent, onSave, fileN
     }
   };
 
+  useEffect(() => {
+    const handleKeyDown = (e: KeyboardEvent) => {
+      if ((e.ctrlKey || e.metaKey) && e.key.toLowerCase() === 's') {
+        e.preventDefault();
+        handleManualSave();
+        return;
+      }
+      if ((e.ctrlKey || e.metaKey) && e.key.toLowerCase() === 'z' && !e.shiftKey) {
+        e.preventDefault();
+        handleUndo();
+        return;
+      }
+      if (((e.ctrlKey || e.metaKey) && e.key.toLowerCase() === 'y') || ((e.ctrlKey || e.metaKey) && e.shiftKey && e.key.toLowerCase() === 'z')) {
+        e.preventDefault();
+        handleRedo();
+      }
+    };
+    window.addEventListener('keydown', handleKeyDown);
+    return () => window.removeEventListener('keydown', handleKeyDown);
+  }, []);
+
   const clearCanvas = () => {
     if(!confirm("Clear whiteboard? This cannot be undone.")) return;
-    const ctx = canvasRef.current?.getContext('2d');
-    if (!ctx || !canvasRef.current) return;
-    ctx.fillStyle = '#09090b';
-    ctx.fillRect(0, 0, canvasRef.current.width, canvasRef.current.height);
-    setSaveStatus('unsaved');
-    handleManualSave();
+    const refs = getCanvasContext();
+    if (!refs) return;
+    fillCanvasBackground(refs.ctx, refs.canvas);
+    commitCanvasSnapshot(true);
   };
 
   const assetList = Object.entries(assets);
+  const canUndo = historyState.index > 0;
+  const canRedo = historyState.index >= 0 && historyState.index < historyState.length - 1;
 
   return (
     <div 
@@ -275,6 +401,13 @@ const WhiteboardEditor: React.FC<EditorProps> = ({ initialContent, onSave, fileN
                 >
                     <Pen className="w-4 h-4" />
                 </button>
+                <button
+                    onClick={() => setActiveTool('highlighter')}
+                    className={`p-2 rounded transition-all ${activeTool === 'highlighter' ? 'bg-yellow-500 text-black shadow-sm' : 'text-zinc-400 hover:text-zinc-200'}`}
+                    title="Highlighter"
+                >
+                    <Highlighter className="w-4 h-4" />
+                </button>
                 <button 
                     onClick={() => setActiveTool('eraser')} 
                     className={`p-2 rounded transition-all ${activeTool === 'eraser' ? 'bg-zinc-600 text-white shadow-sm' : 'text-zinc-400 hover:text-zinc-200'}`}
@@ -294,15 +427,15 @@ const WhiteboardEditor: React.FC<EditorProps> = ({ initialContent, onSave, fileN
 
             {/* Settings */}
             <div className="flex items-center gap-3 bg-zinc-800/50 px-3 py-1.5 rounded-lg border border-zinc-800 hidden md:flex">
-                {activeTool === 'pen' && (
+                {(activeTool === 'pen' || activeTool === 'highlighter') && (
                     <div className="flex items-center gap-2">
                         {/* Standard Color Input for Reliability */}
                         <input 
                             type="color"
-                            value={settings.pen.color}
+                            value={settings[activeTool].color}
                             onChange={(e) => updateSetting('color', e.target.value)}
                             className="w-8 h-8 rounded cursor-pointer bg-transparent border-none"
-                            title="Pen Color"
+                            title={activeTool === 'highlighter' ? 'Highlighter Color' : 'Pen Color'}
                         />
                     </div>
                 )}
@@ -312,7 +445,7 @@ const WhiteboardEditor: React.FC<EditorProps> = ({ initialContent, onSave, fileN
                     <input 
                         type="range" 
                         min="1" 
-                        max={activeTool === 'eraser' ? "100" : "50"} 
+                        max={activeTool === 'eraser' ? "100" : activeTool === 'highlighter' ? "80" : "50"} 
                         value={settings[activeTool].width} 
                         onChange={(e) => updateSetting('width', parseInt(e.target.value))}
                         className="w-24 h-1.5 bg-zinc-700 rounded-lg appearance-none cursor-pointer accent-blue-500" 
@@ -323,6 +456,22 @@ const WhiteboardEditor: React.FC<EditorProps> = ({ initialContent, onSave, fileN
 
         {/* Actions */}
         <div className="flex items-center gap-3">
+            <button
+              onClick={handleUndo}
+              disabled={!canUndo}
+              className="text-zinc-500 hover:text-zinc-200 p-2 disabled:opacity-40 disabled:cursor-not-allowed"
+              title="Undo (Ctrl/Cmd+Z)"
+            >
+              <Undo2 className="w-4 h-4" />
+            </button>
+            <button
+              onClick={handleRedo}
+              disabled={!canRedo}
+              className="text-zinc-500 hover:text-zinc-200 p-2 disabled:opacity-40 disabled:cursor-not-allowed"
+              title="Redo (Ctrl/Cmd+Y)"
+            >
+              <Redo2 className="w-4 h-4" />
+            </button>
              <div className="flex items-center mr-2 hidden sm:flex">
                 {saveStatus === 'saving' && <span className="text-xs text-zinc-500"><Loader2 className="w-3 h-3 animate-spin" /></span>}
                 {saveStatus === 'saved' && <span className="text-xs text-zinc-500 opacity-50"><Check className="w-3 h-3" /></span>}

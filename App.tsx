@@ -851,7 +851,7 @@ const App: React.FC = () => {
                             draggable
                             onDragStart={(e) => handleFileDragStart(e, file.id, file.name)}
                             onDragEnd={handleFileDragEnd}
-                            className={`flex-1 flex items-center gap-2 px-2 py-1.5 text-sm text-left truncate ${activeFileId === file.id ? 'bg-zinc-800 text-white' : 'text-zinc-400 hover:text-zinc-200'}`}
+                            className={`flex-1 flex items-center gap-2 pl-1.5 pr-2 py-1.5 text-sm text-left truncate ${activeFileId === file.id ? 'bg-zinc-800 text-white' : 'text-zinc-400 hover:text-zinc-200'}`}
                           >
                              <Icon className={`w-4 h-4 shrink-0 ${activeFileId === file.id ? 'text-blue-400' : 'text-zinc-500'}`} />
                              <span className="truncate">{file.name}</span>

@@ -414,15 +414,48 @@ const App: React.FC = () => {
   };
 
   const handleDeleteFolder = (folderId: string) => {
-      if (!confirm("Delete folder? Files inside will be moved to root.")) return;
       if (!activeProjectId) return;
       const project = projects.find(p => p.id === activeProjectId);
       if (project) {
-          // Recursive delete not fully implemented for simplicity, just moves children to root
-          const newFiles = project.files.map(f => f.folderId === folderId ? { ...f, folderId: null } : f);
-          const newFolders = project.folders.map(f => f.parentId === folderId ? { ...f, parentId: null } : f).filter(f => f.id !== folderId);
-          
-          updateProjectState({ ...project, files: newFiles, folders: newFolders });
+          const folderIdsToDelete = new Set<string>([folderId]);
+          let changed = true;
+          while (changed) {
+              changed = false;
+              for (const folder of project.folders) {
+                  if (folder.parentId && folderIdsToDelete.has(folder.parentId) && !folderIdsToDelete.has(folder.id)) {
+                      folderIdsToDelete.add(folder.id);
+                      changed = true;
+                  }
+              }
+          }
+
+          const deletedFiles = project.files.filter(f => f.folderId && folderIdsToDelete.has(f.folderId));
+          const deletedFileIds = new Set(deletedFiles.map(f => f.id));
+          const folderCount = folderIdsToDelete.size;
+          const fileCount = deletedFiles.length;
+          const folderLabel = folderCount === 1 ? 'folder' : 'folders';
+          const fileLabel = fileCount === 1 ? 'file' : 'files';
+
+          const confirmed = confirm(
+            `Delete this folder and all of its contents?\n\nThis will permanently delete ${folderCount} ${folderLabel} and ${fileCount} ${fileLabel}.`
+          );
+          if (!confirmed) return;
+
+          const newFolders = project.folders.filter(f => !folderIdsToDelete.has(f.id));
+          const newFiles = project.files.filter(f => !f.folderId || !folderIdsToDelete.has(f.folderId));
+
+          updateProjectState({ ...project, lastModified: Date.now(), files: newFiles, folders: newFolders });
+
+          if (activeFileId && deletedFileIds.has(activeFileId)) {
+              setActiveFileId(newFiles[0]?.id || null);
+          }
+          setExpandedFolders(prev => {
+              const next = new Set(prev);
+              for (const id of folderIdsToDelete) {
+                  next.delete(id);
+              }
+              return next;
+          });
       }
   };
 
@@ -590,7 +623,15 @@ const App: React.FC = () => {
       if (!activeProject) return null;
 
       const folders = activeProject.folders.filter(f => f.parentId === parentId);
-      const files = activeProject.files.filter(f => (f.folderId || null) === parentId);
+      const pluginOrder = new Map(EDITOR_PLUGINS.map((plugin, index) => [plugin.type, index]));
+      const files = activeProject.files
+          .filter(f => (f.folderId || null) === parentId)
+          .sort((a, b) => {
+              const typeRankA = pluginOrder.get(a.type) ?? Number.MAX_SAFE_INTEGER;
+              const typeRankB = pluginOrder.get(b.type) ?? Number.MAX_SAFE_INTEGER;
+              if (typeRankA !== typeRankB) return typeRankA - typeRankB;
+              return a.name.localeCompare(b.name, undefined, { sensitivity: 'base' });
+          });
 
       return (
           <div>

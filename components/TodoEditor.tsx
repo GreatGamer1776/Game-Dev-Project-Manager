@@ -1,5 +1,5 @@
 import React, { useState, useEffect, useRef } from 'react';
-import { Save, Plus, Trash2, CheckSquare, Square, Calendar, Flag, ChevronDown, ChevronUp, Search, Filter, ListChecks, Loader2, Check, AlertCircle, MoreHorizontal, Link as LinkIcon, ArrowUpDown, RotateCcw } from 'lucide-react';
+import { Save, Plus, Trash2, CheckSquare, Square, Calendar, ChevronDown, ChevronUp, Search, Filter, ListChecks, Loader2, Check, AlertCircle, MoreHorizontal, Link as LinkIcon, ArrowUpDown, RotateCcw } from 'lucide-react';
 import { TodoItem, Priority, SubTask, EditorProps, TodoStatus } from '../types';
 
 const FILE_LINK_DRAG_MIME = 'application/x-gdpm-file-id';
@@ -100,6 +100,8 @@ const TodoEditor: React.FC<EditorProps> = ({ initialContent, onSave, fileName, p
   useEffect(() => {
     if (!linkPickerTaskId) return;
     const handleOutsideClick = (event: MouseEvent) => {
+      const target = event.target as HTMLElement | null;
+      if (target?.closest('[data-link-picker-toggle="true"]')) return;
       if (!linkPickerRef.current) return;
       if (linkPickerRef.current.contains(event.target as Node)) return;
       setLinkPickerTaskId(null);
@@ -342,11 +344,6 @@ const TodoEditor: React.FC<EditorProps> = ({ initialContent, onSave, fileName, p
     setItems(items.map(item => item.id === itemId && item.subTasks ? { ...item, subTasks: item.subTasks.filter(sub => sub.id !== subTaskId) } : item));
   };
 
-  const markFilteredDone = () => {
-    const visibleIds = new Set(filteredItems.map(item => item.id));
-    setItems(items.map(item => visibleIds.has(item.id) ? { ...item, status: 'Done', completed: true } : item));
-  };
-
   const clearCompletedTasks = () => {
     setItems(items.filter(item => item.status !== 'Done' && !item.completed));
     if (expandedId && items.some(item => item.id === expandedId && (item.status === 'Done' || item.completed))) {
@@ -451,9 +448,9 @@ const TodoEditor: React.FC<EditorProps> = ({ initialContent, onSave, fileName, p
       </div>
 
       {/* Quick Add & Filters */}
-      <div className="px-6 py-4 border-b border-zinc-800 bg-zinc-900 shrink-0 flex flex-col xl:flex-row gap-4">
+      <div className="px-6 py-3 border-b border-zinc-800 bg-zinc-900 shrink-0 flex items-center gap-3 overflow-x-auto custom-scrollbar">
           {/* Add Bar */}
-          <div className="flex-1 bg-zinc-950 border border-zinc-800 rounded-lg p-1.5 flex gap-2 items-center shadow-sm">
+          <div className="flex-[1_1_440px] min-w-[420px] bg-zinc-950 border border-zinc-800 rounded-lg p-1.5 flex gap-2 items-center shadow-sm">
              <input
                 type="text"
                 value={newItemText}
@@ -483,15 +480,15 @@ const TodoEditor: React.FC<EditorProps> = ({ initialContent, onSave, fileName, p
           </div>
 
           {/* Filters */}
-          <div className="flex gap-3 items-center flex-wrap">
-             <div className="relative">
+          <div className="flex items-center gap-3 flex-nowrap shrink-0">
+             <div className="relative shrink-0">
                 <Search className="w-4 h-4 text-zinc-500 absolute left-3 top-1/2 -translate-y-1/2" />
                 <input
                     type="text"
                     value={searchQuery}
                     onChange={(e) => setSearchQuery(e.target.value)}
                     placeholder="Search..."
-                    className="bg-zinc-950 border border-zinc-800 rounded-md py-2 pl-9 pr-3 text-sm text-zinc-200 focus:outline-none focus:border-zinc-700 w-48"
+                    className="bg-zinc-950 border border-zinc-800 rounded-md py-2 pl-9 pr-3 text-sm text-zinc-200 focus:outline-none focus:border-zinc-700 w-44"
                 />
              </div>
              <div className="flex items-center gap-2 bg-zinc-950 border border-zinc-800 rounded-md px-3 py-2">
@@ -540,13 +537,6 @@ const TodoEditor: React.FC<EditorProps> = ({ initialContent, onSave, fileName, p
                   selectClassName="border-zinc-800 bg-zinc-900"
                 />
              </div>
-             <button
-                onClick={markFilteredDone}
-                disabled={filteredItems.length === 0}
-                className="text-xs px-3 py-2 rounded-md bg-zinc-950 border border-zinc-800 text-zinc-300 hover:text-white disabled:opacity-40"
-             >
-                Mark Filtered Done
-             </button>
              <button
                 onClick={clearCompletedTasks}
                 disabled={!items.some(item => item.status === 'Done' || item.completed)}
@@ -702,6 +692,7 @@ const TodoEditor: React.FC<EditorProps> = ({ initialContent, onSave, fileName, p
                                               <span className="text-[10px] uppercase tracking-wide text-zinc-500">Notes</span>
                                               <button
                                                 onClick={() => toggleLinkPicker(item.id)}
+                                                data-link-picker-toggle="true"
                                                 disabled={linkableFiles.length === 0}
                                                 className="text-[10px] text-cyan-400 hover:text-cyan-300 flex items-center gap-1 disabled:text-zinc-600 disabled:cursor-not-allowed"
                                                 title={linkableFiles.length === 0 ? 'No files available to link' : 'Insert file link'}

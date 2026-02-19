@@ -159,9 +159,8 @@ const DocEditor: React.FC<EditorProps> = ({ initialContent, onSave, fileName, as
   // Color Picker State
   const [showColorPicker, setShowColorPicker] = useState(false);
   const [customColor, setCustomColor] = useState('#ef4444');
-  const [selectedLinkFileId, setSelectedLinkFileId] = useState<string>('');
-  const [linkTargetId, setLinkTargetId] = useState('');
-  const [linkLabel, setLinkLabel] = useState('');
+  const [showLinkPicker, setShowLinkPicker] = useState(false);
+  const [linkPickerQuery, setLinkPickerQuery] = useState('');
 
   const [saveStatus, setSaveStatus] = useState<'saved' | 'saving' | 'unsaved'>('saved');
   const lastSavedContent = useRef(initialContent);
@@ -169,12 +168,20 @@ const DocEditor: React.FC<EditorProps> = ({ initialContent, onSave, fileName, as
   const textareaRef = useRef<HTMLTextAreaElement>(null);
   const fileInputRef = useRef<HTMLInputElement>(null);
   const popoverRef = useRef<HTMLDivElement>(null);
+  const linkPickerRef = useRef<HTMLDivElement>(null);
   const previewPaneRef = useRef<HTMLDivElement>(null);
   const fileLookup = React.useMemo(() => new Map(projectFiles.map(f => [f.id, f.name])), [projectFiles]);
   const linkableFiles = React.useMemo(
     () => projectFiles.filter(f => f.id !== activeFileId).sort((a, b) => a.name.localeCompare(b.name, undefined, { sensitivity: 'base' })),
     [projectFiles, activeFileId]
   );
+  const filteredLinkableFiles = React.useMemo(() => {
+    const query = linkPickerQuery.trim().toLowerCase();
+    if (!query) return linkableFiles;
+    return linkableFiles.filter(file =>
+      file.name.toLowerCase().includes(query) || file.id.toLowerCase().includes(query)
+    );
+  }, [linkableFiles, linkPickerQuery]);
 
   // Sync initial content
   useEffect(() => {
@@ -197,14 +204,10 @@ const DocEditor: React.FC<EditorProps> = ({ initialContent, onSave, fileName, as
   }, [content, assets, fileLookup, viewMode]);
 
   useEffect(() => {
-    if (linkableFiles.length === 0) {
-      setSelectedLinkFileId('');
-      return;
-    }
-    if (!linkableFiles.some(f => f.id === selectedLinkFileId)) {
-      setSelectedLinkFileId(linkableFiles[0].id);
-    }
-  }, [linkableFiles, selectedLinkFileId]);
+    if (linkableFiles.length > 0) return;
+    setShowLinkPicker(false);
+    setLinkPickerQuery('');
+  }, [linkableFiles]);
 
   // Autosave
   useEffect(() => {
@@ -217,15 +220,19 @@ const DocEditor: React.FC<EditorProps> = ({ initialContent, onSave, fileName, as
   // Handle outside click for popover
   useEffect(() => {
     const handleClickOutside = (event: MouseEvent) => {
-      if (popoverRef.current && !popoverRef.current.contains(event.target as Node)) {
+      const target = event.target as Node;
+      if (popoverRef.current && !popoverRef.current.contains(target)) {
         setShowColorPicker(false);
       }
+      if (linkPickerRef.current && !linkPickerRef.current.contains(target)) {
+        setShowLinkPicker(false);
+        setLinkPickerQuery('');
+      }
     };
-    if (showColorPicker) {
-        document.addEventListener('mousedown', handleClickOutside);
-    }
+    if (!showColorPicker && !showLinkPicker) return;
+    document.addEventListener('mousedown', handleClickOutside);
     return () => document.removeEventListener('mousedown', handleClickOutside);
-  }, [showColorPicker]);
+  }, [showColorPicker, showLinkPicker]);
 
   // Shortcuts
   useEffect(() => {
@@ -287,15 +294,19 @@ const DocEditor: React.FC<EditorProps> = ({ initialContent, onSave, fileName, as
       setShowColorPicker(false);
   };
 
-  const insertFileLink = () => {
-      const targetId = linkTargetId.trim() || selectedLinkFileId;
-      if (!targetId) {
-          alert("No other files available to link.");
-          return;
-      }
-      const selected = projectFiles.find(f => f.id === targetId);
-      const label = linkLabel.trim() || selected?.name || 'Linked File';
-      insertText(`[${label}](file://${targetId})`);
+  const insertFileLink = (fileId: string) => {
+      const selected = projectFiles.find(f => f.id === fileId);
+      if (!selected) return;
+      insertText(`[${selected.name}](file://${selected.id})`);
+      setShowLinkPicker(false);
+      setLinkPickerQuery('');
+  };
+
+  const toggleLinkPicker = () => {
+      if (linkableFiles.length === 0) return;
+      setShowColorPicker(false);
+      setShowLinkPicker(prev => !prev);
+      setLinkPickerQuery('');
   };
 
   const getDraggedFile = (e: React.DragEvent): { id: string; name: string } | null => {
@@ -396,7 +407,7 @@ const DocEditor: React.FC<EditorProps> = ({ initialContent, onSave, fileName, as
               <ToolbarButton icon={Strikethrough} onClick={() => insertText('~~', '~~')} title="Strikethrough" />
               
               {/* Color Picker Toggle */}
-              <div className="relative">
+              <div className="relative" ref={linkPickerRef}>
                   <ToolbarButton 
                     icon={Palette} 
                     onClick={() => setShowColorPicker(!showColorPicker)} 
@@ -446,38 +457,48 @@ const DocEditor: React.FC<EditorProps> = ({ initialContent, onSave, fileName, as
               <ToolbarButton icon={List} onClick={() => insertText('- ')} title="Bullet List" />
               <ToolbarButton icon={Quote} onClick={() => insertText('> ')} title="Quote" />
               <ToolbarButton icon={Code} onClick={() => insertText('```\n', '\n```')} title="Code Block" />
-              <ToolbarButton icon={LinkIcon} onClick={insertFileLink} title="Insert File Link" color="text-cyan-400" />
-              <select
-                value={selectedLinkFileId}
-                onChange={(e) => setSelectedLinkFileId(e.target.value)}
-                className="bg-zinc-950 border border-zinc-800 rounded px-2 py-1 text-[11px] text-zinc-300 max-w-[160px]"
-                title="Select file to link"
-                disabled={linkableFiles.length === 0}
-              >
-                {linkableFiles.length === 0 ? (
-                  <option value="">No link targets</option>
-                ) : (
-                  linkableFiles.map(f => (
-                    <option key={f.id} value={f.id}>{f.name}</option>
-                  ))
+              <div className="relative">
+                <ToolbarButton
+                  icon={LinkIcon}
+                  onClick={toggleLinkPicker}
+                  title={linkableFiles.length === 0 ? 'No files available to link' : 'Insert File Link'}
+                  color="text-cyan-400"
+                  disabled={linkableFiles.length === 0}
+                  active={showLinkPicker}
+                />
+                {showLinkPicker && (
+                  <div
+                    className="absolute left-0 top-full mt-2 z-50 w-72 rounded-lg border border-zinc-700 bg-zinc-900 p-2 shadow-xl"
+                  >
+                    <input
+                      type="text"
+                      value={linkPickerQuery}
+                      onChange={(e) => setLinkPickerQuery(e.target.value)}
+                      placeholder="Search files..."
+                      className="mb-2 w-full rounded border border-zinc-700 bg-zinc-950 px-2 py-1.5 text-xs text-zinc-200 focus:border-zinc-500 focus:outline-none"
+                      autoFocus
+                    />
+                    <div className="max-h-48 space-y-1 overflow-y-auto custom-scrollbar">
+                      {filteredLinkableFiles.length === 0 ? (
+                        <p className="px-2 py-2 text-xs text-zinc-500">No matching files.</p>
+                      ) : (
+                        filteredLinkableFiles.map(file => (
+                          <button
+                            key={file.id}
+                            type="button"
+                            onClick={() => insertFileLink(file.id)}
+                            className="flex w-full items-center justify-between rounded px-2 py-1.5 text-left text-xs text-zinc-300 transition hover:bg-zinc-800 hover:text-white"
+                            title={file.id}
+                          >
+                            <span className="truncate pr-2">{file.name}</span>
+                            <span className="text-[10px] text-zinc-500">{file.id.slice(0, 8)}</span>
+                          </button>
+                        ))
+                      )}
+                    </div>
+                  </div>
                 )}
-              </select>
-              <input
-                type="text"
-                value={linkTargetId}
-                onChange={(e) => setLinkTargetId(e.target.value)}
-                placeholder="Paste File ID"
-                className="bg-zinc-950 border border-zinc-800 rounded px-2 py-1 text-[11px] text-zinc-300 w-32"
-                title="Paste file ID"
-              />
-              <input
-                type="text"
-                value={linkLabel}
-                onChange={(e) => setLinkLabel(e.target.value)}
-                placeholder="Link Label"
-                className="bg-zinc-950 border border-zinc-800 rounded px-2 py-1 text-[11px] text-zinc-300 w-28"
-                title="Optional link label"
-              />
+              </div>
               
               <div className="w-px h-4 bg-zinc-800 mx-1"></div>
 

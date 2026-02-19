@@ -20,9 +20,9 @@ const KanbanBoard: React.FC<EditorProps> = ({ initialContent, onSave, fileName, 
   const [newTitle, setNewTitle] = useState('');
   const [newSeverity, setNewSeverity] = useState<BugSeverity>('Medium');
   const [newDesc, setNewDesc] = useState('');
-  const [selectedLinkFileId, setSelectedLinkFileId] = useState<string>('');
-  const [linkTargetId, setLinkTargetId] = useState('');
-  const [linkLabel, setLinkLabel] = useState('');
+  const [linkPickerOpen, setLinkPickerOpen] = useState(false);
+  const [linkPickerQuery, setLinkPickerQuery] = useState('');
+  const linkPickerRef = useRef<HTMLDivElement | null>(null);
 
   const [draggedBugId, setDraggedBugId] = useState<string | null>(null);
   const [activeDropZone, setActiveDropZone] = useState<BugStatus | null>(null);
@@ -31,6 +31,13 @@ const KanbanBoard: React.FC<EditorProps> = ({ initialContent, onSave, fileName, 
     () => projectFiles.filter(f => f.id !== activeFileId).sort((a, b) => a.name.localeCompare(b.name, undefined, { sensitivity: 'base' })),
     [projectFiles, activeFileId]
   );
+  const filteredLinkableFiles = React.useMemo(() => {
+    const query = linkPickerQuery.trim().toLowerCase();
+    if (!query) return linkableFiles;
+    return linkableFiles.filter(file =>
+      file.name.toLowerCase().includes(query) || file.id.toLowerCase().includes(query)
+    );
+  }, [linkableFiles, linkPickerQuery]);
 
   useEffect(() => {
     setBugs(initialContent?.tasks || []);
@@ -38,14 +45,22 @@ const KanbanBoard: React.FC<EditorProps> = ({ initialContent, onSave, fileName, 
   }, [initialContent]);
 
   useEffect(() => {
-    if (linkableFiles.length === 0) {
-      setSelectedLinkFileId('');
-      return;
-    }
-    if (!linkableFiles.some(f => f.id === selectedLinkFileId)) {
-      setSelectedLinkFileId(linkableFiles[0].id);
-    }
-  }, [linkableFiles, selectedLinkFileId]);
+    if (linkableFiles.length > 0) return;
+    setLinkPickerOpen(false);
+    setLinkPickerQuery('');
+  }, [linkableFiles]);
+
+  useEffect(() => {
+    if (!isModalOpen || !linkPickerOpen) return;
+    const handleOutsideClick = (event: MouseEvent) => {
+      if (!linkPickerRef.current) return;
+      if (linkPickerRef.current.contains(event.target as Node)) return;
+      setLinkPickerOpen(false);
+      setLinkPickerQuery('');
+    };
+    document.addEventListener('mousedown', handleOutsideClick);
+    return () => document.removeEventListener('mousedown', handleOutsideClick);
+  }, [isModalOpen, linkPickerOpen]);
 
   // Autosave Logic
   useEffect(() => {
@@ -85,6 +100,8 @@ const KanbanBoard: React.FC<EditorProps> = ({ initialContent, onSave, fileName, 
     setNewTitle('');
     setNewDesc('');
     setNewSeverity('Medium');
+    setLinkPickerOpen(false);
+    setLinkPickerQuery('');
     setEditingBug(null);
     setIsModalOpen(false);
   };
@@ -94,6 +111,8 @@ const KanbanBoard: React.FC<EditorProps> = ({ initialContent, onSave, fileName, 
     setNewTitle('');
     setNewDesc('');
     setNewSeverity('Medium');
+    setLinkPickerOpen(false);
+    setLinkPickerQuery('');
     setIsModalOpen(true);
   };
 
@@ -104,6 +123,8 @@ const KanbanBoard: React.FC<EditorProps> = ({ initialContent, onSave, fileName, 
     setNewTitle(bug.title);
     setNewDesc(bug.description);
     setNewSeverity(bug.severity);
+    setLinkPickerOpen(false);
+    setLinkPickerQuery('');
     setIsModalOpen(true);
   };
 
@@ -186,15 +207,18 @@ const KanbanBoard: React.FC<EditorProps> = ({ initialContent, onSave, fileName, 
     return <AlertCircle className="w-3 h-3" />;
   };
 
-  const appendFileLinkToDescription = () => {
-    const targetId = linkTargetId.trim() || selectedLinkFileId;
-    if (!targetId) {
-      alert("Provide a file ID or choose a file.");
-      return;
-    }
-    const file = projectFiles.find(f => f.id === targetId);
-    const label = linkLabel.trim() || file?.name || 'Linked File';
-    setNewDesc(prev => `${prev}${prev ? '\n' : ''}[${label}](file://${targetId})`);
+  const appendFileLinkToDescription = (fileId: string) => {
+    const file = projectFiles.find(f => f.id === fileId);
+    if (!file) return;
+    setNewDesc(prev => `${prev}${prev ? '\n' : ''}[${file.name}](file://${file.id})`);
+    setLinkPickerOpen(false);
+    setLinkPickerQuery('');
+  };
+
+  const toggleLinkPicker = () => {
+    if (linkableFiles.length === 0) return;
+    setLinkPickerOpen(prev => !prev);
+    setLinkPickerQuery('');
   };
 
   const getDraggedProjectFile = (e: React.DragEvent): { id: string; name: string } | null => {
@@ -492,43 +516,46 @@ const KanbanBoard: React.FC<EditorProps> = ({ initialContent, onSave, fileName, 
               <div>
                 <div className="flex items-center justify-between mb-1">
                   <label className="block text-sm font-medium text-zinc-400">Description</label>
-                  <div className="flex items-center gap-2">
-                    <select
-                      value={selectedLinkFileId}
-                      onChange={(e) => setSelectedLinkFileId(e.target.value)}
-                      className="bg-zinc-950 border border-zinc-800 rounded px-2 py-1 text-xs text-zinc-300 max-w-[170px]"
-                      disabled={linkableFiles.length === 0}
-                    >
-                      {linkableFiles.length === 0 ? (
-                        <option value="">No link targets</option>
-                      ) : (
-                        linkableFiles.map(f => (
-                          <option key={f.id} value={f.id}>{f.name}</option>
-                        ))
-                      )}
-                    </select>
-                    <input
-                      type="text"
-                      value={linkTargetId}
-                      onChange={(e) => setLinkTargetId(e.target.value)}
-                      placeholder="Paste File ID"
-                      className="bg-zinc-950 border border-zinc-800 rounded px-2 py-1 text-xs text-zinc-300 w-32"
-                    />
-                    <input
-                      type="text"
-                      value={linkLabel}
-                      onChange={(e) => setLinkLabel(e.target.value)}
-                      placeholder="Link Label"
-                      className="bg-zinc-950 border border-zinc-800 rounded px-2 py-1 text-xs text-zinc-300 w-28"
-                    />
+                  <div className="relative" ref={linkPickerRef}>
                     <button
                       type="button"
-                      onClick={appendFileLinkToDescription}
-                      className="text-xs text-cyan-400 hover:text-cyan-300 flex items-center gap-1"
-                      title="Insert File Link"
+                      onClick={toggleLinkPicker}
+                      disabled={linkableFiles.length === 0}
+                      className="text-xs text-cyan-400 hover:text-cyan-300 disabled:text-zinc-600 disabled:cursor-not-allowed flex items-center gap-1"
+                      title={linkableFiles.length === 0 ? 'No files available to link' : 'Insert File Link'}
                     >
                       <LinkIcon className="w-3 h-3" /> Link File
                     </button>
+                    {linkPickerOpen && (
+                      <div className="absolute right-0 top-5 z-30 w-72 rounded-md border border-zinc-700 bg-zinc-900 p-2 shadow-lg">
+                        <input
+                          type="text"
+                          value={linkPickerQuery}
+                          onChange={(e) => setLinkPickerQuery(e.target.value)}
+                          placeholder="Search files..."
+                          className="mb-2 w-full rounded border border-zinc-700 bg-zinc-950 px-2 py-1.5 text-xs text-zinc-200 focus:outline-none focus:border-zinc-500"
+                          autoFocus
+                        />
+                        <div className="max-h-44 overflow-y-auto space-y-1 custom-scrollbar">
+                          {filteredLinkableFiles.length === 0 ? (
+                            <p className="px-2 py-2 text-xs text-zinc-500">No matching files.</p>
+                          ) : (
+                            filteredLinkableFiles.map(file => (
+                              <button
+                                key={file.id}
+                                type="button"
+                                onClick={() => appendFileLinkToDescription(file.id)}
+                                className="flex w-full items-center justify-between rounded px-2 py-1.5 text-left text-xs text-zinc-300 transition hover:bg-zinc-800 hover:text-white"
+                                title={file.id}
+                              >
+                                <span className="truncate pr-2">{file.name}</span>
+                                <span className="text-[10px] text-zinc-500">{file.id.slice(0, 8)}</span>
+                              </button>
+                            ))
+                          )}
+                        </div>
+                      </div>
+                    )}
                   </div>
                 </div>
                 <textarea

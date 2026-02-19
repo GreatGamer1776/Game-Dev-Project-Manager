@@ -232,6 +232,7 @@ const App: React.FC = () => {
   const saveQueueRef = React.useRef<Project | null>(null);
   const projectHandlesRef = React.useRef<Map<string, any>>(new Map());
   const projectsRef = React.useRef<Project[]>([]);
+  projectsRef.current = projects;
 
   useEffect(() => {
     projectsRef.current = projects;
@@ -656,6 +657,8 @@ const App: React.FC = () => {
       lastModified: Date.now(),
       assets: { ...(project.assets || {}), [assetId]: base64 }
     };
+
+    projectsRef.current = projectsRef.current.map(p => p.id === updatedProject.id ? updatedProject : p);
     updateProjectState(updatedProject);
     return `asset://${assetId}`;
   };

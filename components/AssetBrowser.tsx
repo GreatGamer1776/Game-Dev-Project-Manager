@@ -197,9 +197,14 @@ const AssetBrowser: React.FC<EditorProps> = ({ initialContent, assets = {}, onAd
     );
   };
 
+  const isLikelyImageFile = (file: File) => {
+    if (file.type.startsWith('image/')) return true;
+    return /\.(png|jpe?g|gif|webp|bmp|svg|avif|ico)$/i.test(file.name);
+  };
+
   const uploadSelectedAssets = async (selected: FileList | File[] | null, source: 'files' | 'folder') => {
     if (!selected || !onAddAsset) return;
-    const imageFiles = Array.from(selected).filter(file => file.type.startsWith('image/'));
+    const imageFiles = Array.from(selected).filter(isLikelyImageFile);
     if (imageFiles.length === 0) {
       alert(`No image files found in selected ${source}.`);
       return;
@@ -208,12 +213,20 @@ const AssetBrowser: React.FC<EditorProps> = ({ initialContent, assets = {}, onAd
     setIsUploading(true);
     try {
       const newAssetIds: string[] = [];
+      const failedFiles: string[] = [];
       for (let i = 0; i < imageFiles.length; i++) {
         setUploadStatus(`Uploading ${i + 1}/${imageFiles.length}...`);
-        const uri = await onAddAsset(imageFiles[i]);
-        const assetId = typeof uri === 'string' && uri.startsWith('asset://') ? uri.slice('asset://'.length) : '';
-        if (assetId) {
-          newAssetIds.push(assetId);
+        try {
+          const uri = await onAddAsset(imageFiles[i]);
+          const assetId = typeof uri === 'string' && uri.startsWith('asset://') ? uri.slice('asset://'.length) : '';
+          if (assetId) {
+            newAssetIds.push(assetId);
+          } else {
+            failedFiles.push(imageFiles[i].name || `file-${i + 1}`);
+          }
+        } catch (error) {
+          console.error('Asset upload failed for file', imageFiles[i]?.name, error);
+          failedFiles.push(imageFiles[i].name || `file-${i + 1}`);
         }
       }
       if (newAssetIds.length > 0) {
@@ -225,12 +238,15 @@ const AssetBrowser: React.FC<EditorProps> = ({ initialContent, assets = {}, onAd
           return { ...prev, assetFolderMap: nextMap };
         });
       }
-      setUploadStatus(`Uploaded ${imageFiles.length} image${imageFiles.length === 1 ? '' : 's'}.`);
-      setTimeout(() => setUploadStatus(''), 2500);
-    } catch (error) {
-      console.error('Asset upload failed', error);
-      const message = error instanceof Error ? error.message : 'Unknown upload error';
-      setUploadStatus(`Upload failed: ${message}`);
+
+      const successCount = newAssetIds.length;
+      if (successCount === imageFiles.length) {
+        setUploadStatus(`Uploaded ${successCount} image${successCount === 1 ? '' : 's'}.`);
+      } else if (successCount === 0) {
+        setUploadStatus(`Upload failed for ${failedFiles.length} file${failedFiles.length === 1 ? '' : 's'}.`);
+      } else {
+        setUploadStatus(`Uploaded ${successCount}/${imageFiles.length}. Failed ${failedFiles.length}.`);
+      }
       setTimeout(() => setUploadStatus(''), 3500);
     } finally {
       setIsUploading(false);
@@ -258,6 +274,9 @@ const AssetBrowser: React.FC<EditorProps> = ({ initialContent, assets = {}, onAd
       } finally {
         input.remove();
       }
+    };
+    (input as HTMLInputElement & { oncancel?: () => void }).oncancel = () => {
+      input.remove();
     };
 
     input.click();

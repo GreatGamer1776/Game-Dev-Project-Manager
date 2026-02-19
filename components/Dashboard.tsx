@@ -1,11 +1,12 @@
 import React, { useState } from 'react';
 import { Project } from '../types';
-import { Plus, Code, Gamepad2, Globe, Clock, ChevronRight, FileCode, Download, Trash2, FolderOpen, HardDrive, Import } from 'lucide-react';
+import { Plus, Code, Gamepad2, Globe, Clock, FileCode, Download, Trash2, HardDrive, Import, Pencil } from 'lucide-react';
 
 interface DashboardProps {
   projects: Project[];
   onSelectProject: (id: string) => void;
-  onCreateProject: (name: string, type: Project['type']) => void;
+  onCreateProject: (name: string, type: Project['type'], description: string) => void;
+  onUpdateProject: (id: string, updates: { name: string; description: string }) => void;
   onExportProject: (project: Project) => void;
   onDeleteProject: (id: string) => void;
   onImportFolder: () => void;
@@ -15,21 +16,56 @@ const Dashboard: React.FC<DashboardProps> = ({
     projects, 
     onSelectProject, 
     onCreateProject, 
+    onUpdateProject,
     onExportProject, 
     onDeleteProject,
     onImportFolder
 }) => {
   const [isModalOpen, setIsModalOpen] = useState(false);
   const [newProjectName, setNewProjectName] = useState('');
+  const [newProjectDescription, setNewProjectDescription] = useState('');
   const [newProjectType, setNewProjectType] = useState<Project['type']>('Software');
+  const [isEditModalOpen, setIsEditModalOpen] = useState(false);
+  const [editingProjectId, setEditingProjectId] = useState<string | null>(null);
+  const [editProjectName, setEditProjectName] = useState('');
+  const [editProjectDescription, setEditProjectDescription] = useState('');
 
   const handleSubmit = (e: React.FormEvent) => {
     e.preventDefault();
-    if (newProjectName.trim()) {
-      onCreateProject(newProjectName, newProjectType);
+    const trimmedName = newProjectName.trim();
+    if (trimmedName) {
+      onCreateProject(trimmedName, newProjectType, newProjectDescription.trim());
       setIsModalOpen(false);
       setNewProjectName('');
+      setNewProjectDescription('');
     }
+  };
+
+  const closeEditModal = () => {
+    setIsEditModalOpen(false);
+    setEditingProjectId(null);
+    setEditProjectName('');
+    setEditProjectDescription('');
+  };
+
+  const openEditModal = (project: Project) => {
+    setEditingProjectId(project.id);
+    setEditProjectName(project.name);
+    setEditProjectDescription(project.description || '');
+    setIsEditModalOpen(true);
+  };
+
+  const handleEditSubmit = (e: React.FormEvent) => {
+    e.preventDefault();
+    if (!editingProjectId) return;
+    const trimmedName = editProjectName.trim();
+    if (!trimmedName) return;
+
+    onUpdateProject(editingProjectId, {
+      name: trimmedName,
+      description: editProjectDescription.trim()
+    });
+    closeEditModal();
   };
 
   const getTypeIcon = (type: Project['type']) => {
@@ -118,6 +154,17 @@ const Dashboard: React.FC<DashboardProps> = ({
                     <button 
                     onClick={(e) => { 
                         e.preventDefault();
+                        e.stopPropagation();
+                        openEditModal(project);
+                    }}
+                    className="p-2 hover:bg-zinc-800 rounded-lg text-zinc-400 hover:text-amber-300 transition-colors"
+                    title="Edit Project"
+                    >
+                    <Pencil className="w-4 h-4" />
+                    </button>
+                    <button 
+                    onClick={(e) => { 
+                        e.preventDefault();
                         e.stopPropagation(); 
                         onExportProject(project); 
                     }}
@@ -182,10 +229,25 @@ const Dashboard: React.FC<DashboardProps> = ({
                   ))}
                 </div>
               </div>
+              <div>
+                <label className="block text-sm font-medium text-zinc-400 mb-1">Short Description</label>
+                <textarea
+                  value={newProjectDescription}
+                  onChange={(e) => setNewProjectDescription(e.target.value)}
+                  className="w-full bg-zinc-950 border border-zinc-800 rounded-lg p-2.5 text-white focus:ring-2 focus:ring-blue-600 focus:border-transparent outline-none transition-all resize-none"
+                  placeholder="A short summary shown on the dashboard."
+                  rows={3}
+                  maxLength={200}
+                />
+              </div>
               <div className="flex gap-3 mt-8 pt-4 border-t border-zinc-800">
                 <button
                   type="button"
-                  onClick={() => setIsModalOpen(false)}
+                  onClick={() => {
+                    setIsModalOpen(false);
+                    setNewProjectName('');
+                    setNewProjectDescription('');
+                  }}
                   className="flex-1 px-4 py-2 rounded-lg text-zinc-300 hover:bg-zinc-800 transition-colors text-sm font-medium"
                 >
                   Cancel
@@ -195,6 +257,52 @@ const Dashboard: React.FC<DashboardProps> = ({
                   className="flex-1 bg-blue-600 hover:bg-blue-700 text-white px-4 py-2 rounded-lg text-sm font-medium transition-colors"
                 >
                   Create
+                </button>
+              </div>
+            </form>
+          </div>
+        </div>
+      )}
+
+      {isEditModalOpen && (
+        <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/80 backdrop-blur-sm p-4">
+          <div className="bg-zinc-900 border border-zinc-800 rounded-xl w-full max-w-md p-6 shadow-2xl">
+            <h2 className="text-xl font-bold text-white mb-6">Edit Project</h2>
+            <form onSubmit={handleEditSubmit} className="space-y-4">
+              <div>
+                <label className="block text-sm font-medium text-zinc-400 mb-1">Project Name</label>
+                <input
+                  autoFocus
+                  type="text"
+                  required
+                  value={editProjectName}
+                  onChange={(e) => setEditProjectName(e.target.value)}
+                  className="w-full bg-zinc-950 border border-zinc-800 rounded-lg p-2.5 text-white focus:ring-2 focus:ring-blue-600 focus:border-transparent outline-none transition-all"
+                />
+              </div>
+              <div>
+                <label className="block text-sm font-medium text-zinc-400 mb-1">Short Description</label>
+                <textarea
+                  value={editProjectDescription}
+                  onChange={(e) => setEditProjectDescription(e.target.value)}
+                  className="w-full bg-zinc-950 border border-zinc-800 rounded-lg p-2.5 text-white focus:ring-2 focus:ring-blue-600 focus:border-transparent outline-none transition-all resize-none"
+                  rows={3}
+                  maxLength={200}
+                />
+              </div>
+              <div className="flex gap-3 mt-8 pt-4 border-t border-zinc-800">
+                <button
+                  type="button"
+                  onClick={closeEditModal}
+                  className="flex-1 px-4 py-2 rounded-lg text-zinc-300 hover:bg-zinc-800 transition-colors text-sm font-medium"
+                >
+                  Cancel
+                </button>
+                <button
+                  type="submit"
+                  className="flex-1 bg-blue-600 hover:bg-blue-700 text-white px-4 py-2 rounded-lg text-sm font-medium transition-colors"
+                >
+                  Save
                 </button>
               </div>
             </form>

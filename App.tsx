@@ -1,5 +1,5 @@
 import React, { useState, useEffect } from 'react';
-import { LayoutDashboard, FileText, Network, ArrowLeft, Plus, Folder, File, CheckSquare, Bug as BugIcon, Trash2, HardDrive, Download, Upload, Map as MapIcon, Table, PenTool, Image as ImageIcon, HelpCircle, ChevronRight, ChevronDown, FolderPlus, FilePlus, X, Copy as CopyIcon } from 'lucide-react';
+import { LayoutDashboard, FileText, Network, ArrowLeft, Plus, Folder, File, CheckSquare, Bug as BugIcon, Trash2, HardDrive, Download, Upload, Map as MapIcon, Table, PenTool, Image as ImageIcon, HelpCircle, ChevronRight, ChevronDown, FolderPlus, FilePlus, X, Copy as CopyIcon, Pencil } from 'lucide-react';
 import JSZip from 'jszip';
 import Dashboard from './components/Dashboard';
 import FlowchartEditor from './components/FlowchartEditor';
@@ -225,6 +225,7 @@ const App: React.FC = () => {
   const [createFileModal, setCreateFileModal] = useState<{ open: boolean, folderId: string | null }>({ open: false, folderId: null });
   const [newFileName, setNewFileName] = useState('');
   const [newFileType, setNewFileType] = useState<FileType>('doc');
+  const [renameFileModal, setRenameFileModal] = useState<{ open: boolean; fileId: string | null; name: string }>({ open: false, fileId: null, name: '' });
   const [draggedFileId, setDraggedFileId] = useState<string | null>(null);
   const [activeDropFolderId, setActiveDropFolderId] = useState<string | 'root' | null>(null);
 
@@ -420,18 +421,40 @@ const App: React.FC = () => {
       setCurrentView(ViewState.PROJECT);
   };
 
-  const handleCreateProject = async (name: string, type: Project['type']) => {
+  const handleCreateProject = async (name: string, type: Project['type'], description: string = '') => {
+    const trimmedName = name.trim();
     const defaultDocPlugin = EDITOR_PLUGINS.find(p => p.type === 'doc');
     const newProject: Project = normalizeProjectFiles({
       id: crypto.randomUUID(),
-      name, type, description: '', lastModified: Date.now(),
-      files: [{ id: crypto.randomUUID(), name: 'Readme', type: 'doc', content: defaultDocPlugin ? defaultDocPlugin.createDefaultContent(name) : '', folderId: null }],
+      name: trimmedName,
+      type,
+      description: description.trim(),
+      lastModified: Date.now(),
+      files: [{ id: crypto.randomUUID(), name: 'Readme', type: 'doc', content: defaultDocPlugin ? defaultDocPlugin.createDefaultContent(trimmedName) : '', folderId: null }],
       folders: [],
       assets: {}
     });
     
     setProjects(prev => [newProject, ...prev]);
     IDB.saveProject(newProject);
+  };
+
+  const handleUpdateProject = (id: string, updates: { name: string; description: string }) => {
+    const project = projects.find(p => p.id === id);
+    if (!project) return;
+
+    const trimmedName = updates.name.trim();
+    if (!trimmedName) {
+      alert("Project name is required.");
+      return;
+    }
+
+    updateProjectState({
+      ...project,
+      name: trimmedName,
+      description: updates.description.trim(),
+      lastModified: Date.now()
+    });
   };
 
   const handleDeleteProject = async (id: string) => {
@@ -549,6 +572,55 @@ const App: React.FC = () => {
       }
   };
 
+  const isProtectedMainFile = (file: ProjectFile, project: Project) =>
+    SINGLE_INSTANCE_FILE_TYPES.has(file.type) && project.files.filter(f => f.type === file.type).length <= 1;
+
+  const closeRenameFileModal = () => {
+    setRenameFileModal({ open: false, fileId: null, name: '' });
+  };
+
+  const handleOpenRenameFileModal = (e: React.MouseEvent, fileId: string) => {
+    e.stopPropagation();
+    if (!activeProject) return;
+    const file = activeProject.files.find(f => f.id === fileId);
+    if (!file) return;
+
+    if (isProtectedMainFile(file, activeProject)) {
+      const plugin = EDITOR_PLUGINS.find(p => p.type === file.type);
+      alert(`${plugin?.label || file.type} is a required main file and cannot be renamed.`);
+      return;
+    }
+
+    setRenameFileModal({ open: true, fileId: file.id, name: file.name });
+  };
+
+  const handleConfirmRenameFile = (e: React.FormEvent) => {
+    e.preventDefault();
+    if (!activeProject || !renameFileModal.fileId) return;
+
+    const nextName = renameFileModal.name.trim();
+    if (!nextName) return;
+
+    const file = activeProject.files.find(f => f.id === renameFileModal.fileId);
+    if (!file) {
+      closeRenameFileModal();
+      return;
+    }
+    if (isProtectedMainFile(file, activeProject)) {
+      const plugin = EDITOR_PLUGINS.find(p => p.type === file.type);
+      alert(`${plugin?.label || file.type} is a required main file and cannot be renamed.`);
+      closeRenameFileModal();
+      return;
+    }
+
+    updateProjectState({
+      ...activeProject,
+      lastModified: Date.now(),
+      files: activeProject.files.map(f => f.id === file.id ? { ...f, name: nextName } : f)
+    });
+    closeRenameFileModal();
+  };
+
   const canCreateFileType = (type: FileType, project?: Project) => {
       if (type === ASSET_LIBRARY_TYPE) return false;
       if (!project) return true;
@@ -609,13 +681,10 @@ const App: React.FC = () => {
     if (!project) return;
     const file = project.files.find(f => f.id === fileId);
     if (!file) return;
-    if (SINGLE_INSTANCE_FILE_TYPES.has(file.type)) {
-        const countForType = project.files.filter(f => f.type === file.type).length;
-        if (countForType <= 1) {
-            const plugin = EDITOR_PLUGINS.find(p => p.type === file.type);
-            alert(`${plugin?.label || file.type} is required in every project and cannot be deleted.`);
-            return;
-        }
+    if (isProtectedMainFile(file, project)) {
+        const plugin = EDITOR_PLUGINS.find(p => p.type === file.type);
+        alert(`${plugin?.label || file.type} is required in every project and cannot be deleted.`);
+        return;
     }
     if (confirm("Delete file?")) {
         const remainingFiles = project.files.filter(f => f.id !== fileId);
@@ -896,6 +965,13 @@ const App: React.FC = () => {
                           >
                             <CopyIcon className="w-3.5 h-3.5" />
                           </button>
+                          <button
+                            onClick={(e) => handleOpenRenameFileModal(e, file.id)}
+                            className="p-1.5 text-zinc-600 hover:text-amber-300 hover:bg-zinc-800 rounded opacity-0 group-hover:opacity-100"
+                            title="Rename File"
+                          >
+                            <Pencil className="w-3.5 h-3.5" />
+                          </button>
                           <button onClick={(e) => handleDeleteFile(e, file.id)} className="p-1.5 text-zinc-600 hover:text-red-400 hover:bg-zinc-800 rounded opacity-0 group-hover:opacity-100"><Trash2 className="w-3.5 h-3.5" /></button>
                       </div>
                   );
@@ -1014,6 +1090,7 @@ const App: React.FC = () => {
               projects={projects}
               onSelectProject={handleSelectProject}
               onCreateProject={handleCreateProject}
+              onUpdateProject={handleUpdateProject}
               onExportProject={handleExportProject} 
               onDeleteProject={handleDeleteProject}
               onImportFolder={handleImportLocalFolder}
@@ -1089,6 +1166,47 @@ const App: React.FC = () => {
         />
         
         <HelpModal isOpen={isHelpOpen} onClose={() => setIsHelpOpen(false)} />
+
+        {/* Rename File Modal */}
+        {renameFileModal.open && (
+            <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/80 backdrop-blur-sm p-4">
+                <div className="bg-zinc-900 border border-zinc-800 rounded-xl w-full max-w-sm p-6 shadow-2xl">
+                    <div className="flex justify-between items-center mb-4">
+                        <h3 className="text-lg font-bold text-white">Rename File</h3>
+                        <button onClick={closeRenameFileModal}><X className="w-5 h-5 text-zinc-500" /></button>
+                    </div>
+                    <form onSubmit={handleConfirmRenameFile} className="space-y-4">
+                        <div>
+                            <label className="block text-xs font-medium text-zinc-400 mb-1">File Name</label>
+                            <input
+                                autoFocus
+                                type="text"
+                                required
+                                value={renameFileModal.name}
+                                onChange={e => setRenameFileModal(prev => ({ ...prev, name: e.target.value }))}
+                                className="w-full bg-zinc-950 border border-zinc-800 rounded p-2 text-white focus:ring-2 focus:ring-blue-600 outline-none"
+                                placeholder="e.g. Combat Notes"
+                            />
+                        </div>
+                        <div className="flex gap-3 pt-2">
+                            <button
+                                type="button"
+                                onClick={closeRenameFileModal}
+                                className="flex-1 px-3 py-2 rounded-lg text-zinc-300 hover:bg-zinc-800 transition-colors text-sm font-medium"
+                            >
+                                Cancel
+                            </button>
+                            <button
+                                type="submit"
+                                className="flex-1 bg-blue-600 hover:bg-blue-700 text-white py-2 rounded-lg text-sm font-medium transition-colors"
+                            >
+                                Save
+                            </button>
+                        </div>
+                    </form>
+                </div>
+            </div>
+        )}
 
         {/* Create File Modal */}
         {createFileModal.open && (

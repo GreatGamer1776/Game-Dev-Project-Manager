@@ -227,34 +227,48 @@ const AssetBrowser: React.FC<EditorProps> = ({ initialContent, assets = {}, onAd
       }
       setUploadStatus(`Uploaded ${imageFiles.length} image${imageFiles.length === 1 ? '' : 's'}.`);
       setTimeout(() => setUploadStatus(''), 2500);
+    } catch (error) {
+      console.error('Asset upload failed', error);
+      const message = error instanceof Error ? error.message : 'Unknown upload error';
+      setUploadStatus(`Upload failed: ${message}`);
+      setTimeout(() => setUploadStatus(''), 3500);
     } finally {
       setIsUploading(false);
     }
   };
 
-  const handleUploadFiles = () => {
+  const launchUploadPicker = (source: 'files' | 'folder') => {
     const input = document.createElement('input');
     input.type = 'file';
     input.multiple = true;
     input.accept = 'image/*';
+    if (source === 'folder') {
+      const folderInput = input as HTMLInputElement & { webkitdirectory?: boolean; directory?: boolean };
+      folderInput.webkitdirectory = true;
+      folderInput.directory = true;
+    }
+
+    input.style.position = 'fixed';
+    input.style.left = '-9999px';
+    document.body.appendChild(input);
+
     input.onchange = async (e) => {
-      await uploadSelectedAssets((e.target as HTMLInputElement).files, 'files');
+      try {
+        await uploadSelectedAssets((e.target as HTMLInputElement).files, source);
+      } finally {
+        input.remove();
+      }
     };
+
     input.click();
   };
 
+  const handleUploadFiles = () => {
+    launchUploadPicker('files');
+  };
+
   const handleUploadFolder = () => {
-    const input = document.createElement('input');
-    input.type = 'file';
-    input.multiple = true;
-    input.accept = 'image/*';
-    const folderInput = input as HTMLInputElement & { webkitdirectory?: boolean; directory?: boolean };
-    folderInput.webkitdirectory = true;
-    folderInput.directory = true;
-    input.onchange = async (e) => {
-      await uploadSelectedAssets((e.target as HTMLInputElement).files, 'folder');
-    };
-    input.click();
+    launchUploadPicker('folder');
   };
 
   const handleCopy = (id: string) => {

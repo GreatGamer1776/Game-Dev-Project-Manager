@@ -231,6 +231,11 @@ const App: React.FC = () => {
   const isSavingRef = React.useRef(false);
   const saveQueueRef = React.useRef<Project | null>(null);
   const projectHandlesRef = React.useRef<Map<string, any>>(new Map());
+  const projectsRef = React.useRef<Project[]>([]);
+
+  useEffect(() => {
+    projectsRef.current = projects;
+  }, [projects]);
 
   useEffect(() => {
     const load = async () => {
@@ -465,7 +470,11 @@ const App: React.FC = () => {
 
   const updateProjectState = (updatedProject: Project) => {
       const normalizedProject = normalizeProjectFiles(updatedProject);
-      setProjects(prev => prev.map(p => p.id === normalizedProject.id ? normalizedProject : p));
+      setProjects(prev => {
+          const next = prev.map(p => p.id === normalizedProject.id ? normalizedProject : p);
+          projectsRef.current = next;
+          return next;
+      });
       
       if (normalizedProject.isLocal) {
           saveQueueRef.current = normalizedProject;
@@ -619,26 +628,36 @@ const App: React.FC = () => {
 
   // --- ASSETS ---
 
+  const readFileAsDataUrl = (file: File): Promise<string> =>
+    new Promise((resolve, reject) => {
+      const reader = new FileReader();
+      reader.onload = (e) => {
+        const base64 = e.target?.result;
+        if (typeof base64 === 'string') {
+          resolve(base64);
+          return;
+        }
+        reject(new Error('Failed to read image data.'));
+      };
+      reader.onerror = () => reject(reader.error || new Error('Failed to read image file.'));
+      reader.onabort = () => reject(new Error('Image read was aborted.'));
+      reader.readAsDataURL(file);
+    });
+
   const handleAddAsset = async (file: File): Promise<string> => {
     if (!activeProjectId) throw new Error("No active project");
-    const reader = new FileReader();
-    return new Promise((resolve) => {
-        reader.onload = async (e) => {
-            const base64 = e.target?.result as string;
-            const assetId = crypto.randomUUID();
-            const project = projects.find(p => p.id === activeProjectId);
-            if (project) {
-                const updatedProject = {
-                    ...project,
-                    lastModified: Date.now(),
-                    assets: { ...(project.assets || {}), [assetId]: base64 }
-                };
-                updateProjectState(updatedProject);
-                resolve(`asset://${assetId}`);
-            }
-        };
-        reader.readAsDataURL(file);
-    });
+    const base64 = await readFileAsDataUrl(file);
+    const assetId = crypto.randomUUID();
+    const project = projectsRef.current.find(p => p.id === activeProjectId);
+    if (!project) throw new Error("Active project not found");
+
+    const updatedProject = {
+      ...project,
+      lastModified: Date.now(),
+      assets: { ...(project.assets || {}), [assetId]: base64 }
+    };
+    updateProjectState(updatedProject);
+    return `asset://${assetId}`;
   };
 
   const handleDeleteAsset = async (assetId: string) => {

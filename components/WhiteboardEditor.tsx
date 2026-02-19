@@ -187,14 +187,13 @@ const WhiteboardEditor: React.FC<EditorProps> = ({ initialContent, onSave, fileN
       ctx.strokeStyle = 'rgba(0,0,0,1)';
     }
     if (activeTool === 'highlighter') {
-      // Cap visual buildup by using lighten blending instead of stacking source-over alpha.
-      ctx.globalCompositeOperation = 'lighten';
-      ctx.globalAlpha = 0.26;
+      ctx.globalCompositeOperation = 'source-over';
+      ctx.globalAlpha = 0.18;
       ctx.strokeStyle = currentSettings.color;
     }
 
     ctx.lineWidth = currentSettings.width;
-    ctx.lineCap = activeTool === 'highlighter' ? 'butt' : 'round';
+    ctx.lineCap = 'round';
     ctx.lineJoin = 'round';
 
     setIsDrawing(true);
@@ -208,6 +207,9 @@ const WhiteboardEditor: React.FC<EditorProps> = ({ initialContent, onSave, fileN
     const { x, y } = getMousePos(e);
     ctx.lineTo(x, y);
     ctx.stroke();
+    // Draw incrementally so we don't re-stroke the entire path on every mousemove.
+    ctx.beginPath();
+    ctx.moveTo(x, y);
   };
 
   const stopDrawing = () => {

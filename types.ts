@@ -55,6 +55,11 @@ export interface Bug {
   severity: BugSeverity;
   status: BugStatus;
   createdAt: number;
+  assignee?: string;
+  dueDate?: string;
+  tags?: string[];
+  category?: string;
+  reproducible?: boolean;
 }
 
 export interface KanbanData {

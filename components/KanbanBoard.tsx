@@ -1,8 +1,10 @@
 import React, { useState, useEffect, useRef } from 'react';
-import { Save, Plus, AlertCircle, ChevronLeft, ChevronRight, X, Trash2, Bug as BugIcon, Search, Filter, Pencil, Loader2, Check, Link as LinkIcon } from 'lucide-react';
+import { Save, Plus, AlertCircle, ChevronLeft, ChevronRight, X, Trash2, Bug as BugIcon, Search, Filter, Pencil, Loader2, Check, Link as LinkIcon, ArrowUpDown, Calendar, User, Tags } from 'lucide-react';
 import { Bug, BugSeverity, BugStatus, EditorProps } from '../types';
 
 const FILE_LINK_DRAG_MIME = 'application/x-gdpm-file-id';
+const BUG_CATEGORIES = ['General', 'Gameplay', 'UI/UX', 'Audio', 'Performance', 'Networking', 'Build/CI'] as const;
+type BugSort = 'Newest' | 'Oldest' | 'Severity' | 'Due Date';
 
 const KanbanBoard: React.FC<EditorProps> = ({ initialContent, onSave, fileName, projectFiles = [], onOpenFile, activeFileId }) => {
   const [bugs, setBugs] = useState<Bug[]>(initialContent?.tasks || []);
@@ -16,9 +18,18 @@ const KanbanBoard: React.FC<EditorProps> = ({ initialContent, onSave, fileName, 
   
   const [searchQuery, setSearchQuery] = useState('');
   const [filterSeverity, setFilterSeverity] = useState<'All' | BugSeverity>('All');
+  const [filterStatus, setFilterStatus] = useState<'All' | BugStatus>('All');
+  const [filterCategory, setFilterCategory] = useState<'All' | string>('All');
+  const [sortBy, setSortBy] = useState<BugSort>('Newest');
   
   const [newTitle, setNewTitle] = useState('');
   const [newSeverity, setNewSeverity] = useState<BugSeverity>('Medium');
+  const [newStatus, setNewStatus] = useState<BugStatus>('Open');
+  const [newAssignee, setNewAssignee] = useState('');
+  const [newDueDate, setNewDueDate] = useState('');
+  const [newCategory, setNewCategory] = useState<string>('General');
+  const [newTags, setNewTags] = useState('');
+  const [newReproducible, setNewReproducible] = useState(true);
   const [newDesc, setNewDesc] = useState('');
   const [linkPickerOpen, setLinkPickerOpen] = useState(false);
   const [linkPickerQuery, setLinkPickerQuery] = useState('');
@@ -100,6 +111,12 @@ const KanbanBoard: React.FC<EditorProps> = ({ initialContent, onSave, fileName, 
     setNewTitle('');
     setNewDesc('');
     setNewSeverity('Medium');
+    setNewStatus('Open');
+    setNewAssignee('');
+    setNewDueDate('');
+    setNewCategory('General');
+    setNewTags('');
+    setNewReproducible(true);
     setLinkPickerOpen(false);
     setLinkPickerQuery('');
     setEditingBug(null);
@@ -111,6 +128,12 @@ const KanbanBoard: React.FC<EditorProps> = ({ initialContent, onSave, fileName, 
     setNewTitle('');
     setNewDesc('');
     setNewSeverity('Medium');
+    setNewStatus('Open');
+    setNewAssignee('');
+    setNewDueDate('');
+    setNewCategory('General');
+    setNewTags('');
+    setNewReproducible(true);
     setLinkPickerOpen(false);
     setLinkPickerQuery('');
     setIsModalOpen(true);
@@ -123,21 +146,37 @@ const KanbanBoard: React.FC<EditorProps> = ({ initialContent, onSave, fileName, 
     setNewTitle(bug.title);
     setNewDesc(bug.description);
     setNewSeverity(bug.severity);
+    setNewStatus(bug.status);
+    setNewAssignee(bug.assignee || '');
+    setNewDueDate(bug.dueDate || '');
+    setNewCategory(bug.category || 'General');
+    setNewTags((bug.tags || []).join(', '));
+    setNewReproducible(bug.reproducible ?? true);
     setLinkPickerOpen(false);
     setLinkPickerQuery('');
     setIsModalOpen(true);
   };
 
+  const parseTagInput = (value: string) =>
+    Array.from(new Set(value.split(',').map(tag => tag.trim()).filter(Boolean))).slice(0, 8);
+
   const handleSubmit = (e: React.FormEvent) => {
     e.preventDefault();
     if (!newTitle.trim()) return;
+    const parsedTags = parseTagInput(newTags);
 
     if (editingBug) {
       setBugs(prev => prev.map(b => b.id === editingBug.id ? {
         ...b,
         title: newTitle,
         description: newDesc,
-        severity: newSeverity
+        severity: newSeverity,
+        status: newStatus,
+        assignee: newAssignee.trim() || undefined,
+        dueDate: newDueDate || undefined,
+        category: newCategory,
+        tags: parsedTags.length ? parsedTags : undefined,
+        reproducible: newReproducible
       } : b));
     } else {
       const newBug: Bug = {
@@ -145,8 +184,13 @@ const KanbanBoard: React.FC<EditorProps> = ({ initialContent, onSave, fileName, 
         title: newTitle,
         description: newDesc,
         severity: newSeverity,
-        status: 'Open',
-        createdAt: Date.now()
+        status: newStatus,
+        createdAt: Date.now(),
+        assignee: newAssignee.trim() || undefined,
+        dueDate: newDueDate || undefined,
+        category: newCategory,
+        tags: parsedTags.length ? parsedTags : undefined,
+        reproducible: newReproducible
       };
       setBugs([...bugs, newBug]);
     }
@@ -296,14 +340,59 @@ const KanbanBoard: React.FC<EditorProps> = ({ initialContent, onSave, fileName, 
     return nodes.length > 0 ? nodes : text;
   };
 
-  const filteredBugs = bugs.filter(bug => {
-    if (filterSeverity !== 'All' && bug.severity !== filterSeverity) return false;
-    if (searchQuery) {
-      const q = searchQuery.toLowerCase();
-      return bug.title.toLowerCase().includes(q) || bug.description.toLowerCase().includes(q);
-    }
-    return true;
-  });
+  const resetBoardFilters = () => {
+    setSearchQuery('');
+    setFilterSeverity('All');
+    setFilterStatus('All');
+    setFilterCategory('All');
+    setSortBy('Newest');
+  };
+
+  const severityRank: Record<BugSeverity, number> = {
+    Critical: 4,
+    High: 3,
+    Medium: 2,
+    Low: 1
+  };
+
+  const filteredBugs = [...bugs]
+    .filter(bug => {
+      if (filterSeverity !== 'All' && bug.severity !== filterSeverity) return false;
+      if (filterStatus !== 'All' && bug.status !== filterStatus) return false;
+      if (filterCategory !== 'All' && (bug.category || 'General') !== filterCategory) return false;
+
+      if (searchQuery) {
+        const q = searchQuery.toLowerCase();
+        const searchable = [
+          bug.title,
+          bug.description,
+          bug.assignee || '',
+          bug.category || '',
+          ...(bug.tags || [])
+        ].join(' ').toLowerCase();
+        if (!searchable.includes(q)) return false;
+      }
+
+      return true;
+    })
+    .sort((a, b) => {
+      switch (sortBy) {
+        case 'Oldest':
+          return a.createdAt - b.createdAt;
+        case 'Severity':
+          return severityRank[b.severity] - severityRank[a.severity];
+        case 'Due Date': {
+          const aDue = a.dueDate ? new Date(a.dueDate).getTime() : Number.POSITIVE_INFINITY;
+          const bDue = b.dueDate ? new Date(b.dueDate).getTime() : Number.POSITIVE_INFINITY;
+          return aDue - bDue;
+        }
+        case 'Newest':
+        default:
+          return b.createdAt - a.createdAt;
+      }
+    });
+
+  const visibleColumns: BugStatus[] = filterStatus === 'All' ? columns : [filterStatus];
 
   return (
     <div className="h-full flex flex-col bg-zinc-900">
@@ -340,8 +429,8 @@ const KanbanBoard: React.FC<EditorProps> = ({ initialContent, onSave, fileName, 
         </div>
       </div>
 
-      <div className="px-6 py-4 border-b border-zinc-800 flex flex-wrap gap-4 items-center bg-zinc-900">
-         <div className="relative w-64">
+      <div className="px-6 py-4 border-b border-zinc-800 flex flex-wrap gap-3 items-center bg-zinc-900">
+         <div className="relative w-56">
               <Search className="w-4 h-4 text-zinc-500 absolute left-3 top-1/2 -translate-y-1/2" />
               <input
                 type="text"
@@ -351,7 +440,7 @@ const KanbanBoard: React.FC<EditorProps> = ({ initialContent, onSave, fileName, 
                 className="w-full bg-zinc-950 border border-zinc-800 rounded-md py-1.5 pl-9 pr-3 text-sm text-zinc-200 focus:outline-none focus:border-zinc-600"
               />
          </div>
-         <div className="h-6 w-px bg-zinc-800 hidden sm:block"></div>
+         <div className="h-6 w-px bg-zinc-800 hidden lg:block"></div>
          <div className="flex items-center gap-2 text-sm text-zinc-400">
             <Filter className="w-4 h-4" />
             <span>Severity:</span>
@@ -371,14 +460,59 @@ const KanbanBoard: React.FC<EditorProps> = ({ initialContent, onSave, fileName, 
                ))}
             </div>
          </div>
+         <div className="flex items-center gap-2 bg-zinc-950 border border-zinc-800 rounded-md px-2 py-1.5 text-xs text-zinc-300">
+            <span>Status</span>
+            <select
+              value={filterStatus}
+              onChange={(e) => setFilterStatus(e.target.value as 'All' | BugStatus)}
+              className="bg-transparent focus:outline-none text-xs text-zinc-200"
+            >
+              <option value="All">All</option>
+              {columns.map(status => (
+                <option key={status} value={status}>{status}</option>
+              ))}
+            </select>
+         </div>
+         <div className="flex items-center gap-2 bg-zinc-950 border border-zinc-800 rounded-md px-2 py-1.5 text-xs text-zinc-300">
+            <span>Category</span>
+            <select
+              value={filterCategory}
+              onChange={(e) => setFilterCategory(e.target.value)}
+              className="bg-transparent focus:outline-none text-xs text-zinc-200"
+            >
+              <option value="All">All</option>
+              {BUG_CATEGORIES.map(category => (
+                <option key={category} value={category}>{category}</option>
+              ))}
+            </select>
+         </div>
+         <div className="flex items-center gap-2 bg-zinc-950 border border-zinc-800 rounded-md px-2 py-1.5 text-xs text-zinc-300">
+            <ArrowUpDown className="w-3.5 h-3.5 text-zinc-500" />
+            <select
+              value={sortBy}
+              onChange={(e) => setSortBy(e.target.value as BugSort)}
+              className="bg-transparent focus:outline-none text-xs text-zinc-200"
+            >
+              <option value="Newest">Newest</option>
+              <option value="Oldest">Oldest</option>
+              <option value="Severity">Severity</option>
+              <option value="Due Date">Due Date</option>
+            </select>
+         </div>
+         <button
+           onClick={resetBoardFilters}
+           className="px-2.5 py-1.5 rounded-md border border-zinc-800 bg-zinc-950 text-xs text-zinc-300 hover:text-white"
+         >
+           Reset Filters
+         </button>
          <div className="ml-auto text-xs text-zinc-500">
             Showing {filteredBugs.length} of {bugs.length} bugs
          </div>
       </div>
 
       <div className="flex-1 overflow-x-auto p-6">
-        <div className="flex gap-6 h-full min-w-[1000px]">
-          {columns.map(status => {
+        <div className={`flex gap-6 h-full ${visibleColumns.length === 1 ? 'min-w-[320px]' : 'min-w-[1000px]'}`}>
+          {visibleColumns.map(status => {
              const colBugs = filteredBugs.filter(b => b.status === status);
              const isActiveDrop = activeDropZone === status;
              
@@ -435,6 +569,35 @@ const KanbanBoard: React.FC<EditorProps> = ({ initialContent, onSave, fileName, 
                             </div>
                          </div>
                          <h5 className="text-sm font-medium text-zinc-200 mb-1 pointer-events-none">{bug.title}</h5>
+                         <div className="mb-2 flex flex-wrap items-center gap-1.5 text-[10px] text-zinc-500">
+                           {bug.assignee && (
+                             <span className="inline-flex items-center gap-1 rounded border border-zinc-700 bg-zinc-950 px-1.5 py-0.5">
+                               <User className="h-3 w-3" /> {bug.assignee}
+                             </span>
+                           )}
+                           {bug.category && (
+                             <span className="inline-flex items-center gap-1 rounded border border-zinc-700 bg-zinc-950 px-1.5 py-0.5">
+                               <Tags className="h-3 w-3" /> {bug.category}
+                             </span>
+                           )}
+                           {bug.dueDate && (
+                             <span className="inline-flex items-center gap-1 rounded border border-zinc-700 bg-zinc-950 px-1.5 py-0.5">
+                               <Calendar className="h-3 w-3" /> {new Date(bug.dueDate).toLocaleDateString()}
+                             </span>
+                           )}
+                           {bug.reproducible === false && (
+                             <span className="rounded border border-zinc-700 bg-zinc-950 px-1.5 py-0.5 text-zinc-400">Intermittent</span>
+                           )}
+                         </div>
+                         {bug.tags && bug.tags.length > 0 && (
+                           <div className="mb-2 flex flex-wrap gap-1">
+                             {bug.tags.map(tag => (
+                               <span key={`${bug.id}-${tag}`} className="rounded bg-zinc-800/80 px-1.5 py-0.5 text-[10px] text-zinc-300">
+                                 #{tag}
+                               </span>
+                             ))}
+                           </div>
+                         )}
                          <p className="text-xs text-zinc-500 line-clamp-2 mb-3 break-words">
                            {bug.description ? renderDescriptionWithLinks(bug.description) : "No description provided."}
                          </p>
@@ -474,7 +637,7 @@ const KanbanBoard: React.FC<EditorProps> = ({ initialContent, onSave, fileName, 
 
       {isModalOpen && (
         <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/80 backdrop-blur-sm p-4">
-          <div className="bg-zinc-900 border border-zinc-800 rounded-xl w-full max-w-lg p-6 shadow-2xl">
+          <div className="bg-zinc-900 border border-zinc-800 rounded-xl w-full max-w-2xl p-6 shadow-2xl">
             <div className="flex justify-between items-center mb-6">
               <h2 className="text-xl font-bold text-white">{editingBug ? 'Edit Bug Report' : 'Report Bug'}</h2>
               <button onClick={resetForm} className="text-zinc-500 hover:text-white">
@@ -511,6 +674,85 @@ const KanbanBoard: React.FC<EditorProps> = ({ initialContent, onSave, fileName, 
                       {sev}
                     </button>
                   ))}
+                </div>
+              </div>
+              <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
+                <div>
+                  <label className="block text-sm font-medium text-zinc-400 mb-1">Status</label>
+                  <select
+                    value={newStatus}
+                    onChange={(e) => setNewStatus(e.target.value as BugStatus)}
+                    className="w-full bg-zinc-950 border border-zinc-800 rounded-lg p-2.5 text-white focus:ring-2 focus:ring-red-600 focus:border-transparent outline-none transition-all"
+                  >
+                    {columns.map(status => (
+                      <option key={status} value={status}>{status}</option>
+                    ))}
+                  </select>
+                </div>
+                <div>
+                  <label className="block text-sm font-medium text-zinc-400 mb-1">Category</label>
+                  <select
+                    value={newCategory}
+                    onChange={(e) => setNewCategory(e.target.value)}
+                    className="w-full bg-zinc-950 border border-zinc-800 rounded-lg p-2.5 text-white focus:ring-2 focus:ring-red-600 focus:border-transparent outline-none transition-all"
+                  >
+                    {BUG_CATEGORIES.map(category => (
+                      <option key={category} value={category}>{category}</option>
+                    ))}
+                  </select>
+                </div>
+                <div>
+                  <label className="block text-sm font-medium text-zinc-400 mb-1">Assignee</label>
+                  <input
+                    type="text"
+                    value={newAssignee}
+                    onChange={(e) => setNewAssignee(e.target.value)}
+                    className="w-full bg-zinc-950 border border-zinc-800 rounded-lg p-2.5 text-white focus:ring-2 focus:ring-red-600 focus:border-transparent outline-none transition-all"
+                    placeholder="e.g., Alex"
+                  />
+                </div>
+                <div>
+                  <label className="block text-sm font-medium text-zinc-400 mb-1">Target Date</label>
+                  <input
+                    type="date"
+                    value={newDueDate}
+                    onChange={(e) => setNewDueDate(e.target.value)}
+                    className="w-full bg-zinc-950 border border-zinc-800 rounded-lg p-2.5 text-white focus:ring-2 focus:ring-red-600 focus:border-transparent outline-none transition-all [color-scheme:dark]"
+                  />
+                </div>
+              </div>
+              <div>
+                <label className="block text-sm font-medium text-zinc-400 mb-1">Tags</label>
+                <input
+                  type="text"
+                  value={newTags}
+                  onChange={(e) => setNewTags(e.target.value)}
+                  className="w-full bg-zinc-950 border border-zinc-800 rounded-lg p-2.5 text-white focus:ring-2 focus:ring-red-600 focus:border-transparent outline-none transition-all"
+                  placeholder="rendering, crash, multiplayer"
+                />
+                <p className="mt-1 text-[11px] text-zinc-500">Comma-separated. Up to 8 tags.</p>
+              </div>
+              <div>
+                <label className="block text-sm font-medium text-zinc-400 mb-1">Reproducibility</label>
+                <div className="grid grid-cols-2 gap-2">
+                  <button
+                    type="button"
+                    onClick={() => setNewReproducible(true)}
+                    className={`rounded-lg border px-3 py-2 text-xs font-medium transition ${
+                      newReproducible ? 'border-zinc-600 bg-zinc-800 text-white' : 'border-zinc-800 bg-zinc-950 text-zinc-400 hover:bg-zinc-800'
+                    }`}
+                  >
+                    Always Reproducible
+                  </button>
+                  <button
+                    type="button"
+                    onClick={() => setNewReproducible(false)}
+                    className={`rounded-lg border px-3 py-2 text-xs font-medium transition ${
+                      !newReproducible ? 'border-zinc-600 bg-zinc-800 text-white' : 'border-zinc-800 bg-zinc-950 text-zinc-400 hover:bg-zinc-800'
+                    }`}
+                  >
+                    Intermittent
+                  </button>
                 </div>
               </div>
               <div>

@@ -259,7 +259,13 @@ const DocEditor: React.FC<EditorProps> = ({ initialContent, onSave, fileName, as
 
   const insertText = (before: string, after: string = '') => {
     const textarea = textareaRef.current;
-    if (!textarea) return;
+    if (!textarea) {
+      setContent(prev => `${prev}${prev && !prev.endsWith('\n') ? '\n' : ''}${before}${after}`);
+      if (viewMode === 'preview') {
+        setViewMode('edit');
+      }
+      return;
+    }
     const start = textarea.selectionStart;
     const end = textarea.selectionEnd;
     const selectedText = textarea.value.substring(start, end);

@@ -1,5 +1,5 @@
 import React, { useState, useEffect, useRef } from 'react';
-import { Save, Plus, Trash2, CheckSquare, Square, Calendar, ChevronDown, ChevronUp, Search, Filter, ListChecks, Loader2, Check, AlertCircle, MoreHorizontal, Link as LinkIcon, ArrowUpDown, RotateCcw, User, Tags } from 'lucide-react';
+import { Save, Plus, Trash2, CheckSquare, Square, Calendar, ChevronDown, ChevronUp, ListChecks, Loader2, Check, AlertCircle, MoreHorizontal, Link as LinkIcon, User, Tags, X } from 'lucide-react';
 import { TodoItem, Priority, SubTask, EditorProps, TodoStatus } from '../types';
 
 const FILE_LINK_DRAG_MIME = 'application/x-gdpm-file-id';
@@ -60,6 +60,12 @@ const TodoEditor: React.FC<EditorProps> = ({ initialContent, onSave, fileName, p
   const [newItemPriority, setNewItemPriority] = useState<Priority>('Medium');
   const [newItemDate, setNewItemDate] = useState('');
   const [newItemCategory, setNewItemCategory] = useState<string>('General');
+  const [newItemStatus, setNewItemStatus] = useState<TodoStatus>('To Do');
+  const [newItemAssignee, setNewItemAssignee] = useState('');
+  const [newItemEstimate, setNewItemEstimate] = useState('');
+  const [newItemTags, setNewItemTags] = useState('');
+  const [newItemDescription, setNewItemDescription] = useState('');
+  const [isCreateModalOpen, setIsCreateModalOpen] = useState(false);
   
   const [searchQuery, setSearchQuery] = useState('');
   const [filterPriority, setFilterPriority] = useState<'All' | Priority>('All');
@@ -75,7 +81,6 @@ const TodoEditor: React.FC<EditorProps> = ({ initialContent, onSave, fileName, p
   const [linkPickerTaskId, setLinkPickerTaskId] = useState<string | null>(null);
   const [linkPickerQuery, setLinkPickerQuery] = useState('');
   const linkPickerRef = useRef<HTMLDivElement | null>(null);
-  const newTaskInputRef = useRef<HTMLInputElement | null>(null);
   const fileLookup = React.useMemo(() => new Map(projectFiles.map(f => [f.id, f.name])), [projectFiles]);
   const linkableFiles = React.useMemo(
     () => projectFiles.filter(f => f.id !== activeFileId).sort((a, b) => a.name.localeCompare(b.name, undefined, { sensitivity: 'base' })),
@@ -166,31 +171,51 @@ const TodoEditor: React.FC<EditorProps> = ({ initialContent, onSave, fileName, p
     if (e) e.preventDefault();
     if (!newItemText.trim()) return;
 
+    const parsedEstimate = newItemEstimate.trim() ? Number(newItemEstimate.trim()) : undefined;
+    const parsedTags = parseTagInput(newItemTags);
     const newItem: TodoItem = {
       id: crypto.randomUUID(),
       text: newItemText.trim(),
-      completed: false,
-      status: 'To Do',
+      completed: newItemStatus === 'Done',
+      status: newItemStatus,
       priority: newItemPriority,
       dueDate: newItemDate || undefined,
       category: newItemCategory,
-      description: '',
+      assignee: newItemAssignee.trim() || undefined,
+      estimateHours: typeof parsedEstimate === 'number' && !Number.isNaN(parsedEstimate) ? parsedEstimate : undefined,
+      tags: parsedTags.length ? parsedTags : undefined,
+      description: newItemDescription,
       subTasks: []
     };
 
     setItems([newItem, ...items]); 
     setNewItemText('');
+    setNewItemStatus('To Do');
     setNewItemPriority('Medium');
     setNewItemDate('');
     setNewItemCategory('General');
+    setNewItemAssignee('');
+    setNewItemEstimate('');
+    setNewItemTags('');
+    setNewItemDescription('');
+    setIsCreateModalOpen(false);
   };
 
   const handleTopAddTaskClick = () => {
-    if (newItemText.trim()) {
-      handleAddItem();
-      return;
-    }
-    newTaskInputRef.current?.focus();
+    setIsCreateModalOpen(true);
+  };
+
+  const handleCloseCreateModal = () => {
+    setIsCreateModalOpen(false);
+    setNewItemText('');
+    setNewItemStatus('To Do');
+    setNewItemPriority('Medium');
+    setNewItemDate('');
+    setNewItemCategory('General');
+    setNewItemAssignee('');
+    setNewItemEstimate('');
+    setNewItemTags('');
+    setNewItemDescription('');
   };
 
   const deleteItem = (e: React.MouseEvent, id: string) => {
@@ -504,149 +529,6 @@ const TodoEditor: React.FC<EditorProps> = ({ initialContent, onSave, fileName, p
         </div>
       </div>
 
-      {/* Quick Add & Filters */}
-      <div className="px-6 py-3 border-b border-zinc-800 bg-zinc-900 shrink-0 flex items-center gap-3 overflow-x-auto custom-scrollbar">
-          {/* Add Bar */}
-          <div className="flex-[1_1_440px] min-w-[420px] bg-zinc-950 border border-zinc-800 rounded-lg p-1.5 flex gap-2 items-center shadow-sm">
-             <input
-                ref={newTaskInputRef}
-                type="text"
-                value={newItemText}
-                onChange={(e) => setNewItemText(e.target.value)}
-                onKeyDown={(e) => { if (e.key === 'Enter') handleAddItem(); }}
-                placeholder="Add a new task..."
-                className="flex-1 bg-transparent px-3 text-sm text-white focus:outline-none placeholder:text-zinc-600"
-             />
-             <div className="h-4 w-px bg-zinc-800"></div>
-             <div className="flex items-center gap-2">
-                 <StyledSelect
-                    value={newItemCategory}
-                    onChange={setNewItemCategory}
-                    options={categoryOptions.map(category => ({ value: category, label: category }))}
-                    className="w-[118px]"
-                    selectClassName="bg-zinc-950 border-zinc-800"
-                 />
-                 <StyledSelect
-                    value={newItemPriority}
-                    onChange={(value) => setNewItemPriority(value as Priority)}
-                    options={[
-                      { value: 'Low', label: 'Low' },
-                      { value: 'Medium', label: 'Medium' },
-                      { value: 'High', label: 'High' }
-                    ]}
-                    className="w-[102px]"
-                    selectClassName="bg-zinc-950 border-zinc-800"
-                 />
-                 <input type="date" value={newItemDate} onChange={(e) => setNewItemDate(e.target.value)} className="bg-transparent text-xs text-zinc-400 focus:outline-none [color-scheme:dark] cursor-pointer" />
-             </div>
-             <button onClick={handleAddItem} disabled={!newItemText.trim()} className="bg-zinc-800 hover:bg-zinc-700 text-white p-2 rounded-md disabled:opacity-50 transition-colors">
-                <Plus className="w-4 h-4" />
-             </button>
-          </div>
-
-          {/* Filters */}
-          <div className="flex items-center gap-3 flex-nowrap shrink-0">
-             <div className="relative shrink-0">
-                <Search className="w-4 h-4 text-zinc-500 absolute left-3 top-1/2 -translate-y-1/2" />
-                <input
-                    type="text"
-                    value={searchQuery}
-                    onChange={(e) => setSearchQuery(e.target.value)}
-                    placeholder="Search..."
-                    className="bg-zinc-950 border border-zinc-800 rounded-md py-2 pl-9 pr-3 text-sm text-zinc-200 focus:outline-none focus:border-zinc-700 w-44"
-                />
-             </div>
-             <div className="flex items-center gap-2 bg-zinc-950 border border-zinc-800 rounded-md px-3 py-2">
-                <Filter className="w-3.5 h-3.5 text-zinc-500" />
-                <StyledSelect
-                  value={filterPriority}
-                  onChange={(value) => setFilterPriority(value as any)}
-                  options={[
-                    { value: 'All', label: 'All Priorities' },
-                    { value: 'High', label: 'High' },
-                    { value: 'Medium', label: 'Medium' },
-                    { value: 'Low', label: 'Low' }
-                  ]}
-                  className="w-[128px]"
-                  selectClassName="border-zinc-800 bg-zinc-900"
-                />
-             </div>
-             <div className="flex items-center gap-2 bg-zinc-950 border border-zinc-800 rounded-md px-3 py-2">
-                <ListChecks className="w-3.5 h-3.5 text-zinc-500" />
-                <StyledSelect
-                  value={filterStatus}
-                  onChange={(value) => setFilterStatus(value as any)}
-                  options={[
-                    { value: 'All', label: 'All Statuses' },
-                    { value: 'To Do', label: 'To Do' },
-                    { value: 'In Progress', label: 'In Progress' },
-                    { value: 'Done', label: 'Done' }
-                  ]}
-                  className="w-[128px]"
-                  selectClassName="border-zinc-800 bg-zinc-900"
-                />
-             </div>
-             <div className="flex items-center gap-2 bg-zinc-950 border border-zinc-800 rounded-md px-3 py-2">
-                <Tags className="w-3.5 h-3.5 text-zinc-500" />
-                <StyledSelect
-                  value={filterCategory}
-                  onChange={(value) => setFilterCategory(value)}
-                  options={[
-                    { value: 'All', label: 'All Categories' },
-                    ...categoryOptions.map(category => ({ value: category, label: category }))
-                  ]}
-                  className="w-[150px]"
-                  selectClassName="border-zinc-800 bg-zinc-900"
-                />
-             </div>
-             <div className="flex items-center gap-2 bg-zinc-950 border border-zinc-800 rounded-md px-3 py-2">
-                <User className="w-3.5 h-3.5 text-zinc-500" />
-                <StyledSelect
-                  value={filterAssignee}
-                  onChange={(value) => setFilterAssignee(value)}
-                  options={[
-                    { value: 'All', label: 'All Assignees' },
-                    { value: 'Unassigned', label: 'Unassigned' },
-                    ...assigneeOptions.map(assignee => ({ value: assignee, label: assignee }))
-                  ]}
-                  className="w-[148px]"
-                  selectClassName="border-zinc-800 bg-zinc-900"
-                />
-             </div>
-             <div className="flex items-center gap-2 bg-zinc-950 border border-zinc-800 rounded-md px-3 py-2">
-                <ArrowUpDown className="w-3.5 h-3.5 text-zinc-500" />
-                <StyledSelect
-                  value={sortBy}
-                  onChange={(value) => setSortBy(value as any)}
-                  options={[
-                    { value: 'Newest', label: 'Newest' },
-                    { value: 'Oldest', label: 'Oldest' },
-                    { value: 'Priority', label: 'Priority' },
-                    { value: 'Due Date', label: 'Due Date' },
-                    { value: 'Effort', label: 'Effort' },
-                    { value: 'Alphabetical', label: 'A-Z' }
-                  ]}
-                  className="w-[118px]"
-                  selectClassName="border-zinc-800 bg-zinc-900"
-                />
-             </div>
-             <button
-                onClick={clearCompletedTasks}
-                disabled={!items.some(item => item.status === 'Done' || item.completed)}
-                className="text-xs px-3 py-2 rounded-md bg-zinc-950 border border-zinc-800 text-zinc-300 hover:text-white disabled:opacity-40"
-             >
-                Clear Completed
-             </button>
-             <button
-                onClick={resetTaskFilters}
-                className="text-xs px-3 py-2 rounded-md bg-zinc-950 border border-zinc-800 text-zinc-300 hover:text-white flex items-center gap-1"
-                title="Reset filters and sorting"
-             >
-                <RotateCcw className="w-3 h-3" /> Reset View
-             </button>
-          </div>
-      </div>
-
       {/* Kanban Board */}
       <div className="flex-1 overflow-x-auto p-6 bg-zinc-900">
         <div className={`flex gap-6 h-full ${visibleColumns.length === 1 ? 'min-w-[320px]' : 'min-w-[900px]'}`}>
@@ -954,7 +836,7 @@ const TodoEditor: React.FC<EditorProps> = ({ initialContent, onSave, fileName, p
                     {colItems.length === 0 && (
                         <div className="text-center py-10 opacity-30 text-zinc-500 select-none">
                             <p className="text-xs italic">No tasks here</p>
-                            <p className="text-[11px] mt-1">Add a task above or drag one into this column.</p>
+                            <p className="text-[11px] mt-1">Use Add Task or drag one into this column.</p>
                         </div>
                     )}
                  </div>
@@ -963,6 +845,137 @@ const TodoEditor: React.FC<EditorProps> = ({ initialContent, onSave, fileName, p
           })}
         </div>
       </div>
+
+      {isCreateModalOpen && (
+        <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/80 backdrop-blur-sm p-4">
+          <div className="bg-zinc-900 border border-zinc-800 rounded-xl w-full max-w-2xl p-6 shadow-2xl">
+            <div className="flex justify-between items-center mb-6">
+              <h2 className="text-xl font-bold text-white">Create Task</h2>
+              <button onClick={handleCloseCreateModal} className="text-zinc-500 hover:text-white">
+                <X className="w-5 h-5" />
+              </button>
+            </div>
+            <form onSubmit={handleAddItem} className="space-y-4">
+              <div>
+                <label className="block text-sm font-medium text-zinc-400 mb-1">Task Title</label>
+                <input
+                  autoFocus
+                  type="text"
+                  required
+                  value={newItemText}
+                  onChange={(e) => setNewItemText(e.target.value)}
+                  className="w-full bg-zinc-950 border border-zinc-800 rounded-lg p-2.5 text-white focus:ring-2 focus:ring-blue-600 focus:border-transparent outline-none transition-all"
+                  placeholder="What needs to be done?"
+                />
+              </div>
+              <div className="grid grid-cols-1 sm:grid-cols-3 gap-4">
+                <div>
+                  <label className="block text-sm font-medium text-zinc-400 mb-1">Status</label>
+                  <StyledSelect
+                    value={newItemStatus}
+                    onChange={(value) => setNewItemStatus(value as TodoStatus)}
+                    options={[
+                      { value: 'To Do', label: 'To Do' },
+                      { value: 'In Progress', label: 'In Progress' },
+                      { value: 'Done', label: 'Done' }
+                    ]}
+                    selectClassName="w-full bg-zinc-950 border-zinc-800 p-2.5 text-sm"
+                  />
+                </div>
+                <div>
+                  <label className="block text-sm font-medium text-zinc-400 mb-1">Priority</label>
+                  <StyledSelect
+                    value={newItemPriority}
+                    onChange={(value) => setNewItemPriority(value as Priority)}
+                    options={[
+                      { value: 'Low', label: 'Low' },
+                      { value: 'Medium', label: 'Medium' },
+                      { value: 'High', label: 'High' }
+                    ]}
+                    selectClassName="w-full bg-zinc-950 border-zinc-800 p-2.5 text-sm"
+                  />
+                </div>
+                <div>
+                  <label className="block text-sm font-medium text-zinc-400 mb-1">Category</label>
+                  <StyledSelect
+                    value={newItemCategory}
+                    onChange={setNewItemCategory}
+                    options={categoryOptions.map(category => ({ value: category, label: category }))}
+                    selectClassName="w-full bg-zinc-950 border-zinc-800 p-2.5 text-sm"
+                  />
+                </div>
+              </div>
+              <div className="grid grid-cols-1 sm:grid-cols-3 gap-4">
+                <div>
+                  <label className="block text-sm font-medium text-zinc-400 mb-1">Due Date</label>
+                  <input
+                    type="date"
+                    value={newItemDate}
+                    onChange={(e) => setNewItemDate(e.target.value)}
+                    className="w-full bg-zinc-950 border border-zinc-800 rounded-lg p-2.5 text-white focus:ring-2 focus:ring-blue-600 focus:border-transparent outline-none transition-all [color-scheme:dark]"
+                  />
+                </div>
+                <div>
+                  <label className="block text-sm font-medium text-zinc-400 mb-1">Assignee</label>
+                  <input
+                    type="text"
+                    value={newItemAssignee}
+                    onChange={(e) => setNewItemAssignee(e.target.value)}
+                    className="w-full bg-zinc-950 border border-zinc-800 rounded-lg p-2.5 text-white focus:ring-2 focus:ring-blue-600 focus:border-transparent outline-none transition-all"
+                    placeholder="Optional"
+                  />
+                </div>
+                <div>
+                  <label className="block text-sm font-medium text-zinc-400 mb-1">Effort (Hours)</label>
+                  <input
+                    type="number"
+                    min="0.5"
+                    step="0.5"
+                    value={newItemEstimate}
+                    onChange={(e) => setNewItemEstimate(e.target.value)}
+                    className="w-full bg-zinc-950 border border-zinc-800 rounded-lg p-2.5 text-white focus:ring-2 focus:ring-blue-600 focus:border-transparent outline-none transition-all"
+                    placeholder="e.g. 2"
+                  />
+                </div>
+              </div>
+              <div>
+                <label className="block text-sm font-medium text-zinc-400 mb-1">Tags</label>
+                <input
+                  type="text"
+                  value={newItemTags}
+                  onChange={(e) => setNewItemTags(e.target.value)}
+                  className="w-full bg-zinc-950 border border-zinc-800 rounded-lg p-2.5 text-white focus:ring-2 focus:ring-blue-600 focus:border-transparent outline-none transition-all"
+                  placeholder="ui, polish, animation"
+                />
+              </div>
+              <div>
+                <label className="block text-sm font-medium text-zinc-400 mb-1">Description</label>
+                <textarea
+                  value={newItemDescription}
+                  onChange={(e) => setNewItemDescription(e.target.value)}
+                  className="w-full bg-zinc-950 border border-zinc-800 rounded-lg p-3 text-white focus:ring-2 focus:ring-blue-600 focus:border-transparent outline-none transition-all min-h-[100px]"
+                  placeholder="Add notes or implementation details..."
+                />
+              </div>
+              <div className="pt-4 border-t border-zinc-800 flex justify-end gap-2">
+                <button
+                  type="button"
+                  onClick={handleCloseCreateModal}
+                  className="px-4 py-2 text-zinc-400 hover:text-white"
+                >
+                  Cancel
+                </button>
+                <button
+                  type="submit"
+                  className="bg-blue-600 hover:bg-blue-700 text-white px-5 py-2 rounded-lg text-sm font-medium transition-colors"
+                >
+                  Create Task
+                </button>
+              </div>
+            </form>
+          </div>
+        </div>
+      )}
     </div>
   );
 };

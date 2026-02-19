@@ -1,8 +1,8 @@
 import React, { useRef, useState, useEffect } from 'react';
-import { Save, Eraser, Pen, Highlighter, Trash2, Loader2, Check, AlertCircle, Image as ImageIcon, X, Maximize2, Undo2, Redo2 } from 'lucide-react';
+import { Save, Eraser, Pen, Highlighter, Trash2, Loader2, Check, AlertCircle, Image as ImageIcon, X, Maximize2, Undo2, Redo2, Type as TypeIcon } from 'lucide-react';
 import { EditorProps } from '../types';
 
-type ToolType = 'pen' | 'highlighter' | 'eraser';
+type ToolType = 'pen' | 'highlighter' | 'eraser' | 'text';
 
 interface ToolSettings {
   color: string;
@@ -16,6 +16,14 @@ interface PendingImage {
   width: number;
   height: number;
   originalAspect: number;
+}
+
+interface PendingText {
+  x: number;
+  y: number;
+  text: string;
+  color: string;
+  fontSize: number;
 }
 
 interface StrokePoint {
@@ -34,11 +42,13 @@ interface HighlighterStroke {
 interface WhiteboardSnapshot {
   baseData: string;
   highlighterStrokes: HighlighterStroke[];
+  highlighterOpacity: number;
   compositeData: string;
 }
 
 const HISTORY_LIMIT = 80;
 const CANVAS_SIZE = 2000;
+const DEFAULT_HIGHLIGHTER_LAYER_ALPHA = 0.2;
 
 const cloneHighlighterStrokes = (strokes: HighlighterStroke[]): HighlighterStroke[] =>
   strokes.map(stroke => ({
@@ -60,7 +70,7 @@ const sanitizeHighlighterStrokes = (value: unknown): HighlighterStroke[] => {
       if (points.length === 0) return null;
       const color = typeof (raw as any)?.color === 'string' ? (raw as any).color : '#facc15';
       const width = Number.isFinite((raw as any)?.width) ? Math.max(1, Number((raw as any).width)) : 18;
-      const opacity = Number.isFinite((raw as any)?.opacity) ? Math.min(1, Math.max(0.05, Number((raw as any).opacity))) : 0.18;
+      const opacity = Number.isFinite((raw as any)?.opacity) ? Math.min(1, Math.max(0.05, Number((raw as any).opacity))) : 1;
 
       return {
         id: typeof (raw as any)?.id === 'string' ? (raw as any).id : crypto.randomUUID(),
@@ -77,18 +87,22 @@ const WhiteboardEditor: React.FC<EditorProps> = ({ initialContent, onSave, fileN
   const baseCanvasRef = useRef<HTMLCanvasElement>(null);
   const highlighterCanvasRef = useRef<HTMLCanvasElement>(null);
   const containerRef = useRef<HTMLDivElement>(null);
+  const textAreaRef = useRef<HTMLTextAreaElement>(null);
 
   // Tools & Settings
   const [activeTool, setActiveTool] = useState<ToolType>('pen');
   const [settings, setSettings] = useState<Record<ToolType, ToolSettings>>({
     pen: { color: '#ffffff', width: 2 },
     highlighter: { color: '#facc15', width: 18 },
-    eraser: { color: '#09090b', width: 20 }
+    eraser: { color: '#09090b', width: 20 },
+    text: { color: '#ffffff', width: 28 }
   });
+  const [highlighterOpacity, setHighlighterOpacity] = useState(DEFAULT_HIGHLIGHTER_LAYER_ALPHA);
 
   // State
   const [isDrawing, setIsDrawing] = useState(false);
   const [isAssetMenuOpen, setIsAssetMenuOpen] = useState(false);
+  const [pendingText, setPendingText] = useState<PendingText | null>(null);
   const [saveStatus, setSaveStatus] = useState<'saved' | 'saving' | 'unsaved'>('saved');
   const lastSavedData = useRef<string>('');
   const historyRef = useRef<WhiteboardSnapshot[]>([]);
@@ -137,7 +151,8 @@ const WhiteboardEditor: React.FC<EditorProps> = ({ initialContent, onSave, fileN
     if (stroke.points.length === 0) return;
 
     ctx.globalCompositeOperation = 'source-over';
-    ctx.globalAlpha = stroke.opacity;
+    // Keep highlight pixels opaque in the layer; layer alpha is applied once at compose/display.
+    ctx.globalAlpha = 1;
     ctx.strokeStyle = stroke.color;
     ctx.lineWidth = stroke.width;
     ctx.lineCap = 'round';
@@ -200,7 +215,9 @@ const WhiteboardEditor: React.FC<EditorProps> = ({ initialContent, onSave, fileN
     const ctx = composite.getContext('2d');
     if (!ctx) return '';
     ctx.drawImage(baseCanvas, 0, 0);
+    ctx.globalAlpha = highlighterOpacity;
     ctx.drawImage(highlighterCanvas, 0, 0);
+    ctx.globalAlpha = 1;
     return composite.toDataURL('image/png');
   };
 
@@ -214,6 +231,7 @@ const WhiteboardEditor: React.FC<EditorProps> = ({ initialContent, onSave, fileN
     return {
       baseData,
       highlighterStrokes: cloneHighlighterStrokes(highlighterStrokesRef.current),
+      highlighterOpacity,
       compositeData
     };
   };
@@ -253,6 +271,7 @@ const WhiteboardEditor: React.FC<EditorProps> = ({ initialContent, onSave, fileN
     await loadBaseCanvasFromData(snapshot.baseData);
     highlighterStrokesRef.current = cloneHighlighterStrokes(snapshot.highlighterStrokes);
     activeHighlighterStrokeRef.current = null;
+    setHighlighterOpacity(typeof snapshot.highlighterOpacity === 'number' ? snapshot.highlighterOpacity : DEFAULT_HIGHLIGHTER_LAYER_ALPHA);
     renderHighlighterLayer();
     historyIndexRef.current = nextIndex;
     syncHistoryState();
@@ -262,11 +281,13 @@ const WhiteboardEditor: React.FC<EditorProps> = ({ initialContent, onSave, fileN
 
   const handleUndo = async () => {
     if (historyIndexRef.current <= 0) return;
+    setPendingText(null);
     await restoreHistoryIndex(historyIndexRef.current - 1);
   };
 
   const handleRedo = async () => {
     if (historyIndexRef.current >= historyRef.current.length - 1) return;
+    setPendingText(null);
     await restoreHistoryIndex(historyIndexRef.current + 1);
   };
 
@@ -275,6 +296,7 @@ const WhiteboardEditor: React.FC<EditorProps> = ({ initialContent, onSave, fileN
     const init = async () => {
       let initialBaseData: string | null = null;
       let initialHighlighterStrokes: HighlighterStroke[] = [];
+      let initialOpacity = DEFAULT_HIGHLIGHTER_LAYER_ALPHA;
 
       if (typeof initialContent === 'string') {
         initialBaseData = initialContent;
@@ -287,9 +309,14 @@ const WhiteboardEditor: React.FC<EditorProps> = ({ initialContent, onSave, fileN
           initialBaseData = (initialContent as any).dataUrl;
         }
         initialHighlighterStrokes = sanitizeHighlighterStrokes((initialContent as any).highlighterStrokes);
+        const rawOpacity = (initialContent as any).highlighterOpacity;
+        if (Number.isFinite(rawOpacity)) {
+          initialOpacity = Math.min(1, Math.max(0.05, Number(rawOpacity)));
+        }
       }
 
       await loadBaseCanvasFromData(initialBaseData);
+      setHighlighterOpacity(initialOpacity);
       highlighterStrokesRef.current = initialHighlighterStrokes;
       renderHighlighterLayer();
 
@@ -304,6 +331,12 @@ const WhiteboardEditor: React.FC<EditorProps> = ({ initialContent, onSave, fileN
     init();
   }, []);
 
+  useEffect(() => {
+    if (!pendingText) return;
+    const timer = setTimeout(() => textAreaRef.current?.focus(), 0);
+    return () => clearTimeout(timer);
+  }, [pendingText]);
+
   // --- MOUSE / DRAWING LOGIC ---
 
   const getMousePos = (e: React.MouseEvent) => {
@@ -316,13 +349,43 @@ const WhiteboardEditor: React.FC<EditorProps> = ({ initialContent, onSave, fileN
     };
   };
 
+  const commitPendingText = () => {
+    if (!pendingText) return false;
+    const trimmed = pendingText.text.trim();
+    setPendingText(null);
+    if (!trimmed) return false;
+
+    const refs = getCanvasContexts();
+    if (!refs) return false;
+
+    refs.baseCtx.globalAlpha = 1;
+    refs.baseCtx.globalCompositeOperation = 'source-over';
+    refs.baseCtx.fillStyle = pendingText.color;
+    refs.baseCtx.textBaseline = 'top';
+    refs.baseCtx.font = `${Math.max(8, Math.round(pendingText.fontSize))}px sans-serif`;
+
+    const lines = pendingText.text.split(/\r?\n/);
+    const lineHeight = Math.max(10, Math.round(pendingText.fontSize * 1.3));
+    lines.forEach((line, index) => {
+      refs.baseCtx.fillText(line, pendingText.x, pendingText.y + index * lineHeight);
+    });
+
+    commitCanvasSnapshot(true);
+    return true;
+  };
+
+  const cancelPendingText = () => {
+    setPendingText(null);
+  };
+
   const flattenHighlighterToBase = () => {
     const refs = getCanvasContexts();
     if (!refs || highlighterStrokesRef.current.length === 0) return;
 
     refs.baseCtx.globalCompositeOperation = 'source-over';
-    refs.baseCtx.globalAlpha = 1;
+    refs.baseCtx.globalAlpha = highlighterOpacity;
     refs.baseCtx.drawImage(refs.highlighterCanvas, 0, 0);
+    refs.baseCtx.globalAlpha = 1;
 
     highlighterStrokesRef.current = [];
     activeHighlighterStrokeRef.current = null;
@@ -341,6 +404,25 @@ const WhiteboardEditor: React.FC<EditorProps> = ({ initialContent, onSave, fileN
     const { x, y } = getMousePos(e);
     const currentSettings = settings[activeTool];
 
+    if (activeTool === 'text') {
+      if (pendingText) {
+        commitPendingText();
+      }
+      setPendingText({
+        x,
+        y,
+        text: '',
+        color: settings.text.color,
+        fontSize: settings.text.width
+      });
+      setSaveStatus('unsaved');
+      return;
+    }
+
+    if (pendingText) {
+      commitPendingText();
+    }
+
     if (activeTool === 'eraser') {
       // Eraser should affect what users see, so flatten highlight layer first.
       flattenHighlighterToBase();
@@ -351,12 +433,12 @@ const WhiteboardEditor: React.FC<EditorProps> = ({ initialContent, onSave, fileN
         id: crypto.randomUUID(),
         color: currentSettings.color,
         width: currentSettings.width,
-        opacity: 0.18,
+        opacity: 1,
         points: [{ x, y }]
       };
       activeHighlighterStrokeRef.current = stroke;
       refs.highlighterCtx.globalCompositeOperation = 'source-over';
-      refs.highlighterCtx.globalAlpha = stroke.opacity;
+      refs.highlighterCtx.globalAlpha = 1;
       refs.highlighterCtx.strokeStyle = stroke.color;
       refs.highlighterCtx.lineWidth = stroke.width;
       refs.highlighterCtx.lineCap = 'round';
@@ -587,6 +669,7 @@ const WhiteboardEditor: React.FC<EditorProps> = ({ initialContent, onSave, fileN
     const refs = getCanvasContexts();
     if (!refs) return;
     fillCanvasBackground(refs.baseCtx, refs.baseCanvas);
+    setPendingText(null);
     highlighterStrokesRef.current = [];
     activeHighlighterStrokeRef.current = null;
     clearHighlighterLayer();
@@ -632,6 +715,13 @@ const WhiteboardEditor: React.FC<EditorProps> = ({ initialContent, onSave, fileN
             >
               <Eraser className="w-4 h-4" />
             </button>
+            <button
+              onClick={() => setActiveTool('text')}
+              className={`p-2 rounded transition-all ${activeTool === 'text' ? 'bg-indigo-600 text-white shadow-sm' : 'text-zinc-400 hover:text-zinc-200'}`}
+              title="Text"
+            >
+              <TypeIcon className="w-4 h-4" />
+            </button>
             <div className="w-px h-full bg-zinc-700 mx-1"></div>
             <button
               onClick={() => setIsAssetMenuOpen(!isAssetMenuOpen)}
@@ -644,14 +734,14 @@ const WhiteboardEditor: React.FC<EditorProps> = ({ initialContent, onSave, fileN
 
           {/* Settings */}
           <div className="flex items-center gap-3 bg-zinc-800/50 px-3 py-1.5 rounded-lg border border-zinc-800 hidden md:flex">
-            {(activeTool === 'pen' || activeTool === 'highlighter') && (
+            {(activeTool === 'pen' || activeTool === 'highlighter' || activeTool === 'text') && (
               <div className="flex items-center gap-2">
                 <input
                   type="color"
                   value={settings[activeTool].color}
                   onChange={(e) => updateSetting('color', e.target.value)}
                   className="w-8 h-8 rounded cursor-pointer bg-transparent border-none"
-                  title={activeTool === 'highlighter' ? 'Highlighter Color' : 'Pen Color'}
+                  title={activeTool === 'highlighter' ? 'Highlighter Color' : activeTool === 'text' ? 'Text Color' : 'Pen Color'}
                 />
               </div>
             )}
@@ -660,13 +750,32 @@ const WhiteboardEditor: React.FC<EditorProps> = ({ initialContent, onSave, fileN
               <div className={`w-1.5 h-1.5 rounded-full ${activeTool === 'eraser' ? 'bg-zinc-500' : 'bg-current'}`} style={{ color: settings[activeTool].color }}></div>
               <input
                 type="range"
-                min="1"
-                max={activeTool === 'eraser' ? '100' : activeTool === 'highlighter' ? '80' : '50'}
+                min={activeTool === 'text' ? '8' : '1'}
+                max={activeTool === 'eraser' ? '100' : activeTool === 'highlighter' ? '80' : activeTool === 'text' ? '96' : '50'}
                 value={settings[activeTool].width}
                 onChange={(e) => updateSetting('width', parseInt(e.target.value, 10))}
                 className="w-24 h-1.5 bg-zinc-700 rounded-lg appearance-none cursor-pointer accent-blue-500"
               />
             </div>
+
+            {activeTool === 'highlighter' && (
+              <div className="flex items-center gap-2">
+                <span className="text-[11px] uppercase tracking-wide text-zinc-500">Opacity</span>
+                <input
+                  type="range"
+                  min="0.05"
+                  max="1"
+                  step="0.05"
+                  value={highlighterOpacity}
+                  onChange={(e) => {
+                    setHighlighterOpacity(parseFloat(e.target.value));
+                    setSaveStatus('unsaved');
+                  }}
+                  className="w-24 h-1.5 bg-zinc-700 rounded-lg appearance-none cursor-pointer accent-yellow-400"
+                />
+                <span className="text-[11px] text-zinc-400 w-8 text-right">{Math.round(highlighterOpacity * 100)}</span>
+              </div>
+            )}
           </div>
         </div>
 
@@ -724,7 +833,7 @@ const WhiteboardEditor: React.FC<EditorProps> = ({ initialContent, onSave, fileN
       )}
 
       {/* Canvas Container */}
-      <div className="flex-1 overflow-auto bg-[#09090b] relative custom-scrollbar cursor-crosshair touch-none" ref={containerRef}>
+      <div className={`flex-1 overflow-auto bg-[#09090b] relative custom-scrollbar touch-none ${activeTool === 'text' ? 'cursor-text' : 'cursor-crosshair'}`} ref={containerRef}>
         <div className="min-w-full min-h-full inline-block relative">
           <div className="relative" style={{ width: CANVAS_SIZE, height: CANVAS_SIZE }}>
             <canvas
@@ -743,7 +852,50 @@ const WhiteboardEditor: React.FC<EditorProps> = ({ initialContent, onSave, fileN
               onMouseUp={stopDrawing}
               onMouseLeave={stopDrawing}
               className="absolute inset-0 block"
+              style={{ opacity: highlighterOpacity }}
             />
+
+            {pendingText && (
+              <div
+                className="absolute z-20 min-w-[260px] max-w-[420px] bg-zinc-900/95 border border-zinc-700 rounded-lg p-2 shadow-2xl"
+                style={{ left: pendingText.x, top: pendingText.y }}
+                onMouseDown={(e) => e.stopPropagation()}
+              >
+                <textarea
+                  ref={textAreaRef}
+                  value={pendingText.text}
+                  onChange={(e) => setPendingText(prev => prev ? { ...prev, text: e.target.value } : prev)}
+                  onKeyDown={(e) => {
+                    if ((e.ctrlKey || e.metaKey) && e.key === 'Enter') {
+                      e.preventDefault();
+                      commitPendingText();
+                    }
+                    if (e.key === 'Escape') {
+                      e.preventDefault();
+                      cancelPendingText();
+                    }
+                  }}
+                  placeholder="Type text..."
+                  rows={3}
+                  className="w-full min-h-[92px] bg-zinc-950 border border-zinc-800 rounded-md p-2 text-sm text-zinc-100 focus:outline-none focus:border-zinc-600 resize-y"
+                  style={{ color: pendingText.color, fontSize: `${pendingText.fontSize}px`, lineHeight: `${Math.max(10, Math.round(pendingText.fontSize * 1.3))}px` }}
+                />
+                <div className="mt-2 flex items-center justify-end gap-2">
+                  <button
+                    onClick={cancelPendingText}
+                    className="px-2 py-1 text-xs rounded bg-zinc-800 hover:bg-zinc-700 text-zinc-200"
+                  >
+                    Cancel
+                  </button>
+                  <button
+                    onClick={commitPendingText}
+                    className="px-2 py-1 text-xs rounded bg-blue-600 hover:bg-blue-700 text-white"
+                  >
+                    Add Text
+                  </button>
+                </div>
+              </div>
+            )}
 
             {/* Floating Image Layer */}
             {floatingImage && (

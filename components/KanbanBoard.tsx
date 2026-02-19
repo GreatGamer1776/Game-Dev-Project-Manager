@@ -1,5 +1,5 @@
 import React, { useState, useEffect, useRef } from 'react';
-import { Save, Plus, AlertCircle, ChevronLeft, ChevronRight, X, Trash2, Bug as BugIcon, Search, Filter, Pencil, Loader2, Check, Link as LinkIcon, ArrowUpDown, Calendar, User, Tags } from 'lucide-react';
+import { Save, Plus, AlertCircle, ChevronLeft, ChevronRight, X, Trash2, Bug as BugIcon, Search, Filter, Pencil, Loader2, Check, Link as LinkIcon, ArrowUpDown, Calendar, Tags } from 'lucide-react';
 import { Bug, BugSeverity, BugStatus, EditorProps } from '../types';
 
 const FILE_LINK_DRAG_MIME = 'application/x-gdpm-file-id';
@@ -25,7 +25,6 @@ const KanbanBoard: React.FC<EditorProps> = ({ initialContent, onSave, fileName, 
   const [newTitle, setNewTitle] = useState('');
   const [newSeverity, setNewSeverity] = useState<BugSeverity>('Medium');
   const [newStatus, setNewStatus] = useState<BugStatus>('Open');
-  const [newAssignee, setNewAssignee] = useState('');
   const [newDueDate, setNewDueDate] = useState('');
   const [newCategory, setNewCategory] = useState<string>('General');
   const [newTags, setNewTags] = useState('');
@@ -112,7 +111,6 @@ const KanbanBoard: React.FC<EditorProps> = ({ initialContent, onSave, fileName, 
     setNewDesc('');
     setNewSeverity('Medium');
     setNewStatus('Open');
-    setNewAssignee('');
     setNewDueDate('');
     setNewCategory('General');
     setNewTags('');
@@ -129,7 +127,6 @@ const KanbanBoard: React.FC<EditorProps> = ({ initialContent, onSave, fileName, 
     setNewDesc('');
     setNewSeverity('Medium');
     setNewStatus('Open');
-    setNewAssignee('');
     setNewDueDate('');
     setNewCategory('General');
     setNewTags('');
@@ -147,7 +144,6 @@ const KanbanBoard: React.FC<EditorProps> = ({ initialContent, onSave, fileName, 
     setNewDesc(bug.description);
     setNewSeverity(bug.severity);
     setNewStatus(bug.status);
-    setNewAssignee(bug.assignee || '');
     setNewDueDate(bug.dueDate || '');
     setNewCategory(bug.category || 'General');
     setNewTags((bug.tags || []).join(', '));
@@ -172,7 +168,6 @@ const KanbanBoard: React.FC<EditorProps> = ({ initialContent, onSave, fileName, 
         description: newDesc,
         severity: newSeverity,
         status: newStatus,
-        assignee: newAssignee.trim() || undefined,
         dueDate: newDueDate || undefined,
         category: newCategory,
         tags: parsedTags.length ? parsedTags : undefined,
@@ -186,7 +181,6 @@ const KanbanBoard: React.FC<EditorProps> = ({ initialContent, onSave, fileName, 
         severity: newSeverity,
         status: newStatus,
         createdAt: Date.now(),
-        assignee: newAssignee.trim() || undefined,
         dueDate: newDueDate || undefined,
         category: newCategory,
         tags: parsedTags.length ? parsedTags : undefined,
@@ -366,7 +360,6 @@ const KanbanBoard: React.FC<EditorProps> = ({ initialContent, onSave, fileName, 
         const searchable = [
           bug.title,
           bug.description,
-          bug.assignee || '',
           bug.category || '',
           ...(bug.tags || [])
         ].join(' ').toLowerCase();
@@ -570,11 +563,6 @@ const KanbanBoard: React.FC<EditorProps> = ({ initialContent, onSave, fileName, 
                          </div>
                          <h5 className="text-sm font-medium text-zinc-200 mb-1 pointer-events-none">{bug.title}</h5>
                          <div className="mb-2 flex flex-wrap items-center gap-1.5 text-[10px] text-zinc-500">
-                           {bug.assignee && (
-                             <span className="inline-flex items-center gap-1 rounded border border-zinc-700 bg-zinc-950 px-1.5 py-0.5">
-                               <User className="h-3 w-3" /> {bug.assignee}
-                             </span>
-                           )}
                            {bug.category && (
                              <span className="inline-flex items-center gap-1 rounded border border-zinc-700 bg-zinc-950 px-1.5 py-0.5">
                                <Tags className="h-3 w-3" /> {bug.category}
@@ -676,7 +664,7 @@ const KanbanBoard: React.FC<EditorProps> = ({ initialContent, onSave, fileName, 
                   ))}
                 </div>
               </div>
-              <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
+              <div className="grid grid-cols-1 sm:grid-cols-3 gap-4">
                 <div>
                   <label className="block text-sm font-medium text-zinc-400 mb-1">Status</label>
                   <select
@@ -700,16 +688,6 @@ const KanbanBoard: React.FC<EditorProps> = ({ initialContent, onSave, fileName, 
                       <option key={category} value={category}>{category}</option>
                     ))}
                   </select>
-                </div>
-                <div>
-                  <label className="block text-sm font-medium text-zinc-400 mb-1">Assignee</label>
-                  <input
-                    type="text"
-                    value={newAssignee}
-                    onChange={(e) => setNewAssignee(e.target.value)}
-                    className="w-full bg-zinc-950 border border-zinc-800 rounded-lg p-2.5 text-white focus:ring-2 focus:ring-red-600 focus:border-transparent outline-none transition-all"
-                    placeholder="e.g., Alex"
-                  />
                 </div>
                 <div>
                   <label className="block text-sm font-medium text-zinc-400 mb-1">Target Date</label>

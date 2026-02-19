@@ -1,5 +1,5 @@
 import React, { useState, useEffect, useRef } from 'react';
-import { Save, Plus, Trash2, CheckSquare, Square, Calendar, ChevronDown, ChevronUp, ListChecks, Loader2, Check, AlertCircle, MoreHorizontal, Link as LinkIcon, User, Tags, X } from 'lucide-react';
+import { Save, Plus, Trash2, CheckSquare, Square, Calendar, ChevronDown, ChevronUp, ListChecks, Loader2, Check, AlertCircle, MoreHorizontal, Link as LinkIcon, Tags, X } from 'lucide-react';
 import { TodoItem, Priority, SubTask, EditorProps, TodoStatus } from '../types';
 
 const FILE_LINK_DRAG_MIME = 'application/x-gdpm-file-id';
@@ -61,17 +61,17 @@ const TodoEditor: React.FC<EditorProps> = ({ initialContent, onSave, fileName, p
   const [newItemDate, setNewItemDate] = useState('');
   const [newItemCategory, setNewItemCategory] = useState<string>('General');
   const [newItemStatus, setNewItemStatus] = useState<TodoStatus>('To Do');
-  const [newItemAssignee, setNewItemAssignee] = useState('');
   const [newItemEstimate, setNewItemEstimate] = useState('');
   const [newItemTags, setNewItemTags] = useState('');
   const [newItemDescription, setNewItemDescription] = useState('');
+  const [newItemSubTasks, setNewItemSubTasks] = useState<SubTask[]>([]);
+  const [newItemSubTaskText, setNewItemSubTaskText] = useState('');
   const [isCreateModalOpen, setIsCreateModalOpen] = useState(false);
   
   const [searchQuery, setSearchQuery] = useState('');
   const [filterPriority, setFilterPriority] = useState<'All' | Priority>('All');
   const [filterStatus, setFilterStatus] = useState<'All' | TodoStatus>('All');
   const [filterCategory, setFilterCategory] = useState<'All' | string>('All');
-  const [filterAssignee, setFilterAssignee] = useState<'All' | string>('All');
   const [sortBy, setSortBy] = useState<'Newest' | 'Oldest' | 'Priority' | 'Due Date' | 'Alphabetical' | 'Effort'>('Newest');
   
   const [expandedId, setExpandedId] = useState<string | null>(null);
@@ -93,10 +93,6 @@ const TodoEditor: React.FC<EditorProps> = ({ initialContent, onSave, fileName, p
       f.name.toLowerCase().includes(query) || f.id.toLowerCase().includes(query)
     );
   }, [linkableFiles, linkPickerQuery]);
-  const assigneeOptions = React.useMemo(
-    () => Array.from(new Set(items.map(item => (item.assignee || '').trim()).filter(Boolean))).sort((a, b) => a.localeCompare(b, undefined, { sensitivity: 'base' })),
-    [items]
-  );
   const categoryOptions = React.useMemo(
     () => Array.from(new Set([...TASK_CATEGORIES, ...items.map(item => item.category || 'General')])).sort((a, b) => a.localeCompare(b, undefined, { sensitivity: 'base' })),
     [items]
@@ -181,11 +177,10 @@ const TodoEditor: React.FC<EditorProps> = ({ initialContent, onSave, fileName, p
       priority: newItemPriority,
       dueDate: newItemDate || undefined,
       category: newItemCategory,
-      assignee: newItemAssignee.trim() || undefined,
       estimateHours: typeof parsedEstimate === 'number' && !Number.isNaN(parsedEstimate) ? parsedEstimate : undefined,
       tags: parsedTags.length ? parsedTags : undefined,
       description: newItemDescription,
-      subTasks: []
+      subTasks: newItemSubTasks
     };
 
     setItems([newItem, ...items]); 
@@ -194,10 +189,11 @@ const TodoEditor: React.FC<EditorProps> = ({ initialContent, onSave, fileName, p
     setNewItemPriority('Medium');
     setNewItemDate('');
     setNewItemCategory('General');
-    setNewItemAssignee('');
     setNewItemEstimate('');
     setNewItemTags('');
     setNewItemDescription('');
+    setNewItemSubTasks([]);
+    setNewItemSubTaskText('');
     setIsCreateModalOpen(false);
   };
 
@@ -212,10 +208,25 @@ const TodoEditor: React.FC<EditorProps> = ({ initialContent, onSave, fileName, p
     setNewItemPriority('Medium');
     setNewItemDate('');
     setNewItemCategory('General');
-    setNewItemAssignee('');
     setNewItemEstimate('');
     setNewItemTags('');
     setNewItemDescription('');
+    setNewItemSubTasks([]);
+    setNewItemSubTaskText('');
+  };
+
+  const addCreateSubTask = () => {
+    if (!newItemSubTaskText.trim()) return;
+    setNewItemSubTasks(prev => [...prev, { id: crypto.randomUUID(), text: newItemSubTaskText.trim(), completed: false }]);
+    setNewItemSubTaskText('');
+  };
+
+  const toggleCreateSubTask = (subTaskId: string) => {
+    setNewItemSubTasks(prev => prev.map(sub => sub.id === subTaskId ? { ...sub, completed: !sub.completed } : sub));
+  };
+
+  const deleteCreateSubTask = (subTaskId: string) => {
+    setNewItemSubTasks(prev => prev.filter(sub => sub.id !== subTaskId));
   };
 
   const deleteItem = (e: React.MouseEvent, id: string) => {
@@ -407,7 +418,6 @@ const TodoEditor: React.FC<EditorProps> = ({ initialContent, onSave, fileName, p
     setFilterPriority('All');
     setFilterStatus('All');
     setFilterCategory('All');
-    setFilterAssignee('All');
     setSortBy('Newest');
   };
 
@@ -460,7 +470,6 @@ const TodoEditor: React.FC<EditorProps> = ({ initialContent, onSave, fileName, p
         const searchable = [
           item.text,
           item.description || '',
-          item.assignee || '',
           item.category || '',
           ...(item.tags || [])
         ].join(' ').toLowerCase();
@@ -469,13 +478,6 @@ const TodoEditor: React.FC<EditorProps> = ({ initialContent, onSave, fileName, p
       if (filterPriority !== 'All' && item.priority !== filterPriority) return false;
       if (filterStatus !== 'All' && item.status !== filterStatus) return false;
       if (filterCategory !== 'All' && (item.category || 'General') !== filterCategory) return false;
-      if (filterAssignee !== 'All') {
-        if (filterAssignee === 'Unassigned') {
-          if ((item.assignee || '').trim()) return false;
-        } else if ((item.assignee || '').trim() !== filterAssignee) {
-          return false;
-        }
-      }
       return true;
     })
     .sort((a, b) => {
@@ -611,11 +613,6 @@ const TodoEditor: React.FC<EditorProps> = ({ initialContent, onSave, fileName, p
                                         <Calendar className="w-3 h-3" /> {new Date(item.dueDate).toLocaleDateString(undefined, { month: 'short', day: 'numeric' })}
                                      </span>
                                   )}
-                                  {item.assignee && (
-                                     <span className="flex items-center gap-1 text-[10px] text-zinc-500 bg-zinc-950 border border-zinc-800 px-1.5 py-0.5 rounded">
-                                        <User className="w-3 h-3" /> {item.assignee}
-                                     </span>
-                                  )}
                                   {typeof item.estimateHours === 'number' && (
                                      <span className="text-[10px] text-zinc-500 bg-zinc-950 border border-zinc-800 px-1.5 py-0.5 rounded">
                                         {item.estimateHours}h
@@ -684,7 +681,7 @@ const TodoEditor: React.FC<EditorProps> = ({ initialContent, onSave, fileName, p
                                               />
                                           </div>
                                       </div>
-                                      <div className="grid grid-cols-1 sm:grid-cols-3 gap-2">
+                                      <div className="grid grid-cols-1 sm:grid-cols-2 gap-2">
                                           <div className="bg-zinc-950 border border-zinc-800 rounded p-2">
                                               <label className="text-[10px] uppercase tracking-wide text-zinc-500">Category</label>
                                               <StyledSelect
@@ -693,16 +690,6 @@ const TodoEditor: React.FC<EditorProps> = ({ initialContent, onSave, fileName, p
                                                 options={categoryOptions.map(category => ({ value: category, label: category }))}
                                                 className="mt-1"
                                                 selectClassName="w-full border-zinc-800 bg-zinc-900"
-                                              />
-                                          </div>
-                                          <div className="bg-zinc-950 border border-zinc-800 rounded p-2">
-                                              <label className="text-[10px] uppercase tracking-wide text-zinc-500">Assignee</label>
-                                              <input
-                                                type="text"
-                                                value={item.assignee || ''}
-                                                onChange={(e) => updateItemField(item.id, { assignee: e.target.value || undefined })}
-                                                placeholder="Name"
-                                                className="mt-1 w-full bg-transparent text-xs text-zinc-200 focus:outline-none"
                                               />
                                           </div>
                                           <div className="bg-zinc-950 border border-zinc-800 rounded p-2">
@@ -905,7 +892,7 @@ const TodoEditor: React.FC<EditorProps> = ({ initialContent, onSave, fileName, p
                   />
                 </div>
               </div>
-              <div className="grid grid-cols-1 sm:grid-cols-3 gap-4">
+              <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
                 <div>
                   <label className="block text-sm font-medium text-zinc-400 mb-1">Due Date</label>
                   <input
@@ -913,16 +900,6 @@ const TodoEditor: React.FC<EditorProps> = ({ initialContent, onSave, fileName, p
                     value={newItemDate}
                     onChange={(e) => setNewItemDate(e.target.value)}
                     className="w-full bg-zinc-950 border border-zinc-800 rounded-lg p-2.5 text-white focus:ring-2 focus:ring-blue-600 focus:border-transparent outline-none transition-all [color-scheme:dark]"
-                  />
-                </div>
-                <div>
-                  <label className="block text-sm font-medium text-zinc-400 mb-1">Assignee</label>
-                  <input
-                    type="text"
-                    value={newItemAssignee}
-                    onChange={(e) => setNewItemAssignee(e.target.value)}
-                    className="w-full bg-zinc-950 border border-zinc-800 rounded-lg p-2.5 text-white focus:ring-2 focus:ring-blue-600 focus:border-transparent outline-none transition-all"
-                    placeholder="Optional"
                   />
                 </div>
                 <div>
@@ -956,6 +933,46 @@ const TodoEditor: React.FC<EditorProps> = ({ initialContent, onSave, fileName, p
                   className="w-full bg-zinc-950 border border-zinc-800 rounded-lg p-3 text-white focus:ring-2 focus:ring-blue-600 focus:border-transparent outline-none transition-all min-h-[100px]"
                   placeholder="Add notes or implementation details..."
                 />
+              </div>
+              <div>
+                <label className="block text-sm font-medium text-zinc-400 mb-1">Subtasks</label>
+                <div className="bg-zinc-950 border border-zinc-800 rounded-lg p-2">
+                  <div className="flex gap-2 mb-2">
+                    <input
+                      type="text"
+                      value={newItemSubTaskText}
+                      onChange={(e) => setNewItemSubTaskText(e.target.value)}
+                      onKeyDown={(e) => { if (e.key === 'Enter') { e.preventDefault(); addCreateSubTask(); } }}
+                      placeholder="Add subtask..."
+                      className="flex-1 bg-transparent text-sm text-white focus:outline-none"
+                    />
+                    <button
+                      type="button"
+                      onClick={addCreateSubTask}
+                      disabled={!newItemSubTaskText.trim()}
+                      className="px-2.5 py-1 rounded bg-zinc-800 hover:bg-zinc-700 text-xs text-zinc-200 disabled:opacity-40"
+                    >
+                      Add
+                    </button>
+                  </div>
+                  <div className="space-y-1 max-h-28 overflow-y-auto custom-scrollbar">
+                    {newItemSubTasks.length === 0 ? (
+                      <p className="text-xs text-zinc-500">No subtasks yet.</p>
+                    ) : (
+                      newItemSubTasks.map(sub => (
+                        <div key={sub.id} className="flex items-center gap-2 text-xs text-zinc-300">
+                          <button type="button" onClick={() => toggleCreateSubTask(sub.id)} className={`text-zinc-500 hover:text-blue-400 ${sub.completed ? 'text-blue-400' : ''}`}>
+                            {sub.completed ? <CheckSquare className="w-3 h-3" /> : <Square className="w-3 h-3" />}
+                          </button>
+                          <span className={`flex-1 ${sub.completed ? 'line-through text-zinc-500' : 'text-zinc-300'}`}>{sub.text}</span>
+                          <button type="button" onClick={() => deleteCreateSubTask(sub.id)} className="text-zinc-600 hover:text-red-400">
+                            <Trash2 className="w-3 h-3" />
+                          </button>
+                        </div>
+                      ))
+                    )}
+                  </div>
+                </div>
               </div>
               <div className="pt-4 border-t border-zinc-800 flex justify-end gap-2">
                 <button

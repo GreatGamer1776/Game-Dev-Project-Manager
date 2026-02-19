@@ -665,22 +665,27 @@ const App: React.FC = () => {
 
   const handleDeleteAsset = async (assetId: string) => {
     if (!activeProjectId) return;
-    const project = projects.find(p => p.id === activeProjectId);
+    const project = projectsRef.current.find(p => p.id === activeProjectId);
     if (project) {
         const newAssets = { ...project.assets };
         delete newAssets[assetId];
-        updateProjectState({ ...project, lastModified: Date.now(), assets: newAssets });
+        const updatedProject = { ...project, lastModified: Date.now(), assets: newAssets };
+        projectsRef.current = projectsRef.current.map(p => p.id === updatedProject.id ? updatedProject : p);
+        updateProjectState(updatedProject);
     }
   };
 
   const updateFileContent = (content: any) => {
     if (!activeProjectId || !activeFileId) return;
-    const project = projects.find(p => p.id === activeProjectId);
+    const project = projectsRef.current.find(p => p.id === activeProjectId);
     if (project) {
-        updateProjectState({
-            ...project, lastModified: Date.now(),
+        const updatedProject = {
+            ...project,
+            lastModified: Date.now(),
             files: project.files.map(f => f.id === activeFileId ? { ...f, content } : f)
-        });
+        };
+        projectsRef.current = projectsRef.current.map(p => p.id === updatedProject.id ? updatedProject : p);
+        updateProjectState(updatedProject);
     }
   };
 

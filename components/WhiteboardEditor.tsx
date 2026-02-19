@@ -46,7 +46,7 @@ interface WhiteboardSnapshot {
   compositeData: string;
 }
 
-const HISTORY_LIMIT = 80;
+const HISTORY_LIMIT = 200;
 const CANVAS_SIZE = 2000;
 const DEFAULT_HIGHLIGHTER_LAYER_ALPHA = 0.2;
 
@@ -70,7 +70,7 @@ const sanitizeHighlighterStrokes = (value: unknown): HighlighterStroke[] => {
       if (points.length === 0) return null;
       const color = typeof (raw as any)?.color === 'string' ? (raw as any).color : '#facc15';
       const width = Number.isFinite((raw as any)?.width) ? Math.max(1, Number((raw as any).width)) : 18;
-      const opacity = Number.isFinite((raw as any)?.opacity) ? Math.min(1, Math.max(0.05, Number((raw as any).opacity))) : 1;
+      const opacity = Number.isFinite((raw as any)?.opacity) ? Math.min(1, Math.max(0.05, Number((raw as any).opacity))) : DEFAULT_HIGHLIGHTER_LAYER_ALPHA;
 
       return {
         id: typeof (raw as any)?.id === 'string' ? (raw as any).id : crypto.randomUUID(),
@@ -150,9 +150,9 @@ const WhiteboardEditor: React.FC<EditorProps> = ({ initialContent, onSave, fileN
   const drawHighlighterStroke = (ctx: CanvasRenderingContext2D, stroke: HighlighterStroke) => {
     if (stroke.points.length === 0) return;
 
-    ctx.globalCompositeOperation = 'source-over';
-    // Keep highlight pixels opaque in the layer; layer alpha is applied once at compose/display.
-    ctx.globalAlpha = 1;
+    // Draw behind existing highlighter pixels so overlap does not darken.
+    ctx.globalCompositeOperation = 'destination-over';
+    ctx.globalAlpha = stroke.opacity;
     ctx.strokeStyle = stroke.color;
     ctx.lineWidth = stroke.width;
     ctx.lineCap = 'round';
@@ -215,7 +215,7 @@ const WhiteboardEditor: React.FC<EditorProps> = ({ initialContent, onSave, fileN
     const ctx = composite.getContext('2d');
     if (!ctx) return '';
     ctx.drawImage(baseCanvas, 0, 0);
-    ctx.globalAlpha = highlighterOpacity;
+    ctx.globalAlpha = 1;
     ctx.drawImage(highlighterCanvas, 0, 0);
     ctx.globalAlpha = 1;
     return composite.toDataURL('image/png');
@@ -383,7 +383,7 @@ const WhiteboardEditor: React.FC<EditorProps> = ({ initialContent, onSave, fileN
     if (!refs || highlighterStrokesRef.current.length === 0) return;
 
     refs.baseCtx.globalCompositeOperation = 'source-over';
-    refs.baseCtx.globalAlpha = highlighterOpacity;
+    refs.baseCtx.globalAlpha = 1;
     refs.baseCtx.drawImage(refs.highlighterCanvas, 0, 0);
     refs.baseCtx.globalAlpha = 1;
 
@@ -433,12 +433,12 @@ const WhiteboardEditor: React.FC<EditorProps> = ({ initialContent, onSave, fileN
         id: crypto.randomUUID(),
         color: currentSettings.color,
         width: currentSettings.width,
-        opacity: 1,
+        opacity: highlighterOpacity,
         points: [{ x, y }]
       };
       activeHighlighterStrokeRef.current = stroke;
-      refs.highlighterCtx.globalCompositeOperation = 'source-over';
-      refs.highlighterCtx.globalAlpha = 1;
+      refs.highlighterCtx.globalCompositeOperation = 'destination-over';
+      refs.highlighterCtx.globalAlpha = stroke.opacity;
       refs.highlighterCtx.strokeStyle = stroke.color;
       refs.highlighterCtx.lineWidth = stroke.width;
       refs.highlighterCtx.lineCap = 'round';
@@ -767,10 +767,7 @@ const WhiteboardEditor: React.FC<EditorProps> = ({ initialContent, onSave, fileN
                   max="1"
                   step="0.05"
                   value={highlighterOpacity}
-                  onChange={(e) => {
-                    setHighlighterOpacity(parseFloat(e.target.value));
-                    setSaveStatus('unsaved');
-                  }}
+                  onChange={(e) => setHighlighterOpacity(parseFloat(e.target.value))}
                   className="w-24 h-1.5 bg-zinc-700 rounded-lg appearance-none cursor-pointer accent-yellow-400"
                 />
                 <span className="text-[11px] text-zinc-400 w-8 text-right">{Math.round(highlighterOpacity * 100)}</span>
@@ -852,7 +849,6 @@ const WhiteboardEditor: React.FC<EditorProps> = ({ initialContent, onSave, fileN
               onMouseUp={stopDrawing}
               onMouseLeave={stopDrawing}
               className="absolute inset-0 block"
-              style={{ opacity: highlighterOpacity }}
             />
 
             {pendingText && (

@@ -691,6 +691,12 @@ const App: React.FC = () => {
 
   const activeProject = projects.find(p => p.id === activeProjectId);
   const activeFile = activeProject?.files.find(f => f.id === activeFileId);
+  const quickOpenFiles = activeProject
+    ? activeProject.files
+        .filter(f => f.type !== ASSET_LIBRARY_TYPE)
+        .sort((a, b) => a.name.localeCompare(b.name, undefined, { sensitivity: 'base' }))
+        .slice(0, 6)
+    : [];
   const systemFileOrder = new Map(MANDATORY_SINGLETON_FILES.map((file, index) => [file.type, index]));
   const systemFiles = activeProject
     ? activeProject.files
@@ -1026,7 +1032,49 @@ const App: React.FC = () => {
                     activeFileId,
                     onOpenFile: handleOpenFileFromLink
                 })
-            ) : <div className="flex flex-col items-center justify-center h-full text-zinc-500"><File className="w-16 h-16 mb-4 opacity-20" /><p>Select a file to edit</p></div>
+            ) : (
+              <div className="h-full flex items-center justify-center p-6">
+                <div className="w-full max-w-2xl bg-zinc-900 border border-zinc-800 rounded-xl p-6 shadow-xl">
+                  <div className="flex items-center gap-3 mb-4">
+                    <File className="w-7 h-7 text-zinc-500" />
+                    <div>
+                      <h3 className="text-lg font-semibold text-zinc-100">Start Working</h3>
+                      <p className="text-sm text-zinc-400">Open an existing file or create a new one.</p>
+                    </div>
+                  </div>
+
+                  <div className="grid grid-cols-1 sm:grid-cols-3 gap-3 mb-5">
+                    <button onClick={() => openCreateFileModal(null, 'doc')} className="px-4 py-3 rounded-lg bg-zinc-950 border border-zinc-800 text-left hover:border-blue-500/40 hover:bg-zinc-900">
+                      <p className="text-sm font-medium text-zinc-100">New Document</p>
+                      <p className="text-xs text-zinc-500 mt-1">Write specs and notes.</p>
+                    </button>
+                    <button onClick={() => openCreateFileModal(null, 'whiteboard')} className="px-4 py-3 rounded-lg bg-zinc-950 border border-zinc-800 text-left hover:border-blue-500/40 hover:bg-zinc-900">
+                      <p className="text-sm font-medium text-zinc-100">New Whiteboard</p>
+                      <p className="text-xs text-zinc-500 mt-1">Sketch ideas visually.</p>
+                    </button>
+                    <button onClick={() => openCreateFileModal(null, 'flowchart')} className="px-4 py-3 rounded-lg bg-zinc-950 border border-zinc-800 text-left hover:border-blue-500/40 hover:bg-zinc-900">
+                      <p className="text-sm font-medium text-zinc-100">New Flowchart</p>
+                      <p className="text-xs text-zinc-500 mt-1">Map systems and logic.</p>
+                    </button>
+                  </div>
+
+                  <div className="border-t border-zinc-800 pt-4">
+                    <p className="text-xs uppercase tracking-wide text-zinc-500 mb-2">Open Existing</p>
+                    {quickOpenFiles.length > 0 ? (
+                      <div className="grid grid-cols-1 sm:grid-cols-2 gap-2">
+                        {quickOpenFiles.map(file => (
+                          <button key={file.id} onClick={() => setActiveFileId(file.id)} className="px-3 py-2 rounded-md bg-zinc-950 border border-zinc-800 text-zinc-300 hover:text-white hover:bg-zinc-900 text-left truncate">
+                            {file.name}
+                          </button>
+                        ))}
+                      </div>
+                    ) : (
+                      <p className="text-sm text-zinc-500">No files yet. Use one of the create actions above.</p>
+                    )}
+                  </div>
+                </div>
+              </div>
+            )
           )}
         </div>
         

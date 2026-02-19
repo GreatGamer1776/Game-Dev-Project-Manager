@@ -1,5 +1,5 @@
 import React, { useState, useEffect, useRef } from 'react';
-import { Save, Plus, Trash2, CheckSquare, Square, Calendar, Flag, ChevronDown, ChevronUp, Search, Filter, ListChecks, Loader2, Check, AlertCircle, MoreHorizontal, Link as LinkIcon } from 'lucide-react';
+import { Save, Plus, Trash2, CheckSquare, Square, Calendar, Flag, ChevronDown, ChevronUp, Search, Filter, ListChecks, Loader2, Check, AlertCircle, MoreHorizontal, Link as LinkIcon, ArrowUpDown, RotateCcw } from 'lucide-react';
 import { TodoItem, Priority, SubTask, EditorProps, TodoStatus } from '../types';
 
 const FILE_LINK_DRAG_MIME = 'application/x-gdpm-file-id';
@@ -29,9 +29,13 @@ const TodoEditor: React.FC<EditorProps> = ({ initialContent, onSave, fileName, p
   
   const [searchQuery, setSearchQuery] = useState('');
   const [filterPriority, setFilterPriority] = useState<'All' | Priority>('All');
+  const [filterStatus, setFilterStatus] = useState<'All' | TodoStatus>('All');
+  const [sortBy, setSortBy] = useState<'Newest' | 'Oldest' | 'Priority' | 'Due Date' | 'Alphabetical'>('Newest');
   
   const [expandedId, setExpandedId] = useState<string | null>(null);
   const [newSubTaskText, setNewSubTaskText] = useState('');
+  const [editingTaskId, setEditingTaskId] = useState<string | null>(null);
+  const [editingTaskText, setEditingTaskText] = useState('');
   const [selectedLinkFileId, setSelectedLinkFileId] = useState<string>('');
   const [linkTargetId, setLinkTargetId] = useState('');
   const [linkLabel, setLinkLabel] = useState('');
@@ -123,6 +127,18 @@ const TodoEditor: React.FC<EditorProps> = ({ initialContent, onSave, fileName, p
     }
   };
 
+  const duplicateItem = (id: string) => {
+    const source = items.find(item => item.id === id);
+    if (!source) return;
+    const clone: TodoItem = {
+      ...source,
+      id: crypto.randomUUID(),
+      text: `${source.text} (Copy)`,
+      subTasks: (source.subTasks || []).map(sub => ({ ...sub, id: crypto.randomUUID() }))
+    };
+    setItems([clone, ...items]);
+  };
+
   const updateItemStatus = (id: string, newStatus: TodoStatus) => {
     setItems(items.map(item => 
       item.id === id ? { ...item, status: newStatus, completed: newStatus === 'Done' } : item
@@ -133,6 +149,30 @@ const TodoEditor: React.FC<EditorProps> = ({ initialContent, onSave, fileName, p
     setItems(items.map(item => 
       item.id === id ? { ...item, description: desc } : item
     ));
+  };
+
+  const updateItemField = (id: string, patch: Partial<TodoItem>) => {
+    setItems(items.map(item => item.id === id ? { ...item, ...patch } : item));
+  };
+
+  const beginTaskTitleEdit = (item: TodoItem) => {
+    setEditingTaskId(item.id);
+    setEditingTaskText(item.text);
+  };
+
+  const commitTaskTitleEdit = () => {
+    if (!editingTaskId) return;
+    const trimmed = editingTaskText.trim();
+    if (trimmed) {
+      updateItemField(editingTaskId, { text: trimmed });
+    }
+    setEditingTaskId(null);
+    setEditingTaskText('');
+  };
+
+  const cancelTaskTitleEdit = () => {
+    setEditingTaskId(null);
+    setEditingTaskText('');
   };
 
   const appendFileLinkToDescription = (itemId: string) => {
@@ -245,6 +285,25 @@ const TodoEditor: React.FC<EditorProps> = ({ initialContent, onSave, fileName, p
     setItems(items.map(item => item.id === itemId && item.subTasks ? { ...item, subTasks: item.subTasks.filter(sub => sub.id !== subTaskId) } : item));
   };
 
+  const markFilteredDone = () => {
+    const visibleIds = new Set(filteredItems.map(item => item.id));
+    setItems(items.map(item => visibleIds.has(item.id) ? { ...item, status: 'Done', completed: true } : item));
+  };
+
+  const clearCompletedTasks = () => {
+    setItems(items.filter(item => item.status !== 'Done' && !item.completed));
+    if (expandedId && items.some(item => item.id === expandedId && (item.status === 'Done' || item.completed))) {
+      setExpandedId(null);
+    }
+  };
+
+  const resetTaskFilters = () => {
+    setSearchQuery('');
+    setFilterPriority('All');
+    setFilterStatus('All');
+    setSortBy('Newest');
+  };
+
   // --- Drag & Drop ---
   const handleDragStart = (e: React.DragEvent, id: string) => {
     setDraggedItemId(id);
@@ -284,11 +343,38 @@ const TodoEditor: React.FC<EditorProps> = ({ initialContent, onSave, fileName, p
       }
   };
 
-  const filteredItems = items.filter(item => {
-    if (searchQuery && !item.text.toLowerCase().includes(searchQuery.toLowerCase())) return false;
-    if (filterPriority !== 'All' && item.priority !== filterPriority) return false;
-    return true;
-  });
+  const priorityWeight: Record<Priority, number> = { High: 3, Medium: 2, Low: 1 };
+  const itemOrder = new Map(items.map((item, index) => [item.id, index]));
+
+  const filteredItems = [...items]
+    .filter(item => {
+      if (searchQuery && !item.text.toLowerCase().includes(searchQuery.toLowerCase())) return false;
+      if (filterPriority !== 'All' && item.priority !== filterPriority) return false;
+      if (filterStatus !== 'All' && item.status !== filterStatus) return false;
+      return true;
+    })
+    .sort((a, b) => {
+      const aIndex = itemOrder.get(a.id) ?? 0;
+      const bIndex = itemOrder.get(b.id) ?? 0;
+      switch (sortBy) {
+        case 'Oldest':
+          return bIndex - aIndex;
+        case 'Priority':
+          return priorityWeight[b.priority] - priorityWeight[a.priority];
+        case 'Due Date': {
+          const aDue = a.dueDate ? new Date(a.dueDate).getTime() : Number.POSITIVE_INFINITY;
+          const bDue = b.dueDate ? new Date(b.dueDate).getTime() : Number.POSITIVE_INFINITY;
+          return aDue - bDue;
+        }
+        case 'Alphabetical':
+          return a.text.localeCompare(b.text, undefined, { sensitivity: 'base' });
+        case 'Newest':
+        default:
+          return aIndex - bIndex;
+      }
+    });
+
+  const visibleColumns: TodoStatus[] = filterStatus === 'All' ? COLUMNS : [filterStatus];
 
   return (
     <div className="h-full flex flex-col bg-zinc-900">
@@ -334,7 +420,7 @@ const TodoEditor: React.FC<EditorProps> = ({ initialContent, onSave, fileName, p
           </div>
 
           {/* Filters */}
-          <div className="flex gap-3 items-center">
+          <div className="flex gap-3 items-center flex-wrap">
              <div className="relative">
                 <Search className="w-4 h-4 text-zinc-500 absolute left-3 top-1/2 -translate-y-1/2" />
                 <input
@@ -354,13 +440,53 @@ const TodoEditor: React.FC<EditorProps> = ({ initialContent, onSave, fileName, p
                     <option value="Low">Low</option>
                 </select>
              </div>
+             <div className="flex items-center gap-2 bg-zinc-950 border border-zinc-800 rounded-md px-3 py-2">
+                <ListChecks className="w-3.5 h-3.5 text-zinc-500" />
+                <select value={filterStatus} onChange={(e) => setFilterStatus(e.target.value as any)} className="bg-transparent text-xs text-zinc-300 focus:outline-none cursor-pointer">
+                    <option value="All">All Statuses</option>
+                    <option value="To Do">To Do</option>
+                    <option value="In Progress">In Progress</option>
+                    <option value="Done">Done</option>
+                </select>
+             </div>
+             <div className="flex items-center gap-2 bg-zinc-950 border border-zinc-800 rounded-md px-3 py-2">
+                <ArrowUpDown className="w-3.5 h-3.5 text-zinc-500" />
+                <select value={sortBy} onChange={(e) => setSortBy(e.target.value as any)} className="bg-transparent text-xs text-zinc-300 focus:outline-none cursor-pointer">
+                    <option value="Newest">Newest</option>
+                    <option value="Oldest">Oldest</option>
+                    <option value="Priority">Priority</option>
+                    <option value="Due Date">Due Date</option>
+                    <option value="Alphabetical">A-Z</option>
+                </select>
+             </div>
+             <button
+                onClick={markFilteredDone}
+                disabled={filteredItems.length === 0}
+                className="text-xs px-3 py-2 rounded-md bg-zinc-950 border border-zinc-800 text-zinc-300 hover:text-white disabled:opacity-40"
+             >
+                Mark Filtered Done
+             </button>
+             <button
+                onClick={clearCompletedTasks}
+                disabled={!items.some(item => item.status === 'Done' || item.completed)}
+                className="text-xs px-3 py-2 rounded-md bg-zinc-950 border border-zinc-800 text-zinc-300 hover:text-white disabled:opacity-40"
+             >
+                Clear Completed
+             </button>
+             <button
+                onClick={resetTaskFilters}
+                className="text-xs px-3 py-2 rounded-md bg-zinc-950 border border-zinc-800 text-zinc-300 hover:text-white flex items-center gap-1"
+                title="Reset filters and sorting"
+             >
+                <RotateCcw className="w-3 h-3" /> Reset View
+             </button>
           </div>
       </div>
 
       {/* Kanban Board */}
       <div className="flex-1 overflow-x-auto p-6 bg-zinc-900">
-        <div className="flex gap-6 h-full min-w-[900px]">
-          {COLUMNS.map(column => {
+        <div className={`flex gap-6 h-full ${visibleColumns.length === 1 ? 'min-w-[320px]' : 'min-w-[900px]'}`}>
+          {visibleColumns.map(column => {
              const colItems = filteredItems.filter(i => i.status === column);
              const isDropActive = activeDropZone === column;
 
@@ -401,7 +527,27 @@ const TodoEditor: React.FC<EditorProps> = ({ initialContent, onSave, fileName, p
                                      {item.status === 'Done' ? <CheckSquare className="w-5 h-5" /> : <Square className="w-5 h-5" />}
                                   </button>
                                   <div className="flex-1 min-w-0">
-                                      <p className={`text-sm font-medium leading-snug break-words ${item.status === 'Done' ? 'text-zinc-500 line-through' : 'text-zinc-200'}`}>{item.text}</p>
+                                      {editingTaskId === item.id ? (
+                                        <input
+                                          autoFocus
+                                          value={editingTaskText}
+                                          onChange={(e) => setEditingTaskText(e.target.value)}
+                                          onBlur={commitTaskTitleEdit}
+                                          onKeyDown={(e) => {
+                                            if (e.key === 'Enter') commitTaskTitleEdit();
+                                            if (e.key === 'Escape') cancelTaskTitleEdit();
+                                          }}
+                                          className="w-full bg-zinc-950 border border-zinc-700 rounded px-2 py-1 text-sm text-zinc-100 focus:outline-none"
+                                        />
+                                      ) : (
+                                        <p
+                                          onDoubleClick={() => beginTaskTitleEdit(item)}
+                                          title="Double-click to rename task"
+                                          className={`text-sm font-medium leading-snug break-words cursor-text ${item.status === 'Done' ? 'text-zinc-500 line-through' : 'text-zinc-200'}`}
+                                        >
+                                          {item.text}
+                                        </p>
+                                      )}
                                   </div>
                                   <button onClick={() => setExpandedId(isExpanded ? null : item.id)} className="text-zinc-600 hover:text-white transition-colors">
                                      {isExpanded ? <ChevronUp className="w-4 h-4" /> : <MoreHorizontal className="w-4 h-4" />}
@@ -430,6 +576,41 @@ const TodoEditor: React.FC<EditorProps> = ({ initialContent, onSave, fileName, p
                               {/* Expanded Details */}
                               {isExpanded && (
                                   <div className="mt-3 pt-3 border-t border-zinc-800/50 space-y-3 animate-in fade-in slide-in-from-top-1 duration-200">
+                                      <div className="grid grid-cols-1 sm:grid-cols-3 gap-2">
+                                          <div className="bg-zinc-950 border border-zinc-800 rounded p-2">
+                                              <label className="text-[10px] uppercase tracking-wide text-zinc-500">Status</label>
+                                              <select
+                                                value={item.status}
+                                                onChange={(e) => updateItemStatus(item.id, e.target.value as TodoStatus)}
+                                                className="mt-1 w-full bg-transparent text-xs text-zinc-200 focus:outline-none"
+                                              >
+                                                <option value="To Do" className="bg-zinc-900">To Do</option>
+                                                <option value="In Progress" className="bg-zinc-900">In Progress</option>
+                                                <option value="Done" className="bg-zinc-900">Done</option>
+                                              </select>
+                                          </div>
+                                          <div className="bg-zinc-950 border border-zinc-800 rounded p-2">
+                                              <label className="text-[10px] uppercase tracking-wide text-zinc-500">Priority</label>
+                                              <select
+                                                value={item.priority}
+                                                onChange={(e) => updateItemField(item.id, { priority: e.target.value as Priority })}
+                                                className="mt-1 w-full bg-transparent text-xs text-zinc-200 focus:outline-none"
+                                              >
+                                                <option value="High" className="bg-zinc-900">High</option>
+                                                <option value="Medium" className="bg-zinc-900">Medium</option>
+                                                <option value="Low" className="bg-zinc-900">Low</option>
+                                              </select>
+                                          </div>
+                                          <div className="bg-zinc-950 border border-zinc-800 rounded p-2">
+                                              <label className="text-[10px] uppercase tracking-wide text-zinc-500">Due Date</label>
+                                              <input
+                                                type="date"
+                                                value={item.dueDate || ''}
+                                                onChange={(e) => updateItemField(item.id, { dueDate: e.target.value || undefined })}
+                                                className="mt-1 w-full bg-transparent text-xs text-zinc-200 focus:outline-none [color-scheme:dark]"
+                                              />
+                                          </div>
+                                      </div>
                                       {/* Description */}
                                       <div className="space-y-2">
                                           <div className="flex items-center justify-between">
@@ -512,7 +693,10 @@ const TodoEditor: React.FC<EditorProps> = ({ initialContent, onSave, fileName, p
                                       </div>
 
                                       {/* Actions */}
-                                      <div className="flex justify-end pt-2">
+                                      <div className="flex justify-end gap-2 pt-2">
+                                          <button onClick={() => duplicateItem(item.id)} className="flex items-center gap-1 text-xs text-zinc-300 hover:text-white px-2 py-1 rounded hover:bg-zinc-800 transition-colors">
+                                              <Plus className="w-3 h-3" /> Duplicate
+                                          </button>
                                           <button onClick={(e) => deleteItem(e, item.id)} className="flex items-center gap-1 text-xs text-red-400 hover:text-red-300 px-2 py-1 rounded hover:bg-red-900/20 transition-colors">
                                               <Trash2 className="w-3 h-3" /> Delete Task
                                           </button>
@@ -525,6 +709,7 @@ const TodoEditor: React.FC<EditorProps> = ({ initialContent, onSave, fileName, p
                     {colItems.length === 0 && (
                         <div className="text-center py-10 opacity-30 text-zinc-500 select-none">
                             <p className="text-xs italic">No tasks here</p>
+                            <p className="text-[11px] mt-1">Add a task above or drag one into this column.</p>
                         </div>
                     )}
                  </div>

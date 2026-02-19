@@ -1,8 +1,9 @@
 import React, { useState, useEffect, useRef } from 'react';
-import { Save, Plus, Trash2, CheckSquare, Square, Calendar, ChevronDown, ChevronUp, Search, Filter, ListChecks, Loader2, Check, AlertCircle, MoreHorizontal, Link as LinkIcon, ArrowUpDown, RotateCcw } from 'lucide-react';
+import { Save, Plus, Trash2, CheckSquare, Square, Calendar, ChevronDown, ChevronUp, Search, Filter, ListChecks, Loader2, Check, AlertCircle, MoreHorizontal, Link as LinkIcon, ArrowUpDown, RotateCcw, User, Tags } from 'lucide-react';
 import { TodoItem, Priority, SubTask, EditorProps, TodoStatus } from '../types';
 
 const FILE_LINK_DRAG_MIME = 'application/x-gdpm-file-id';
+const TASK_CATEGORIES = ['General', 'Design', 'Programming', 'Art', 'Audio', 'QA', 'Production'] as const;
 
 type SelectOption = {
   value: string;
@@ -58,11 +59,14 @@ const TodoEditor: React.FC<EditorProps> = ({ initialContent, onSave, fileName, p
   const [newItemText, setNewItemText] = useState('');
   const [newItemPriority, setNewItemPriority] = useState<Priority>('Medium');
   const [newItemDate, setNewItemDate] = useState('');
+  const [newItemCategory, setNewItemCategory] = useState<string>('General');
   
   const [searchQuery, setSearchQuery] = useState('');
   const [filterPriority, setFilterPriority] = useState<'All' | Priority>('All');
   const [filterStatus, setFilterStatus] = useState<'All' | TodoStatus>('All');
-  const [sortBy, setSortBy] = useState<'Newest' | 'Oldest' | 'Priority' | 'Due Date' | 'Alphabetical'>('Newest');
+  const [filterCategory, setFilterCategory] = useState<'All' | string>('All');
+  const [filterAssignee, setFilterAssignee] = useState<'All' | string>('All');
+  const [sortBy, setSortBy] = useState<'Newest' | 'Oldest' | 'Priority' | 'Due Date' | 'Alphabetical' | 'Effort'>('Newest');
   
   const [expandedId, setExpandedId] = useState<string | null>(null);
   const [newSubTaskText, setNewSubTaskText] = useState('');
@@ -83,6 +87,14 @@ const TodoEditor: React.FC<EditorProps> = ({ initialContent, onSave, fileName, p
       f.name.toLowerCase().includes(query) || f.id.toLowerCase().includes(query)
     );
   }, [linkableFiles, linkPickerQuery]);
+  const assigneeOptions = React.useMemo(
+    () => Array.from(new Set(items.map(item => (item.assignee || '').trim()).filter(Boolean))).sort((a, b) => a.localeCompare(b, undefined, { sensitivity: 'base' })),
+    [items]
+  );
+  const categoryOptions = React.useMemo(
+    () => Array.from(new Set([...TASK_CATEGORIES, ...items.map(item => item.category || 'General')])).sort((a, b) => a.localeCompare(b, undefined, { sensitivity: 'base' })),
+    [items]
+  );
 
   const COLUMNS: TodoStatus[] = ['To Do', 'In Progress', 'Done'];
 
@@ -160,6 +172,7 @@ const TodoEditor: React.FC<EditorProps> = ({ initialContent, onSave, fileName, p
       status: 'To Do',
       priority: newItemPriority,
       dueDate: newItemDate || undefined,
+      category: newItemCategory,
       description: '',
       subTasks: []
     };
@@ -168,6 +181,7 @@ const TodoEditor: React.FC<EditorProps> = ({ initialContent, onSave, fileName, p
     setNewItemText('');
     setNewItemPriority('Medium');
     setNewItemDate('');
+    setNewItemCategory('General');
   };
 
   const deleteItem = (e: React.MouseEvent, id: string) => {
@@ -204,6 +218,9 @@ const TodoEditor: React.FC<EditorProps> = ({ initialContent, onSave, fileName, p
   const updateItemField = (id: string, patch: Partial<TodoItem>) => {
     setItems(items.map(item => item.id === id ? { ...item, ...patch } : item));
   };
+
+  const parseTagInput = (value: string) =>
+    Array.from(new Set(value.split(',').map(tag => tag.trim()).filter(Boolean))).slice(0, 8);
 
   const beginTaskTitleEdit = (item: TodoItem) => {
     setEditingTaskId(item.id);
@@ -355,6 +372,8 @@ const TodoEditor: React.FC<EditorProps> = ({ initialContent, onSave, fileName, p
     setSearchQuery('');
     setFilterPriority('All');
     setFilterStatus('All');
+    setFilterCategory('All');
+    setFilterAssignee('All');
     setSortBy('Newest');
   };
 
@@ -402,9 +421,27 @@ const TodoEditor: React.FC<EditorProps> = ({ initialContent, onSave, fileName, p
 
   const filteredItems = [...items]
     .filter(item => {
-      if (searchQuery && !item.text.toLowerCase().includes(searchQuery.toLowerCase())) return false;
+      if (searchQuery) {
+        const q = searchQuery.toLowerCase();
+        const searchable = [
+          item.text,
+          item.description || '',
+          item.assignee || '',
+          item.category || '',
+          ...(item.tags || [])
+        ].join(' ').toLowerCase();
+        if (!searchable.includes(q)) return false;
+      }
       if (filterPriority !== 'All' && item.priority !== filterPriority) return false;
       if (filterStatus !== 'All' && item.status !== filterStatus) return false;
+      if (filterCategory !== 'All' && (item.category || 'General') !== filterCategory) return false;
+      if (filterAssignee !== 'All') {
+        if (filterAssignee === 'Unassigned') {
+          if ((item.assignee || '').trim()) return false;
+        } else if ((item.assignee || '').trim() !== filterAssignee) {
+          return false;
+        }
+      }
       return true;
     })
     .sort((a, b) => {
@@ -419,6 +456,11 @@ const TodoEditor: React.FC<EditorProps> = ({ initialContent, onSave, fileName, p
           const aDue = a.dueDate ? new Date(a.dueDate).getTime() : Number.POSITIVE_INFINITY;
           const bDue = b.dueDate ? new Date(b.dueDate).getTime() : Number.POSITIVE_INFINITY;
           return aDue - bDue;
+        }
+        case 'Effort': {
+          const aEffort = typeof a.estimateHours === 'number' ? a.estimateHours : Number.POSITIVE_INFINITY;
+          const bEffort = typeof b.estimateHours === 'number' ? b.estimateHours : Number.POSITIVE_INFINITY;
+          return aEffort - bEffort;
         }
         case 'Alphabetical':
           return a.text.localeCompare(b.text, undefined, { sensitivity: 'base' });
@@ -461,6 +503,13 @@ const TodoEditor: React.FC<EditorProps> = ({ initialContent, onSave, fileName, p
              />
              <div className="h-4 w-px bg-zinc-800"></div>
              <div className="flex items-center gap-2">
+                 <StyledSelect
+                    value={newItemCategory}
+                    onChange={setNewItemCategory}
+                    options={categoryOptions.map(category => ({ value: category, label: category }))}
+                    className="w-[118px]"
+                    selectClassName="bg-zinc-950 border-zinc-800"
+                 />
                  <StyledSelect
                     value={newItemPriority}
                     onChange={(value) => setNewItemPriority(value as Priority)}
@@ -522,6 +571,33 @@ const TodoEditor: React.FC<EditorProps> = ({ initialContent, onSave, fileName, p
                 />
              </div>
              <div className="flex items-center gap-2 bg-zinc-950 border border-zinc-800 rounded-md px-3 py-2">
+                <Tags className="w-3.5 h-3.5 text-zinc-500" />
+                <StyledSelect
+                  value={filterCategory}
+                  onChange={(value) => setFilterCategory(value)}
+                  options={[
+                    { value: 'All', label: 'All Categories' },
+                    ...categoryOptions.map(category => ({ value: category, label: category }))
+                  ]}
+                  className="w-[150px]"
+                  selectClassName="border-zinc-800 bg-zinc-900"
+                />
+             </div>
+             <div className="flex items-center gap-2 bg-zinc-950 border border-zinc-800 rounded-md px-3 py-2">
+                <User className="w-3.5 h-3.5 text-zinc-500" />
+                <StyledSelect
+                  value={filterAssignee}
+                  onChange={(value) => setFilterAssignee(value)}
+                  options={[
+                    { value: 'All', label: 'All Assignees' },
+                    { value: 'Unassigned', label: 'Unassigned' },
+                    ...assigneeOptions.map(assignee => ({ value: assignee, label: assignee }))
+                  ]}
+                  className="w-[148px]"
+                  selectClassName="border-zinc-800 bg-zinc-900"
+                />
+             </div>
+             <div className="flex items-center gap-2 bg-zinc-950 border border-zinc-800 rounded-md px-3 py-2">
                 <ArrowUpDown className="w-3.5 h-3.5 text-zinc-500" />
                 <StyledSelect
                   value={sortBy}
@@ -531,6 +607,7 @@ const TodoEditor: React.FC<EditorProps> = ({ initialContent, onSave, fileName, p
                     { value: 'Oldest', label: 'Oldest' },
                     { value: 'Priority', label: 'Priority' },
                     { value: 'Due Date', label: 'Due Date' },
+                    { value: 'Effort', label: 'Effort' },
                     { value: 'Alphabetical', label: 'A-Z' }
                   ]}
                   className="w-[118px]"
@@ -628,10 +705,33 @@ const TodoEditor: React.FC<EditorProps> = ({ initialContent, onSave, fileName, p
                               {/* Card Tags */}
                               <div className="flex flex-wrap items-center gap-2 mt-2">
                                   <span className={`text-[10px] uppercase font-bold px-1.5 py-0.5 rounded border ${getPriorityColor(item.priority)}`}>{item.priority}</span>
+                                  <span className="text-[10px] text-zinc-400 bg-zinc-950 border border-zinc-800 px-1.5 py-0.5 rounded">
+                                    {item.category || 'General'}
+                                  </span>
                                   {item.dueDate && (
                                      <span className="flex items-center gap-1 text-[10px] text-zinc-500 bg-zinc-950 border border-zinc-800 px-1.5 py-0.5 rounded">
                                         <Calendar className="w-3 h-3" /> {new Date(item.dueDate).toLocaleDateString(undefined, { month: 'short', day: 'numeric' })}
                                      </span>
+                                  )}
+                                  {item.assignee && (
+                                     <span className="flex items-center gap-1 text-[10px] text-zinc-500 bg-zinc-950 border border-zinc-800 px-1.5 py-0.5 rounded">
+                                        <User className="w-3 h-3" /> {item.assignee}
+                                     </span>
+                                  )}
+                                  {typeof item.estimateHours === 'number' && (
+                                     <span className="text-[10px] text-zinc-500 bg-zinc-950 border border-zinc-800 px-1.5 py-0.5 rounded">
+                                        {item.estimateHours}h
+                                     </span>
+                                  )}
+                                  {item.tags && item.tags.length > 0 && (
+                                     <div className="flex items-center gap-1">
+                                        {item.tags.slice(0, 2).map(tag => (
+                                          <span key={`${item.id}-${tag}`} className="text-[10px] text-zinc-400 bg-zinc-800 px-1.5 py-0.5 rounded">
+                                            #{tag}
+                                          </span>
+                                        ))}
+                                        {item.tags.length > 2 && <span className="text-[10px] text-zinc-500">+{item.tags.length - 2}</span>}
+                                     </div>
                                   )}
                                   {subTasks.length > 0 && (
                                      <div className="flex items-center gap-1.5 ml-auto">
@@ -685,6 +785,54 @@ const TodoEditor: React.FC<EditorProps> = ({ initialContent, onSave, fileName, p
                                                 className="mt-1 w-full bg-transparent text-xs text-zinc-200 focus:outline-none [color-scheme:dark]"
                                               />
                                           </div>
+                                      </div>
+                                      <div className="grid grid-cols-1 sm:grid-cols-3 gap-2">
+                                          <div className="bg-zinc-950 border border-zinc-800 rounded p-2">
+                                              <label className="text-[10px] uppercase tracking-wide text-zinc-500">Category</label>
+                                              <StyledSelect
+                                                value={item.category || 'General'}
+                                                onChange={(value) => updateItemField(item.id, { category: value })}
+                                                options={categoryOptions.map(category => ({ value: category, label: category }))}
+                                                className="mt-1"
+                                                selectClassName="w-full border-zinc-800 bg-zinc-900"
+                                              />
+                                          </div>
+                                          <div className="bg-zinc-950 border border-zinc-800 rounded p-2">
+                                              <label className="text-[10px] uppercase tracking-wide text-zinc-500">Assignee</label>
+                                              <input
+                                                type="text"
+                                                value={item.assignee || ''}
+                                                onChange={(e) => updateItemField(item.id, { assignee: e.target.value || undefined })}
+                                                placeholder="Name"
+                                                className="mt-1 w-full bg-transparent text-xs text-zinc-200 focus:outline-none"
+                                              />
+                                          </div>
+                                          <div className="bg-zinc-950 border border-zinc-800 rounded p-2">
+                                              <label className="text-[10px] uppercase tracking-wide text-zinc-500">Effort (Hours)</label>
+                                              <input
+                                                type="number"
+                                                min="0.5"
+                                                step="0.5"
+                                                value={item.estimateHours ?? ''}
+                                                onChange={(e) => {
+                                                  const value = e.target.value.trim();
+                                                  updateItemField(item.id, { estimateHours: value ? Number(value) : undefined });
+                                                }}
+                                                placeholder="e.g. 2"
+                                                className="mt-1 w-full bg-transparent text-xs text-zinc-200 focus:outline-none"
+                                              />
+                                          </div>
+                                      </div>
+                                      <div className="bg-zinc-950 border border-zinc-800 rounded p-2">
+                                          <label className="text-[10px] uppercase tracking-wide text-zinc-500">Tags</label>
+                                          <input
+                                            type="text"
+                                            value={(item.tags || []).join(', ')}
+                                            onChange={(e) => updateItemField(item.id, { tags: parseTagInput(e.target.value) })}
+                                            placeholder="bugfix, polish, ui"
+                                            className="mt-1 w-full bg-transparent text-xs text-zinc-200 focus:outline-none"
+                                          />
+                                          <p className="mt-1 text-[10px] text-zinc-500">Comma-separated, up to 8 tags.</p>
                                       </div>
                                       {/* Description */}
                                       <div className="space-y-2">

@@ -1,8 +1,10 @@
 import React, { useState, useEffect, useRef, useMemo } from 'react';
-import { Save, Plus, Trash2, Calendar, Flag, CheckCircle2, AlertCircle, Clock, Loader2, Check, TrendingUp, MoreHorizontal, ChevronRight, ChevronDown, Link as LinkIcon } from 'lucide-react';
+import { Save, Plus, Trash2, Calendar, Flag, AlertCircle, Loader2, Check, TrendingUp, Link as LinkIcon, Search, Filter, RotateCcw } from 'lucide-react';
 import { EditorProps, RoadmapItem, RoadmapItemType, RoadmapStatus } from '../types';
 
 const FILE_LINK_DRAG_MIME = 'application/x-gdpm-file-id';
+const ROADMAP_STATUS_OPTIONS: RoadmapStatus[] = ['planned', 'in-progress', 'completed', 'delayed', 'dropped'];
+const ROADMAP_TYPE_OPTIONS: RoadmapItemType[] = ['phase', 'milestone'];
 
 const RoadmapEditor: React.FC<EditorProps> = ({ initialContent, onSave, fileName, projectFiles = [], onOpenFile, activeFileId }) => {
   const [items, setItems] = useState<RoadmapItem[]>(initialContent?.items || []);
@@ -25,6 +27,9 @@ const RoadmapEditor: React.FC<EditorProps> = ({ initialContent, onSave, fileName
     progress: 0,
     description: ''
   });
+  const [searchQuery, setSearchQuery] = useState('');
+  const [filterStatus, setFilterStatus] = useState<'All' | RoadmapStatus>('All');
+  const [filterType, setFilterType] = useState<'All' | RoadmapItemType>('All');
   const [linkPickerOpen, setLinkPickerOpen] = useState(false);
   const [linkPickerQuery, setLinkPickerQuery] = useState('');
   const linkPickerRef = useRef<HTMLDivElement | null>(null);
@@ -92,6 +97,20 @@ const RoadmapEditor: React.FC<EditorProps> = ({ initialContent, onSave, fileName
     onSave({ items });
     lastSavedData.current = JSON.stringify(items);
     setTimeout(() => setSaveStatus('saved'), 500);
+  };
+
+  const resetRoadmapFilters = () => {
+    setSearchQuery('');
+    setFilterStatus('All');
+    setFilterType('All');
+  };
+
+  const addDays = (dateText: string | undefined, days: number) => {
+    if (!dateText) return '';
+    const date = new Date(dateText);
+    if (Number.isNaN(date.getTime())) return '';
+    date.setDate(date.getDate() + days);
+    return date.toISOString().split('T')[0];
   };
 
   // --- CRUD Operations ---
@@ -219,13 +238,17 @@ const RoadmapEditor: React.FC<EditorProps> = ({ initialContent, onSave, fileName
 
   const handleSubmit = (e: React.FormEvent) => {
     e.preventDefault();
-    if (!formData.title) return;
+    const safeTitle = (formData.title || '').trim();
+    if (!safeTitle) return;
+    const safeStartDate = formData.startDate || new Date().toISOString().split('T')[0];
+    const computedEndDate = formData.type === 'milestone' ? safeStartDate : (formData.endDate || safeStartDate);
+    const safeEndDate = new Date(computedEndDate) < new Date(safeStartDate) ? safeStartDate : computedEndDate;
 
     const newItem: RoadmapItem = {
       id: editingId || crypto.randomUUID(),
-      title: formData.title!,
-      startDate: formData.startDate!,
-      endDate: formData.type === 'milestone' ? formData.startDate! : formData.endDate!,
+      title: safeTitle,
+      startDate: safeStartDate,
+      endDate: safeEndDate,
       type: formData.type as RoadmapItemType,
       status: formData.status as RoadmapStatus,
       progress: Number(formData.progress) || 0,
@@ -242,12 +265,24 @@ const RoadmapEditor: React.FC<EditorProps> = ({ initialContent, onSave, fileName
   };
 
   // --- Timeline Calculations ---
+  const visibleItems = [...items]
+    .filter(item => {
+      if (filterStatus !== 'All' && item.status !== filterStatus) return false;
+      if (filterType !== 'All' && item.type !== filterType) return false;
+      if (searchQuery) {
+        const q = searchQuery.toLowerCase();
+        const searchable = `${item.title} ${item.description || ''}`.toLowerCase();
+        if (!searchable.includes(q)) return false;
+      }
+      return true;
+    })
+    .sort((a, b) => new Date(a.startDate).getTime() - new Date(b.startDate).getTime());
 
   const timelineData = useMemo(() => {
-    if (items.length === 0) return { months: [], totalDays: 0, startTs: 0 };
+    if (visibleItems.length === 0) return { months: [], totalDays: 0, startTs: 0, endTs: 0 };
 
     // Find range
-    const timestamps = items.flatMap(i => [new Date(i.startDate).getTime(), new Date(i.endDate).getTime()]);
+    const timestamps = visibleItems.flatMap(i => [new Date(i.startDate).getTime(), new Date(i.endDate).getTime()]);
     let minTs = Math.min(...timestamps);
     let maxTs = Math.max(...timestamps);
 
@@ -273,7 +308,7 @@ const RoadmapEditor: React.FC<EditorProps> = ({ initialContent, onSave, fileName
     }
 
     return { months, totalDays, startTs: minTs, endTs: maxTs };
-  }, [items]);
+  }, [visibleItems]);
 
   const getPositionStyles = (start: string, end: string) => {
     if (!timelineData.totalDays) return { left: '0%', width: '0%' };
@@ -309,8 +344,15 @@ const RoadmapEditor: React.FC<EditorProps> = ({ initialContent, onSave, fileName
     }
   };
 
-  // Sort items by start date
-  const sortedItems = [...items].sort((a, b) => new Date(a.startDate).getTime() - new Date(b.startDate).getTime());
+  const todayLeft = timelineData.totalDays
+    ? `${Math.min(100, Math.max(0, ((Date.now() - timelineData.startTs) / (timelineData.endTs - timelineData.startTs || 1)) * 100))}%`
+    : '0%';
+  const roadmapStats = useMemo(() => ({
+    total: visibleItems.length,
+    active: visibleItems.filter(item => item.status === 'in-progress').length,
+    delayed: visibleItems.filter(item => item.status === 'delayed').length,
+    milestones: visibleItems.filter(item => item.type === 'milestone').length
+  }), [visibleItems]);
 
   return (
     <div className="h-full flex flex-col bg-zinc-900">
@@ -334,18 +376,75 @@ const RoadmapEditor: React.FC<EditorProps> = ({ initialContent, onSave, fileName
         </div>
       </div>
 
+      <div className="px-6 py-3 border-b border-zinc-800 bg-zinc-900 flex flex-wrap items-center gap-3">
+        <div className="relative w-60">
+          <Search className="w-4 h-4 text-zinc-500 absolute left-3 top-1/2 -translate-y-1/2" />
+          <input
+            type="text"
+            value={searchQuery}
+            onChange={(e) => setSearchQuery(e.target.value)}
+            placeholder="Search roadmap items..."
+            className="w-full bg-zinc-950 border border-zinc-800 rounded-md py-1.5 pl-9 pr-3 text-sm text-zinc-200 focus:outline-none focus:border-zinc-600"
+          />
+        </div>
+        <div className="flex items-center gap-2 bg-zinc-950 border border-zinc-800 rounded-md px-2 py-1.5 text-xs text-zinc-300">
+          <Filter className="w-3.5 h-3.5 text-zinc-500" />
+          <span>Status</span>
+          <select
+            value={filterStatus}
+            onChange={(e) => setFilterStatus(e.target.value as 'All' | RoadmapStatus)}
+            className="bg-transparent focus:outline-none text-xs text-zinc-200"
+          >
+            <option value="All">All</option>
+            {ROADMAP_STATUS_OPTIONS.map(status => (
+              <option key={status} value={status}>{status}</option>
+            ))}
+          </select>
+        </div>
+        <div className="flex items-center gap-2 bg-zinc-950 border border-zinc-800 rounded-md px-2 py-1.5 text-xs text-zinc-300">
+          <span>Type</span>
+          <select
+            value={filterType}
+            onChange={(e) => setFilterType(e.target.value as 'All' | RoadmapItemType)}
+            className="bg-transparent focus:outline-none text-xs text-zinc-200"
+          >
+            <option value="All">All</option>
+            {ROADMAP_TYPE_OPTIONS.map(type => (
+              <option key={type} value={type}>{type}</option>
+            ))}
+          </select>
+        </div>
+        <button
+          onClick={resetRoadmapFilters}
+          className="px-2.5 py-1.5 rounded-md border border-zinc-800 bg-zinc-950 text-xs text-zinc-300 hover:text-white flex items-center gap-1"
+        >
+          <RotateCcw className="w-3 h-3" /> Reset
+        </button>
+        <div className="ml-auto flex items-center gap-2 text-[11px] text-zinc-500">
+          <span className="rounded border border-zinc-800 bg-zinc-950 px-2 py-1">Total {roadmapStats.total}</span>
+          <span className="rounded border border-zinc-800 bg-zinc-950 px-2 py-1">Active {roadmapStats.active}</span>
+          <span className="rounded border border-zinc-800 bg-zinc-950 px-2 py-1">Delayed {roadmapStats.delayed}</span>
+          <span className="rounded border border-zinc-800 bg-zinc-950 px-2 py-1">Milestones {roadmapStats.milestones}</span>
+        </div>
+      </div>
+
       <div className="flex-1 flex flex-col lg:flex-row overflow-hidden">
         
         {/* Left Panel: List View */}
         <div className="w-full lg:w-1/3 border-r border-zinc-800 flex flex-col bg-zinc-950/50">
            <div className="p-4 border-b border-zinc-800 bg-zinc-950 font-semibold text-sm text-zinc-400 uppercase tracking-wider">
               Items List
+              <span className="ml-2 text-[10px] font-normal text-zinc-500 normal-case">
+                {visibleItems.length} shown / {items.length} total
+              </span>
            </div>
            <div className="flex-1 overflow-y-auto custom-scrollbar p-2 space-y-2">
-              {sortedItems.length === 0 ? (
-                  <div className="text-center py-10 text-zinc-600 text-sm">No roadmap items yet.</div>
+              {visibleItems.length === 0 ? (
+                  <div className="text-center py-10 text-zinc-600 text-sm">
+                    {items.length === 0 ? 'No roadmap items yet.' : 'No items match the current filters.'}
+                  </div>
               ) : (
-                  sortedItems.map(item => (
+                  visibleItems.map(item => (
                       <div 
                         key={item.id} 
                         onClick={() => handleEdit(item)}
@@ -402,7 +501,7 @@ const RoadmapEditor: React.FC<EditorProps> = ({ initialContent, onSave, fileName
                     {/* Today Line */}
                     <div 
                         className="absolute top-0 bottom-0 border-l border-red-500/50 z-0"
-                        style={{ left: `${((Date.now() - timelineData.startTs) / (timelineData.endTs - timelineData.startTs)) * 100}%` }}
+                        style={{ left: todayLeft }}
                     >
                         <div className="text-[9px] text-red-500 bg-red-500/10 px-1 ml-1 mt-1 rounded">Today</div>
                     </div>
@@ -410,7 +509,12 @@ const RoadmapEditor: React.FC<EditorProps> = ({ initialContent, onSave, fileName
 
                 {/* Items */}
                 <div className="relative z-10 space-y-6 mt-2">
-                    {sortedItems.map(item => {
+                    {visibleItems.length === 0 && (
+                        <div className="rounded-lg border border-zinc-800 bg-zinc-950/70 p-4 text-center text-sm text-zinc-500">
+                            No timeline items for the current filters.
+                        </div>
+                    )}
+                    {visibleItems.map(item => {
                         const style = getPositionStyles(item.startDate, item.endDate);
                         
                         if (item.type === 'milestone') {
@@ -488,11 +592,19 @@ const RoadmapEditor: React.FC<EditorProps> = ({ initialContent, onSave, fileName
                             <label className="block text-sm text-zinc-400 mb-1">Type</label>
                             <select 
                                 value={formData.type}
-                                onChange={e => setFormData({...formData, type: e.target.value as RoadmapItemType})}
+                                onChange={e => {
+                                  const nextType = e.target.value as RoadmapItemType;
+                                  setFormData(prev => ({
+                                    ...prev,
+                                    type: nextType,
+                                    endDate: nextType === 'milestone' ? prev.startDate : prev.endDate
+                                  }));
+                                }}
                                 className="w-full bg-zinc-950 border border-zinc-800 rounded p-2 text-white focus:border-blue-500 outline-none"
                             >
-                                <option value="phase">Phase</option>
-                                <option value="milestone">Milestone</option>
+                                {ROADMAP_TYPE_OPTIONS.map(type => (
+                                  <option key={type} value={type}>{type}</option>
+                                ))}
                             </select>
                         </div>
                         <div>
@@ -502,11 +614,9 @@ const RoadmapEditor: React.FC<EditorProps> = ({ initialContent, onSave, fileName
                                 onChange={e => setFormData({...formData, status: e.target.value as RoadmapStatus})}
                                 className="w-full bg-zinc-950 border border-zinc-800 rounded p-2 text-white focus:border-blue-500 outline-none"
                             >
-                                <option value="planned">Planned</option>
-                                <option value="in-progress">In Progress</option>
-                                <option value="completed">Completed</option>
-                                <option value="delayed">Delayed</option>
-                                <option value="dropped">Dropped</option>
+                                {ROADMAP_STATUS_OPTIONS.map(status => (
+                                  <option key={status} value={status}>{status}</option>
+                                ))}
                             </select>
                         </div>
                     </div>
@@ -532,6 +642,18 @@ const RoadmapEditor: React.FC<EditorProps> = ({ initialContent, onSave, fileName
                                     onChange={e => setFormData({...formData, endDate: e.target.value})}
                                     className="w-full bg-zinc-950 border border-zinc-800 rounded p-2 text-white focus:border-blue-500 outline-none [color-scheme:dark]" 
                                 />
+                                <div className="mt-2 flex flex-wrap gap-2">
+                                    {[7, 14, 30, 60].map(days => (
+                                      <button
+                                        key={days}
+                                        type="button"
+                                        onClick={() => setFormData(prev => ({ ...prev, endDate: addDays(prev.startDate, days) || prev.endDate }))}
+                                        className="px-2 py-1 text-[10px] rounded border border-zinc-700 bg-zinc-900 text-zinc-300 hover:text-white"
+                                      >
+                                        +{days}d
+                                      </button>
+                                    ))}
+                                </div>
                             </div>
                         )}
                     </div>

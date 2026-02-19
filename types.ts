@@ -39,6 +39,10 @@ export interface TodoItem {
   dueDate?: string;
   description?: string;
   subTasks?: SubTask[];
+  assignee?: string;
+  category?: string;
+  tags?: string[];
+  estimateHours?: number;
 }
 
 export interface TodoData {

@@ -446,8 +446,8 @@ const RoadmapEditor: React.FC<EditorProps> = ({ initialContent, onSave, fileName
         </div>
       </div>
 
-      <div className="flex-1 min-h-0 overflow-auto custom-scrollbar p-4">
-        <div className="min-w-[1220px] border border-zinc-800 rounded-xl overflow-hidden bg-zinc-950">
+      <div className="flex-1 min-h-0 overflow-auto custom-scrollbar px-4 pt-4 pb-0">
+        <div className="min-w-[1220px] h-full min-h-full border border-zinc-800 rounded-xl overflow-hidden bg-zinc-950">
           <div className="grid grid-cols-[minmax(360px,42%)_1fr] sticky top-0 z-20 border-b border-zinc-800 bg-zinc-900 shadow-[0_6px_18px_rgba(0,0,0,0.35)]">
             <div className="border-r border-zinc-800">
               <div className="h-8 px-3 flex items-center justify-between text-[11px] uppercase tracking-wide text-zinc-500 border-b border-zinc-800">

@@ -18,6 +18,23 @@ interface FormState {
   description: string;
 }
 
+interface CalendarDayCell {
+  ts: number;
+  iso: string;
+  dayNumber: number;
+  isCurrentMonth: boolean;
+  isToday: boolean;
+}
+
+interface CalendarWeekSegment {
+  item: RoadmapItem;
+  startCol: number;
+  endCol: number;
+  lane: number;
+  isStart: boolean;
+  isEnd: boolean;
+}
+
 const STATUS_META: Record<RoadmapStatus, { label: string; badge: string }> = {
   planned: { label: 'Planned', badge: 'bg-zinc-800 text-zinc-300 border-zinc-700' },
   'in-progress': { label: 'In Progress', badge: 'bg-blue-500/15 text-blue-300 border-blue-500/40' },
@@ -268,7 +285,7 @@ const RoadmapEditor: React.FC<EditorProps> = ({ initialContent, onSave, fileName
     [calendarMonthTs]
   );
 
-  const calendarDays = useMemo(() => {
+  const calendarDays = useMemo<CalendarDayCell[]>(() => {
     const monthStart = new Date(calendarMonthTs);
     const gridStart = new Date(calendarMonthTs);
     gridStart.setDate(1 - monthStart.getDay());
@@ -291,39 +308,55 @@ const RoadmapEditor: React.FC<EditorProps> = ({ initialContent, onSave, fileName
     });
   }, [calendarMonthTs]);
 
-  const calendarRange = useMemo(() => {
-    const startTs = calendarDays[0]?.ts ?? calendarMonthTs;
-    const endTs = calendarDays[calendarDays.length - 1]?.ts ?? calendarMonthTs;
-    return { startTs, endTs };
-  }, [calendarDays, calendarMonthTs]);
+  const calendarWeeks = useMemo(() => {
+    return Array.from({ length: 6 }, (_, weekIndex) => {
+      const days = calendarDays.slice(weekIndex * 7, weekIndex * 7 + 7);
+      const weekStartTs = days[0]?.ts ?? calendarMonthTs;
+      const weekEndTs = days[6]?.ts ?? weekStartTs;
 
-  const calendarItemsByDay = useMemo(() => {
-    const map = new Map<string, RoadmapItem[]>();
-    for (const day of calendarDays) map.set(day.iso, []);
+      const rawSegments: Array<Omit<CalendarWeekSegment, 'lane'>> = [];
+      for (const item of visibleItems) {
+        const itemStart = dateToTs(item.startDate);
+        const itemEnd = item.type === 'milestone' ? itemStart : dateToTs(item.endDate);
+        if (itemEnd < weekStartTs || itemStart > weekEndTs) continue;
 
-    for (const item of visibleItems) {
-      const itemStart = dateToTs(item.startDate);
-      const itemEnd = item.type === 'milestone' ? itemStart : dateToTs(item.endDate);
-      if (itemEnd < calendarRange.startTs || itemStart > calendarRange.endTs) continue;
+        const segmentStart = Math.max(itemStart, weekStartTs);
+        const segmentEnd = Math.min(itemEnd, weekEndTs);
+        const startCol = Math.max(1, Math.min(7, Math.floor((segmentStart - weekStartTs) / DAY_MS) + 1));
+        const endCol = Math.max(startCol, Math.min(7, Math.floor((segmentEnd - weekStartTs) / DAY_MS) + 1));
 
-      const cursor = new Date(Math.max(itemStart, calendarRange.startTs));
-      cursor.setHours(0, 0, 0, 0);
-      const end = new Date(Math.min(itemEnd, calendarRange.endTs));
-      end.setHours(0, 0, 0, 0);
-
-      while (cursor.getTime() <= end.getTime()) {
-        const iso = tsToLocalIso(cursor.getTime());
-        const list = map.get(iso);
-        if (list) list.push(item);
-        cursor.setDate(cursor.getDate() + 1);
+        rawSegments.push({
+          item,
+          startCol,
+          endCol,
+          isStart: itemStart >= weekStartTs,
+          isEnd: itemEnd <= weekEndTs
+        });
       }
-    }
 
-    for (const list of map.values()) {
-      list.sort((a, b) => dateToTs(a.startDate) - dateToTs(b.startDate) || a.title.localeCompare(b.title));
-    }
-    return map;
-  }, [calendarDays, visibleItems, calendarRange]);
+      rawSegments.sort((a, b) => {
+        if (a.startCol !== b.startCol) return a.startCol - b.startCol;
+        const aSpan = a.endCol - a.startCol;
+        const bSpan = b.endCol - b.startCol;
+        if (aSpan !== bSpan) return bSpan - aSpan;
+        return a.item.title.localeCompare(b.item.title);
+      });
+
+      const laneEnds: number[] = [];
+      const segments: CalendarWeekSegment[] = rawSegments.map(segment => {
+        let lane = 0;
+        while (lane < laneEnds.length && segment.startCol <= laneEnds[lane]) lane++;
+        laneEnds[lane] = segment.endCol;
+        return { ...segment, lane };
+      });
+
+      return {
+        days,
+        segments,
+        laneCount: laneEnds.length
+      };
+    });
+  }, [calendarDays, visibleItems, calendarMonthTs]);
 
   const shiftCalendarMonth = (delta: number) => {
     setCalendarMonthTs(prev => {
@@ -538,55 +571,67 @@ const RoadmapEditor: React.FC<EditorProps> = ({ initialContent, onSave, fileName
             </div>
 
             <div className="flex-1 min-h-0 p-2">
-              <div className="h-full min-h-[580px] border border-zinc-800 rounded-lg overflow-hidden grid grid-cols-7 grid-rows-6">
-                {calendarDays.map(day => {
-                  const dayItems = calendarItemsByDay.get(day.iso) || [];
-                  const previewItems = dayItems.slice(0, 3);
-                  const overflowCount = Math.max(0, dayItems.length - previewItems.length);
+              <div className="h-full min-h-[580px] border border-zinc-800 rounded-lg overflow-auto custom-scrollbar">
+                {calendarWeeks.map((week, weekIndex) => {
+                  const laneHeight = 24;
+                  const laneOffset = 24;
+                  const weekHeight = Math.max(92, laneOffset + Math.max(1, week.laneCount) * laneHeight + 8);
 
                   return (
-                    <div
-                      key={day.iso}
-                      className={`relative border-r border-b border-zinc-800 last:border-r-0 p-1.5 ${day.isCurrentMonth ? 'bg-zinc-950' : 'bg-zinc-900/55'} ${day.isToday ? 'ring-1 ring-inset ring-cyan-500/50' : ''}`}
-                    >
-                      <div className={`text-[11px] font-medium mb-1 ${day.isToday ? 'text-cyan-300' : day.isCurrentMonth ? 'text-zinc-300' : 'text-zinc-600'}`}>
-                        {day.dayNumber}
+                    <div key={`week-${weekIndex}`} className="relative border-b border-zinc-800 last:border-b-0" style={{ height: `${weekHeight}px` }}>
+                      <div className="absolute inset-0 grid grid-cols-7">
+                        {week.days.map((day, dayIndex) => (
+                          <div
+                            key={day.iso}
+                            className={`relative p-1.5 ${dayIndex < 6 ? 'border-r border-zinc-800' : ''} ${day.isCurrentMonth ? 'bg-zinc-950' : 'bg-zinc-900/55'} ${day.isToday ? 'ring-1 ring-inset ring-cyan-500/50' : ''}`}
+                          >
+                            <div className={`text-[11px] font-medium ${day.isToday ? 'text-cyan-300' : day.isCurrentMonth ? 'text-zinc-300' : 'text-zinc-600'}`}>
+                              {day.dayNumber}
+                            </div>
+                          </div>
+                        ))}
                       </div>
 
-                      <div className="space-y-1">
-                        {previewItems.map(entry => {
-                          const colors = getItemColors(entry.id);
-                          const meta = STATUS_META[entry.status];
-                          const overview = trimOverview(entry.description || '');
-                          const isMilestone = entry.type === 'milestone' && entry.startDate === day.iso;
+                      <div className="absolute left-0 right-0 top-6 bottom-1">
+                        {week.segments.map(segment => {
+                          const { item } = segment;
+                          const colors = getItemColors(item.id);
+                          const meta = STATUS_META[item.status];
+                          const overview = trimOverview(item.description || '');
+                          const left = ((segment.startCol - 1) / 7) * 100;
+                          const width = ((segment.endCol - segment.startCol + 1) / 7) * 100;
+                          const top = segment.lane * laneHeight;
+                          const isSelected = selectedId === item.id;
 
                           return (
-                            <div key={`${day.iso}-${entry.id}`} className="group relative">
-                              <button
-                                onClick={() => {
-                                  setSelectedId(entry.id);
-                                  openEdit(entry);
-                                }}
-                                className="w-full h-5 px-1 rounded border text-left text-[10px] text-zinc-100 truncate flex items-center gap-1 hover:brightness-110"
-                                style={{ backgroundColor: colors.soft, borderColor: colors.border }}
-                                title={entry.title}
-                              >
-                                <span className="inline-block w-1.5 h-1.5 rounded-full shrink-0" style={{ backgroundColor: colors.solid }} />
-                                <span className="truncate flex-1">{entry.title}</span>
-                                {isMilestone && <span className="text-[9px] text-amber-300">M</span>}
-                              </button>
-                              <div className="absolute left-0 top-full mt-1 w-64 rounded-md border border-zinc-700 bg-black/95 px-2.5 py-2 text-left opacity-0 group-hover:opacity-100 transition-opacity pointer-events-none z-30">
-                                <p className="text-xs font-semibold text-white mb-1">{entry.title}</p>
-                                <p className="text-[11px] text-zinc-300 mb-1">{meta.label} • {entry.type === 'milestone' ? 'Milestone' : 'Phase'}</p>
-                                <p className="text-[11px] text-zinc-400 mb-1">
-                                  {formatDisplayDate(entry.startDate)} - {formatDisplayDate(entry.type === 'milestone' ? entry.startDate : entry.endDate)}
-                                </p>
-                                <p className="text-[11px] text-zinc-500 break-words">{overview}</p>
+                            <div key={`${weekIndex}-${item.id}-${segment.lane}-${segment.startCol}-${segment.endCol}`} className="absolute px-0.5" style={{ left: `${left}%`, width: `${width}%`, top: `${top}px` }}>
+                              <div className="group relative">
+                                <button
+                                  onClick={() => {
+                                    setSelectedId(item.id);
+                                    openEdit(item);
+                                  }}
+                                  className={`h-5 w-full border text-left text-[10px] text-zinc-100 px-1 flex items-center gap-1 hover:brightness-110 ${segment.isStart ? 'rounded-l-md' : 'rounded-l-sm'} ${segment.isEnd ? 'rounded-r-md' : 'rounded-r-sm'} ${isSelected ? 'ring-1 ring-cyan-400/60' : ''}`}
+                                  style={{ backgroundColor: colors.soft, borderColor: colors.border }}
+                                  title={item.title}
+                                >
+                                  {!segment.isStart && <span className="text-[9px] text-zinc-300/80">...</span>}
+                                  <span className="truncate flex-1">{item.title}</span>
+                                  {item.type === 'milestone' && <span className="text-[9px] text-amber-300">M</span>}
+                                  {!segment.isEnd && <span className="text-[9px] text-zinc-300/80">...</span>}
+                                </button>
+                                <div className="absolute left-0 top-full mt-1 w-64 rounded-md border border-zinc-700 bg-black/95 px-2.5 py-2 text-left opacity-0 group-hover:opacity-100 transition-opacity pointer-events-none z-30">
+                                  <p className="text-xs font-semibold text-white mb-1">{item.title}</p>
+                                  <p className="text-[11px] text-zinc-300 mb-1">{meta.label} • {item.type === 'milestone' ? 'Milestone' : 'Phase'}</p>
+                                  <p className="text-[11px] text-zinc-400 mb-1">
+                                    {formatDisplayDate(item.startDate)} - {formatDisplayDate(item.type === 'milestone' ? item.startDate : item.endDate)}
+                                  </p>
+                                  <p className="text-[11px] text-zinc-500 break-words">{overview}</p>
+                                </div>
                               </div>
                             </div>
                           );
                         })}
-                        {overflowCount > 0 && <div className="text-[10px] text-zinc-500 pl-0.5">+{overflowCount} more</div>}
                       </div>
                     </div>
                   );

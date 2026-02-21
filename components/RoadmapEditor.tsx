@@ -1,5 +1,5 @@
 import React, { useEffect, useMemo, useRef, useState } from 'react';
-import { AlertCircle, Calendar, Check, Filter, Flag, Loader2, Pencil, Plus, RotateCcw, Save, Search, Trash2 } from 'lucide-react';
+import { AlertCircle, Calendar, Check, ChevronLeft, ChevronRight, Filter, Flag, Loader2, Pencil, Plus, RotateCcw, Save, Search, Trash2 } from 'lucide-react';
 import { EditorProps, RoadmapItem, RoadmapItemType, RoadmapStatus } from '../types';
 
 const ROADMAP_STATUS_OPTIONS: RoadmapStatus[] = ['planned', 'in-progress', 'completed', 'delayed', 'dropped'];
@@ -33,14 +33,22 @@ const dateToTs = (date: string) => {
   return Number.isFinite(ts) ? ts : Date.now();
 };
 
-const startOfWeekTs = (ts: number) => {
+const tsToLocalIso = (ts: number) => {
   const date = new Date(ts);
-  const day = date.getDay();
-  const diffToMonday = (day + 6) % 7;
-  date.setDate(date.getDate() - diffToMonday);
+  const y = date.getFullYear();
+  const m = String(date.getMonth() + 1).padStart(2, '0');
+  const d = String(date.getDate()).padStart(2, '0');
+  return `${y}-${m}-${d}`;
+};
+
+const firstOfMonthTs = (ts: number) => {
+  const date = new Date(ts);
+  date.setDate(1);
   date.setHours(0, 0, 0, 0);
   return date.getTime();
 };
+
+const DAY_LABELS = ['Sun', 'Mon', 'Tue', 'Wed', 'Thu', 'Fri', 'Sat'];
 
 const clampProgress = (value: number) => Math.max(0, Math.min(100, Math.round(value)));
 
@@ -110,8 +118,6 @@ const trimOverview = (text: string) => {
 
 const formatDisplayDate = (date: string) => new Date(dateToTs(date)).toLocaleDateString();
 
-const clampPercent = (value: number) => Math.max(0, Math.min(100, value));
-
 const getDurationDays = (item: RoadmapItem) => {
   if (item.type === 'milestone') return 1;
   const start = dateToTs(item.startDate);
@@ -133,6 +139,7 @@ const RoadmapEditor: React.FC<EditorProps> = ({ initialContent, onSave, fileName
   const [editingId, setEditingId] = useState<string | null>(null);
   const [formData, setFormData] = useState<FormState>(defaultForm());
   const [selectedId, setSelectedId] = useState<string | null>(null);
+  const [calendarMonthTs, setCalendarMonthTs] = useState(firstOfMonthTs(Date.now()));
 
   useEffect(() => {
     const normalized = normalizeItems(initialContent);
@@ -256,80 +263,80 @@ const RoadmapEditor: React.FC<EditorProps> = ({ initialContent, onSave, fileName
     [items]
   );
 
-  const timelineRange = useMemo(() => {
-    if (visibleItems.length === 0) {
-      const start = new Date();
-      start.setDate(start.getDate() - 30);
-      const end = new Date();
-      end.setDate(end.getDate() + 150);
-      return { startTs: start.getTime(), endTs: end.getTime(), span: Math.max(1, end.getTime() - start.getTime()) };
-    }
+  const calendarMonthLabel = useMemo(
+    () => new Date(calendarMonthTs).toLocaleDateString(undefined, { month: 'long', year: 'numeric' }),
+    [calendarMonthTs]
+  );
 
-    const timestamps = visibleItems.flatMap(item => [
-      dateToTs(item.startDate),
-      dateToTs(item.type === 'milestone' ? item.startDate : item.endDate)
-    ]);
+  const calendarDays = useMemo(() => {
+    const monthStart = new Date(calendarMonthTs);
+    const gridStart = new Date(calendarMonthTs);
+    gridStart.setDate(1 - monthStart.getDay());
+    gridStart.setHours(0, 0, 0, 0);
+    const today = todayIso();
 
-    const minTs = Math.min(...timestamps);
-    const maxTs = Math.max(...timestamps);
-    const buffer = 1000 * 60 * 60 * 24 * 20;
-    const startTs = minTs - buffer;
-    const endTs = maxTs + buffer;
-    return { startTs, endTs, span: Math.max(1, endTs - startTs) };
-  }, [visibleItems]);
-
-  const monthMarkers = useMemo(() => {
-    const markers: Array<{ label: string; left: number }> = [];
-    const cursor = new Date(timelineRange.startTs);
-    cursor.setDate(1);
-    cursor.setHours(0, 0, 0, 0);
-
-    while (cursor.getTime() <= timelineRange.endTs + 1000 * 60 * 60 * 24 * 32) {
-      const left = ((cursor.getTime() - timelineRange.startTs) / timelineRange.span) * 100;
-      markers.push({
-        label: cursor.toLocaleDateString(undefined, { month: 'short', year: '2-digit' }),
-        left
-      });
-      cursor.setMonth(cursor.getMonth() + 1);
-    }
-
-    return markers;
-  }, [timelineRange]);
-
-  const weekMarkers = useMemo(() => {
-    const markers: Array<{ label: string; left: number; weekOfYear: number }> = [];
-    let cursorTs = startOfWeekTs(timelineRange.startTs);
-    while (cursorTs <= timelineRange.endTs + DAY_MS * 7) {
-      const left = ((cursorTs - timelineRange.startTs) / timelineRange.span) * 100;
-      const date = new Date(cursorTs);
-      const firstDayOfYear = new Date(date.getFullYear(), 0, 1);
-      const dayOffset = Math.floor((cursorTs - firstDayOfYear.getTime()) / DAY_MS);
-      const weekOfYear = Math.floor((dayOffset + firstDayOfYear.getDay() + 6) / 7) + 1;
-      markers.push({ label: `W${weekOfYear}`, left, weekOfYear });
-      cursorTs += DAY_MS * 7;
-    }
-    return markers;
-  }, [timelineRange]);
-
-  const weekSegments = useMemo(() => {
-    return weekMarkers.map((marker, index) => {
-      const next = weekMarkers[index + 1];
-      const start = clampPercent(marker.left);
-      const end = next ? clampPercent(next.left) : 100;
-      const width = Math.max(0, end - start);
-      return { ...marker, left: start, width };
+    return Array.from({ length: 42 }, (_, index) => {
+      const day = new Date(gridStart);
+      day.setDate(gridStart.getDate() + index);
+      day.setHours(0, 0, 0, 0);
+      const ts = day.getTime();
+      const iso = tsToLocalIso(ts);
+      return {
+        ts,
+        iso,
+        dayNumber: day.getDate(),
+        isCurrentMonth: day.getMonth() === monthStart.getMonth(),
+        isToday: iso === today
+      };
     });
-  }, [weekMarkers]);
+  }, [calendarMonthTs]);
 
-  const todayLeft = Math.min(100, Math.max(0, ((Date.now() - timelineRange.startTs) / timelineRange.span) * 100));
+  const calendarRange = useMemo(() => {
+    const startTs = calendarDays[0]?.ts ?? calendarMonthTs;
+    const endTs = calendarDays[calendarDays.length - 1]?.ts ?? calendarMonthTs;
+    return { startTs, endTs };
+  }, [calendarDays, calendarMonthTs]);
 
-  const getPosition = (item: RoadmapItem) => {
-    const start = dateToTs(item.startDate);
-    const endTsInclusive = item.type === 'milestone' ? start : dateToTs(item.endDate) + DAY_MS;
-    const left = clampPercent(((start - timelineRange.startTs) / timelineRange.span) * 100);
-    const right = clampPercent(((endTsInclusive - timelineRange.startTs) / timelineRange.span) * 100);
-    const width = item.type === 'milestone' ? 1.1 : Math.max(right - left, 1.8);
-    return { left, width };
+  const calendarItemsByDay = useMemo(() => {
+    const map = new Map<string, RoadmapItem[]>();
+    for (const day of calendarDays) map.set(day.iso, []);
+
+    for (const item of visibleItems) {
+      const itemStart = dateToTs(item.startDate);
+      const itemEnd = item.type === 'milestone' ? itemStart : dateToTs(item.endDate);
+      if (itemEnd < calendarRange.startTs || itemStart > calendarRange.endTs) continue;
+
+      const cursor = new Date(Math.max(itemStart, calendarRange.startTs));
+      cursor.setHours(0, 0, 0, 0);
+      const end = new Date(Math.min(itemEnd, calendarRange.endTs));
+      end.setHours(0, 0, 0, 0);
+
+      while (cursor.getTime() <= end.getTime()) {
+        const iso = tsToLocalIso(cursor.getTime());
+        const list = map.get(iso);
+        if (list) list.push(item);
+        cursor.setDate(cursor.getDate() + 1);
+      }
+    }
+
+    for (const list of map.values()) {
+      list.sort((a, b) => dateToTs(a.startDate) - dateToTs(b.startDate) || a.title.localeCompare(b.title));
+    }
+    return map;
+  }, [calendarDays, visibleItems, calendarRange]);
+
+  const shiftCalendarMonth = (delta: number) => {
+    setCalendarMonthTs(prev => {
+      const date = new Date(prev);
+      date.setMonth(date.getMonth() + delta);
+      date.setDate(1);
+      date.setHours(0, 0, 0, 0);
+      return date.getTime();
+    });
+  };
+
+  const jumpToCurrentMonth = () => {
+    setCalendarMonthTs(firstOfMonthTs(Date.now()));
   };
 
   const resetFilters = () => {
@@ -446,153 +453,147 @@ const RoadmapEditor: React.FC<EditorProps> = ({ initialContent, onSave, fileName
         </div>
       </div>
 
-      <div className="flex-1 min-h-0 overflow-auto custom-scrollbar px-4 pt-4 pb-0">
-        <div className="min-w-[1220px] h-full min-h-full border border-zinc-800 rounded-xl overflow-hidden bg-zinc-950">
-          <div className="grid grid-cols-[minmax(360px,42%)_1fr] sticky top-0 z-20 border-b border-zinc-800 bg-zinc-900 shadow-[0_6px_18px_rgba(0,0,0,0.35)]">
-            <div className="border-r border-zinc-800">
-              <div className="h-8 px-3 flex items-center justify-between text-[11px] uppercase tracking-wide text-zinc-500 border-b border-zinc-800">
-                <span>Roadmap Items</span>
-                <span>{visibleItems.length}</span>
-              </div>
-              <div className="px-3 py-2 text-[11px] text-zinc-500">Left list stays intact. Timeline renders on the right pane.</div>
+      <div className="flex-1 min-h-0 overflow-hidden px-4 pt-4 pb-0">
+        <div className="h-full min-h-0 min-w-[1220px] border border-zinc-800 rounded-xl overflow-hidden bg-zinc-950 grid grid-cols-[minmax(360px,40%)_1fr]">
+          <section className="min-h-0 border-r border-zinc-800 flex flex-col">
+            <div className="h-10 px-3 flex items-center justify-between text-[11px] uppercase tracking-wide text-zinc-500 border-b border-zinc-800 bg-zinc-900">
+              <span>Roadmap Items</span>
+              <span>{visibleItems.length}</span>
             </div>
 
-            <div>
-              <div className="h-8 px-3 flex items-center justify-between text-[11px] uppercase tracking-wide text-zinc-500 border-b border-zinc-800">
-                <span>Gantt Timeline</span>
-                <span>{formatDisplayDate(new Date().toISOString().split('T')[0])}</span>
-              </div>
-              <div className="relative h-9 border-b border-zinc-800 bg-zinc-900">
-                {monthMarkers.map((marker, idx) => (
+            <div className="flex-1 min-h-0 overflow-auto custom-scrollbar p-2">
+              {visibleItems.length === 0 && <div className="p-8 text-center text-sm text-zinc-500">No roadmap items match your current filters.</div>}
+
+              {visibleItems.map((item, index) => {
+                const meta = STATUS_META[item.status];
+                const colors = getItemColors(item.id);
+                const isSelected = selectedId === item.id;
+                const endDateText = item.type === 'milestone' ? item.startDate : item.endDate;
+                const duration = getDurationDays(item);
+                const shortDescription = (item.description || '').trim();
+
+                return (
                   <div
-                    key={`month-${marker.label}-${idx}`}
-                    className="absolute top-0 bottom-0 border-l border-zinc-700/70 pl-1.5 pt-1 text-[10px] text-zinc-300"
-                    style={{ left: `${clampPercent(marker.left)}%` }}
+                    key={item.id}
+                    className={`group relative rounded-lg border mb-2 ${isSelected ? 'bg-zinc-900 border-zinc-700' : index % 2 === 0 ? 'bg-zinc-950 border-zinc-800' : 'bg-zinc-900/60 border-zinc-800'}`}
                   >
-                    {marker.label}
-                  </div>
-                ))}
-              </div>
-              <div className="relative h-8 bg-zinc-900/75">
-                {weekSegments.map((segment, idx) => (
-                  <div
-                    key={`week-${segment.weekOfYear}-${idx}`}
-                    className={`absolute top-0 bottom-0 border-l border-zinc-800/90 pt-1 text-[10px] text-center ${idx % 2 === 0 ? 'bg-zinc-900/25 text-zinc-600' : 'bg-zinc-800/20 text-zinc-500'}`}
-                    style={{ left: `${segment.left}%`, width: `${segment.width}%` }}
-                  >
-                    {segment.label}
-                  </div>
-                ))}
-                <div className="absolute top-0 bottom-0 border-l border-red-500/75 pointer-events-none z-10" style={{ left: `${todayLeft}%` }} />
-                <div className="absolute right-2 top-1 rounded-sm border border-red-400/50 bg-red-500/20 px-1.5 py-0.5 text-[10px] font-medium text-red-200">Today</div>
-              </div>
-            </div>
-          </div>
-
-          {visibleItems.length === 0 && <div className="p-10 text-center text-sm text-zinc-500">No roadmap items match your current filters.</div>}
-
-          {visibleItems.map((item, index) => {
-            const meta = STATUS_META[item.status];
-            const position = getPosition(item);
-            const colors = getItemColors(item.id);
-            const isSelected = selectedId === item.id;
-            const overview = trimOverview(item.description || '');
-            const endDateText = item.type === 'milestone' ? item.startDate : item.endDate;
-            const duration = getDurationDays(item);
-            const shortDescription = (item.description || '').trim();
-
-            return (
-              <div key={item.id} className={`group grid grid-cols-[minmax(360px,42%)_1fr] border-b border-zinc-900/80 ${isSelected ? 'bg-zinc-900/65' : index % 2 === 0 ? 'bg-zinc-950' : 'bg-zinc-950/72'}`}>
-                <div className="relative border-r border-zinc-900 h-20">
-                  <button onClick={() => setSelectedId(item.id)} className="w-full h-full px-3 text-left hover:bg-zinc-900/45 transition-colors">
-                    <div className="flex items-center gap-1.5 min-w-0">
-                      {item.type === 'milestone' ? <Flag className="w-3.5 h-3.5 text-amber-400 shrink-0" /> : <Calendar className="w-3.5 h-3.5 text-cyan-400 shrink-0" />}
-                      <span className="truncate text-sm text-zinc-100">{item.title}</span>
-                      <span className={`text-[10px] px-1.5 py-0.5 rounded border shrink-0 ${meta.badge}`}>{meta.label}</span>
-                    </div>
-                    <p className="mt-1 text-[11px] text-zinc-500 truncate">
-                      {formatDisplayDate(item.startDate)} - {formatDisplayDate(endDateText)} • {duration} day{duration === 1 ? '' : 's'} • {item.progress}%
-                    </p>
-                    <p className="mt-1 text-[11px] text-zinc-600 truncate">{shortDescription || 'No description provided.'}</p>
-                  </button>
-
-                  <div className="absolute right-2 top-2 z-30 flex items-center gap-1 opacity-0 group-hover:opacity-100 transition-opacity">
-                    <button onClick={() => openEdit(item)} className="p-1.5 rounded text-zinc-300 bg-zinc-900/90 border border-zinc-700 hover:text-blue-300 hover:border-blue-500/50" title="Edit">
-                      <Pencil className="w-3.5 h-3.5" />
-                    </button>
-                    <button onClick={() => handleDelete(item.id)} className="p-1.5 rounded text-zinc-300 bg-zinc-900/90 border border-zinc-700 hover:text-red-400 hover:border-red-500/50" title="Delete">
-                      <Trash2 className="w-3.5 h-3.5" />
-                    </button>
-                  </div>
-                </div>
-
-                <div className="relative h-20 overflow-visible pr-16">
-                  {weekSegments.map((segment, idx) => (
-                    <div
-                      key={`${item.id}-grid-${segment.weekOfYear}-${idx}`}
-                      className={`absolute top-0 bottom-0 border-l border-zinc-900/80 pointer-events-none ${idx % 2 === 0 ? 'bg-zinc-900/20' : ''}`}
-                      style={{ left: `${segment.left}%`, width: `${segment.width}%` }}
-                    />
-                  ))}
-                  <div className="absolute left-0 right-0 top-1/2 -translate-y-1/2 border-t border-zinc-800/75 pointer-events-none" />
-                  <div className="absolute top-0 bottom-0 border-l border-red-500/60 pointer-events-none z-10" style={{ left: `${todayLeft}%` }} />
-
-                  {item.type === 'milestone' ? (
-                    <div className="absolute top-1/2 -translate-y-1/2 -translate-x-1/2 group z-20" style={{ left: `${position.left}%` }}>
-                      <button
-                        onClick={() => {
-                          setSelectedId(item.id);
-                          openEdit(item);
-                        }}
-                        className="block w-5 h-5 rotate-45 rounded-sm border shadow-[0_0_0_1px_rgba(0,0,0,0.45)]"
-                        style={{ backgroundColor: colors.solid, borderColor: colors.border }}
-                        title={item.title}
-                      />
-                      <div className="absolute left-1/2 top-full mt-2 -translate-x-1/2 w-64 rounded-md border border-zinc-700 bg-black/95 px-3 py-2 text-left opacity-0 group-hover:opacity-100 transition-opacity pointer-events-none z-30">
-                        <p className="text-xs font-semibold text-white mb-1">{item.title}</p>
-                        <p className="text-[11px] text-zinc-300 mb-1">{meta.label} • Milestone</p>
-                        <p className="text-[11px] text-zinc-400 mb-1">{formatDisplayDate(item.startDate)}</p>
-                        <p className="text-[11px] text-zinc-500 break-words">{overview}</p>
+                    <button
+                      onClick={() => {
+                        setSelectedId(item.id);
+                        setCalendarMonthTs(firstOfMonthTs(dateToTs(item.startDate)));
+                      }}
+                      className="w-full px-3 py-2.5 text-left hover:bg-zinc-900/60 rounded-lg transition-colors"
+                    >
+                      <div className="flex items-center gap-1.5 min-w-0">
+                        {item.type === 'milestone' ? <Flag className="w-3.5 h-3.5 text-amber-400 shrink-0" /> : <Calendar className="w-3.5 h-3.5 text-cyan-400 shrink-0" />}
+                        <span className="truncate text-sm text-zinc-100">{item.title}</span>
+                        <span className={`text-[10px] px-1.5 py-0.5 rounded border shrink-0 ${meta.badge}`}>{meta.label}</span>
                       </div>
-                    </div>
-                  ) : (
-                    <div className="absolute top-1/2 -translate-y-1/2 group z-20" style={{ left: `${position.left}%`, width: `${position.width}%`, maxWidth: 'calc(100% - 92px)' }}>
-                      <div className="absolute -left-1 top-1/2 -translate-y-1/2 h-2.5 w-2.5 rounded-full border" style={{ backgroundColor: colors.solid, borderColor: colors.border }} />
-                      <button
-                        onClick={() => {
-                          setSelectedId(item.id);
-                          openEdit(item);
-                        }}
-                        className="relative h-8 w-full rounded-md border shadow-sm hover:brightness-110 transition flex items-center px-2 overflow-hidden"
-                        style={{ backgroundColor: colors.soft, borderColor: colors.border }}
-                        title={`${item.title} (${item.progress}%)`}
-                      >
-                        <span
-                          className="absolute left-0 top-0 bottom-0"
-                          style={{
-                            width: `${item.progress}%`,
-                            backgroundColor: colors.solid,
-                            opacity: item.status === 'delayed' ? 0.75 : 0.95
-                          }}
-                        />
-                        <span className="relative text-xs text-zinc-100 truncate flex-1">{item.title}</span>
-                        <span className="relative text-[10px] text-zinc-200 ml-2 shrink-0">{item.progress}%</span>
+                      <div className="mt-1.5 flex items-center gap-2 text-[11px] text-zinc-500">
+                        <span className="inline-block w-2 h-2 rounded-full" style={{ backgroundColor: colors.solid }} />
+                        <span className="truncate">{formatDisplayDate(item.startDate)} - {formatDisplayDate(endDateText)} • {duration} day{duration === 1 ? '' : 's'} • {item.progress}%</span>
+                      </div>
+                      <p className="mt-1 text-[11px] text-zinc-600 truncate">{shortDescription || 'No description provided.'}</p>
+                    </button>
+
+                    <div className="absolute right-2 top-2 z-20 flex items-center gap-1 opacity-0 group-hover:opacity-100 transition-opacity">
+                      <button onClick={() => openEdit(item)} className="p-1.5 rounded text-zinc-300 bg-zinc-900/90 border border-zinc-700 hover:text-blue-300 hover:border-blue-500/50" title="Edit">
+                        <Pencil className="w-3.5 h-3.5" />
                       </button>
-                      <div className="absolute -right-1 top-1/2 -translate-y-1/2 h-2.5 w-2.5 rounded-full border" style={{ backgroundColor: colors.solid, borderColor: colors.border }} />
-                      <div className="absolute left-0 top-full mt-2 w-72 rounded-md border border-zinc-700 bg-black/95 px-3 py-2 text-left opacity-0 group-hover:opacity-100 transition-opacity pointer-events-none z-30">
-                        <p className="text-xs font-semibold text-white mb-1">{item.title}</p>
-                        <p className="text-[11px] text-zinc-300 mb-1">{meta.label} • Phase • {item.progress}% • {duration} days</p>
-                        <p className="text-[11px] text-zinc-400 mb-1">
-                          {formatDisplayDate(item.startDate)} - {formatDisplayDate(item.endDate)}
-                        </p>
-                        <p className="text-[11px] text-zinc-500 break-words">{overview}</p>
+                      <button onClick={() => handleDelete(item.id)} className="p-1.5 rounded text-zinc-300 bg-zinc-900/90 border border-zinc-700 hover:text-red-400 hover:border-red-500/50" title="Delete">
+                        <Trash2 className="w-3.5 h-3.5" />
+                      </button>
+                    </div>
+                  </div>
+                );
+              })}
+            </div>
+          </section>
+
+          <section className="min-h-0 flex flex-col">
+            <div className="shrink-0 border-b border-zinc-800 bg-zinc-900">
+              <div className="h-10 px-3 flex items-center justify-between border-b border-zinc-800">
+                <div className="flex items-center gap-2">
+                  <button onClick={() => shiftCalendarMonth(-1)} className="p-1.5 rounded border border-zinc-700 text-zinc-300 hover:text-white hover:bg-zinc-800" title="Previous Month">
+                    <ChevronLeft className="w-4 h-4" />
+                  </button>
+                  <button onClick={jumpToCurrentMonth} className="px-2.5 py-1.5 rounded border border-zinc-700 text-xs text-zinc-300 hover:text-white hover:bg-zinc-800">
+                    Today
+                  </button>
+                  <button onClick={() => shiftCalendarMonth(1)} className="p-1.5 rounded border border-zinc-700 text-zinc-300 hover:text-white hover:bg-zinc-800" title="Next Month">
+                    <ChevronRight className="w-4 h-4" />
+                  </button>
+                </div>
+                <div className="text-sm font-semibold text-zinc-100">{calendarMonthLabel}</div>
+                <div className="text-[11px] text-zinc-500">Single Calendar</div>
+              </div>
+
+              <div className="grid grid-cols-7">
+                {DAY_LABELS.map(label => (
+                  <div key={label} className="h-8 border-r border-zinc-800 last:border-r-0 flex items-center justify-center text-[11px] uppercase tracking-wide text-zinc-500">
+                    {label}
+                  </div>
+                ))}
+              </div>
+            </div>
+
+            <div className="flex-1 min-h-0 p-2">
+              <div className="h-full min-h-[580px] border border-zinc-800 rounded-lg overflow-hidden grid grid-cols-7 grid-rows-6">
+                {calendarDays.map(day => {
+                  const dayItems = calendarItemsByDay.get(day.iso) || [];
+                  const previewItems = dayItems.slice(0, 3);
+                  const overflowCount = Math.max(0, dayItems.length - previewItems.length);
+
+                  return (
+                    <div
+                      key={day.iso}
+                      className={`relative border-r border-b border-zinc-800 last:border-r-0 p-1.5 ${day.isCurrentMonth ? 'bg-zinc-950' : 'bg-zinc-900/55'} ${day.isToday ? 'ring-1 ring-inset ring-cyan-500/50' : ''}`}
+                    >
+                      <div className={`text-[11px] font-medium mb-1 ${day.isToday ? 'text-cyan-300' : day.isCurrentMonth ? 'text-zinc-300' : 'text-zinc-600'}`}>
+                        {day.dayNumber}
+                      </div>
+
+                      <div className="space-y-1">
+                        {previewItems.map(entry => {
+                          const colors = getItemColors(entry.id);
+                          const meta = STATUS_META[entry.status];
+                          const overview = trimOverview(entry.description || '');
+                          const isMilestone = entry.type === 'milestone' && entry.startDate === day.iso;
+
+                          return (
+                            <div key={`${day.iso}-${entry.id}`} className="group relative">
+                              <button
+                                onClick={() => {
+                                  setSelectedId(entry.id);
+                                  openEdit(entry);
+                                }}
+                                className="w-full h-5 px-1 rounded border text-left text-[10px] text-zinc-100 truncate flex items-center gap-1 hover:brightness-110"
+                                style={{ backgroundColor: colors.soft, borderColor: colors.border }}
+                                title={entry.title}
+                              >
+                                <span className="inline-block w-1.5 h-1.5 rounded-full shrink-0" style={{ backgroundColor: colors.solid }} />
+                                <span className="truncate flex-1">{entry.title}</span>
+                                {isMilestone && <span className="text-[9px] text-amber-300">M</span>}
+                              </button>
+                              <div className="absolute left-0 top-full mt-1 w-64 rounded-md border border-zinc-700 bg-black/95 px-2.5 py-2 text-left opacity-0 group-hover:opacity-100 transition-opacity pointer-events-none z-30">
+                                <p className="text-xs font-semibold text-white mb-1">{entry.title}</p>
+                                <p className="text-[11px] text-zinc-300 mb-1">{meta.label} • {entry.type === 'milestone' ? 'Milestone' : 'Phase'}</p>
+                                <p className="text-[11px] text-zinc-400 mb-1">
+                                  {formatDisplayDate(entry.startDate)} - {formatDisplayDate(entry.type === 'milestone' ? entry.startDate : entry.endDate)}
+                                </p>
+                                <p className="text-[11px] text-zinc-500 break-words">{overview}</p>
+                              </div>
+                            </div>
+                          );
+                        })}
+                        {overflowCount > 0 && <div className="text-[10px] text-zinc-500 pl-0.5">+{overflowCount} more</div>}
                       </div>
                     </div>
-                  )}
-                </div>
+                  );
+                })}
               </div>
-            );
-          })}
+            </div>
+          </section>
         </div>
       </div>
 

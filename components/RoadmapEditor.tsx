@@ -1,155 +1,333 @@
-import React, { useState, useEffect, useRef, useMemo } from 'react';
-import { Save, Plus, Trash2, Calendar, Flag, AlertCircle, Loader2, Check, TrendingUp, Link as LinkIcon, Search, Filter, RotateCcw } from 'lucide-react';
+import React, { useEffect, useMemo, useRef, useState } from 'react';
+import {
+  AlertCircle,
+  Calendar,
+  Check,
+  Clock3,
+  Filter,
+  Flag,
+  Link as LinkIcon,
+  Loader2,
+  Pencil,
+  Plus,
+  RotateCcw,
+  Save,
+  Search,
+  Trash2
+} from 'lucide-react';
 import { EditorProps, RoadmapItem, RoadmapItemType, RoadmapStatus } from '../types';
 
 const FILE_LINK_DRAG_MIME = 'application/x-gdpm-file-id';
-const ROADMAP_STATUS_OPTIONS: RoadmapStatus[] = ['planned', 'in-progress', 'completed', 'delayed', 'dropped'];
-const ROADMAP_TYPE_OPTIONS: RoadmapItemType[] = ['phase', 'milestone'];
+const STATUS_ORDER: RoadmapStatus[] = ['planned', 'in-progress', 'completed', 'delayed', 'dropped'];
+const TYPE_OPTIONS: RoadmapItemType[] = ['phase', 'milestone'];
+const VIEW_MODES = ['timeline', 'board'] as const;
 
-const RoadmapEditor: React.FC<EditorProps> = ({ initialContent, onSave, fileName, projectFiles = [], onOpenFile, activeFileId }) => {
-  const [items, setItems] = useState<RoadmapItem[]>(initialContent?.items || []);
-  
-  // Save State
-  const [saveStatus, setSaveStatus] = useState<'saved' | 'saving' | 'unsaved'>('saved');
-  const lastSavedData = useRef(JSON.stringify(initialContent?.items || []));
+type ViewMode = (typeof VIEW_MODES)[number];
+type SaveStatus = 'saved' | 'saving' | 'unsaved';
+type ScopeFilter = 'all' | 'active' | 'next90' | 'overdue' | 'completed';
+type SortBy = 'start' | 'end' | 'title' | 'progress';
 
-  // Edit State
-  const [editingId, setEditingId] = useState<string | null>(null);
-  const [isFormOpen, setIsFormOpen] = useState(false);
-  
-  // Form State
-  const [formData, setFormData] = useState<Partial<RoadmapItem>>({
+interface RoadmapFormState {
+  title: string;
+  type: RoadmapItemType;
+  status: RoadmapStatus;
+  startDate: string;
+  endDate: string;
+  progress: number;
+  description: string;
+}
+
+const STATUS_META: Record<RoadmapStatus, { label: string; chip: string; dot: string; bar: string; panel: string }> = {
+  planned: {
+    label: 'Planned',
+    chip: 'bg-zinc-800 text-zinc-300 border-zinc-700',
+    dot: 'bg-zinc-500',
+    bar: 'bg-zinc-500',
+    panel: 'border-zinc-800'
+  },
+  'in-progress': {
+    label: 'In Progress',
+    chip: 'bg-blue-500/15 text-blue-300 border-blue-500/40',
+    dot: 'bg-blue-400',
+    bar: 'bg-blue-500',
+    panel: 'border-blue-500/30'
+  },
+  completed: {
+    label: 'Completed',
+    chip: 'bg-emerald-500/15 text-emerald-300 border-emerald-500/40',
+    dot: 'bg-emerald-400',
+    bar: 'bg-emerald-500',
+    panel: 'border-emerald-500/30'
+  },
+  delayed: {
+    label: 'Delayed',
+    chip: 'bg-red-500/15 text-red-300 border-red-500/40',
+    dot: 'bg-red-400',
+    bar: 'bg-red-500',
+    panel: 'border-red-500/30'
+  },
+  dropped: {
+    label: 'Dropped',
+    chip: 'bg-zinc-700/80 text-zinc-300 border-zinc-600',
+    dot: 'bg-zinc-400',
+    bar: 'bg-zinc-600',
+    panel: 'border-zinc-700'
+  }
+};
+
+const typeLabel = (type: RoadmapItemType) => (type === 'milestone' ? 'Milestone' : 'Phase');
+const todayIso = () => new Date().toISOString().split('T')[0];
+
+const dateToTs = (date: string) => {
+  const ts = new Date(`${date}T00:00:00`).getTime();
+  return Number.isFinite(ts) ? ts : Date.now();
+};
+
+const clampProgress = (value: number) => Math.max(0, Math.min(100, Math.round(value)));
+
+const defaultForm = (type: RoadmapItemType = 'phase'): RoadmapFormState => {
+  const start = todayIso();
+  const end = new Date(Date.now() + 1000 * 60 * 60 * 24 * 14).toISOString().split('T')[0];
+  return {
     title: '',
-    startDate: new Date().toISOString().split('T')[0],
-    endDate: new Date(Date.now() + 86400000 * 7).toISOString().split('T')[0],
-    type: 'phase',
+    type,
     status: 'planned',
+    startDate: start,
+    endDate: type === 'milestone' ? start : end,
     progress: 0,
     description: ''
-  });
+  };
+};
+
+const normalizeItems = (content: any): RoadmapItem[] => {
+  const rawItems = Array.isArray(content?.items) ? content.items : [];
+  return rawItems
+    .filter((item: any) => typeof item?.title === 'string')
+    .map((item: any): RoadmapItem => {
+      const startDate = typeof item.startDate === 'string' && item.startDate ? item.startDate : todayIso();
+      const rawType = item.type === 'milestone' ? 'milestone' : 'phase';
+      const endDate =
+        rawType === 'milestone'
+          ? startDate
+          : typeof item.endDate === 'string' && item.endDate
+            ? item.endDate
+            : startDate;
+      const status: RoadmapStatus = STATUS_ORDER.includes(item.status) ? item.status : 'planned';
+      const progress = rawType === 'milestone' ? (status === 'completed' ? 100 : 0) : clampProgress(Number(item.progress) || 0);
+      return {
+        id: typeof item.id === 'string' ? item.id : crypto.randomUUID(),
+        title: item.title.trim() || 'Untitled Item',
+        startDate,
+        endDate,
+        type: rawType,
+        status,
+        progress,
+        description: typeof item.description === 'string' ? item.description : ''
+      };
+    });
+};
+
+const parseScope = (item: RoadmapItem, todayTs: number) => {
+  const startTs = dateToTs(item.startDate);
+  const endTs = dateToTs(item.type === 'milestone' ? item.startDate : item.endDate);
+  const isCompleted = item.status === 'completed';
+  const isActive = !isCompleted && item.status !== 'dropped' && startTs <= todayTs && endTs >= todayTs;
+  const isOverdue = !isCompleted && item.status !== 'dropped' && endTs < todayTs;
+  const isNext90 = startTs >= todayTs && startTs <= todayTs + 1000 * 60 * 60 * 24 * 90;
+  return { isActive, isOverdue, isNext90, isCompleted };
+};
+
+const RoadmapEditor: React.FC<EditorProps> = ({ initialContent, onSave, fileName, projectFiles = [], onOpenFile, activeFileId }) => {
+  const initialItems = useRef(normalizeItems(initialContent));
+  const [items, setItems] = useState<RoadmapItem[]>(initialItems.current);
+  const [saveStatus, setSaveStatus] = useState<SaveStatus>('saved');
+  const lastSavedData = useRef(JSON.stringify(initialItems.current));
+
+  const [viewMode, setViewMode] = useState<ViewMode>('timeline');
   const [searchQuery, setSearchQuery] = useState('');
-  const [filterStatus, setFilterStatus] = useState<'All' | RoadmapStatus>('All');
-  const [filterType, setFilterType] = useState<'All' | RoadmapItemType>('All');
+  const [statusFilter, setStatusFilter] = useState<'All' | RoadmapStatus>('All');
+  const [typeFilter, setTypeFilter] = useState<'All' | RoadmapItemType>('All');
+  const [scopeFilter, setScopeFilter] = useState<ScopeFilter>('all');
+  const [sortBy, setSortBy] = useState<SortBy>('start');
+
+  const [isModalOpen, setIsModalOpen] = useState(false);
+  const [editingId, setEditingId] = useState<string | null>(null);
+  const [formData, setFormData] = useState<RoadmapFormState>(defaultForm());
+
+  const [selectedId, setSelectedId] = useState<string | null>(null);
   const [linkPickerOpen, setLinkPickerOpen] = useState(false);
   const [linkPickerQuery, setLinkPickerQuery] = useState('');
   const linkPickerRef = useRef<HTMLDivElement | null>(null);
-  const fileLookup = useMemo(() => new Map(projectFiles.map(f => [f.id, f.name])), [projectFiles]);
+
+  const fileLookup = useMemo(() => new Map(projectFiles.map(file => [file.id, file.name])), [projectFiles]);
   const linkableFiles = useMemo(
-    () => projectFiles.filter(f => f.id !== activeFileId).sort((a, b) => a.name.localeCompare(b.name, undefined, { sensitivity: 'base' })),
+    () => projectFiles.filter(file => file.id !== activeFileId).sort((a, b) => a.name.localeCompare(b.name, undefined, { sensitivity: 'base' })),
     [projectFiles, activeFileId]
   );
+
   const filteredLinkableFiles = useMemo(() => {
     const query = linkPickerQuery.trim().toLowerCase();
     if (!query) return linkableFiles;
-    return linkableFiles.filter(file =>
-      file.name.toLowerCase().includes(query) || file.id.toLowerCase().includes(query)
-    );
-  }, [linkableFiles, linkPickerQuery]);
+    return linkableFiles.filter(file => file.name.toLowerCase().includes(query) || file.id.toLowerCase().includes(query));
+  }, [linkPickerQuery, linkableFiles]);
 
-  // Sync Content
   useEffect(() => {
-    setItems(initialContent?.items || []);
-    lastSavedData.current = JSON.stringify(initialContent?.items || []);
+    const normalized = normalizeItems(initialContent);
+    setItems(normalized);
+    lastSavedData.current = JSON.stringify(normalized);
+    setSaveStatus('saved');
+    setSelectedId(prev => (prev && normalized.some(item => item.id === prev) ? prev : normalized[0]?.id || null));
   }, [initialContent]);
 
   useEffect(() => {
-    if (linkableFiles.length > 0) return;
-    setLinkPickerOpen(false);
-    setLinkPickerQuery('');
-  }, [linkableFiles]);
+    const payload = JSON.stringify(items);
+    if (payload === lastSavedData.current) return;
+    setSaveStatus('unsaved');
+    const timer = setTimeout(() => handleManualSave(), 1200);
+    return () => clearTimeout(timer);
+  }, [items]);
 
   useEffect(() => {
-    if (!isFormOpen || !linkPickerOpen) return;
-    const handleOutsideClick = (event: MouseEvent) => {
+    const onKeyDown = (event: KeyboardEvent) => {
+      if ((event.ctrlKey || event.metaKey) && event.key.toLowerCase() === 's') {
+        event.preventDefault();
+        handleManualSave();
+      }
+    };
+    window.addEventListener('keydown', onKeyDown);
+    return () => window.removeEventListener('keydown', onKeyDown);
+  }, [items]);
+
+  useEffect(() => {
+    if (!isModalOpen || !linkPickerOpen) return;
+    const onClickOutside = (event: MouseEvent) => {
       if (!linkPickerRef.current) return;
       if (linkPickerRef.current.contains(event.target as Node)) return;
       setLinkPickerOpen(false);
       setLinkPickerQuery('');
     };
-    document.addEventListener('mousedown', handleOutsideClick);
-    return () => document.removeEventListener('mousedown', handleOutsideClick);
-  }, [isFormOpen, linkPickerOpen]);
-
-  // Autosave
-  useEffect(() => {
-    const currentData = JSON.stringify(items);
-    if (currentData === lastSavedData.current) return;
-
-    setSaveStatus('unsaved');
-    const timer = setTimeout(() => handleManualSave(), 2000);
-    return () => clearTimeout(timer);
-  }, [items]);
-
-  // Shortcuts
-  useEffect(() => {
-    const handleKeyDown = (e: KeyboardEvent) => {
-      if ((e.ctrlKey || e.metaKey) && e.key === 's') {
-        e.preventDefault();
-        handleManualSave();
-      }
-    };
-    window.addEventListener('keydown', handleKeyDown);
-    return () => window.removeEventListener('keydown', handleKeyDown);
-  }, [items]);
+    document.addEventListener('mousedown', onClickOutside);
+    return () => document.removeEventListener('mousedown', onClickOutside);
+  }, [isModalOpen, linkPickerOpen]);
 
   const handleManualSave = () => {
     setSaveStatus('saving');
     onSave({ items });
     lastSavedData.current = JSON.stringify(items);
-    setTimeout(() => setSaveStatus('saved'), 500);
+    setTimeout(() => setSaveStatus('saved'), 350);
   };
 
-  const resetRoadmapFilters = () => {
-    setSearchQuery('');
-    setFilterStatus('All');
-    setFilterType('All');
-  };
-
-  const addDays = (dateText: string | undefined, days: number) => {
-    if (!dateText) return '';
-    const date = new Date(dateText);
-    if (Number.isNaN(date.getTime())) return '';
-    date.setDate(date.getDate() + days);
-    return date.toISOString().split('T')[0];
-  };
-
-  // --- CRUD Operations ---
-
-  const handleAddNew = () => {
+  const openCreate = (type: RoadmapItemType = 'phase') => {
     setEditingId(null);
+    setFormData(defaultForm(type));
+    setLinkPickerOpen(false);
+    setLinkPickerQuery('');
+    setIsModalOpen(true);
+  };
+
+  const openEdit = (item: RoadmapItem) => {
+    setEditingId(item.id);
     setFormData({
-      title: '',
-      startDate: new Date().toISOString().split('T')[0],
-      endDate: new Date(Date.now() + 86400000 * 14).toISOString().split('T')[0],
-      type: 'phase',
-      status: 'planned',
-      progress: 0,
-      description: ''
+      title: item.title,
+      type: item.type,
+      status: item.status,
+      startDate: item.startDate,
+      endDate: item.type === 'milestone' ? item.startDate : item.endDate,
+      progress: item.progress,
+      description: item.description || ''
     });
     setLinkPickerOpen(false);
     setLinkPickerQuery('');
-    setIsFormOpen(true);
+    setIsModalOpen(true);
   };
 
-  const handleEdit = (item: RoadmapItem) => {
-    setEditingId(item.id);
-    setFormData({ ...item });
-    setLinkPickerOpen(false);
-    setLinkPickerQuery('');
-    setIsFormOpen(true);
+  const closeModal = () => {
+    setIsModalOpen(false);
+    setEditingId(null);
   };
 
   const handleDelete = (id: string) => {
-    if (confirm("Delete this roadmap item?")) {
-      setItems(items.filter(i => i.id !== id));
-      if (editingId === id) setIsFormOpen(false);
-    }
+    if (!confirm('Delete this roadmap item?')) return;
+    setItems(prev => prev.filter(item => item.id !== id));
+    setSelectedId(prev => (prev === id ? null : prev));
+    if (editingId === id) closeModal();
+  };
+
+  const upsertItem = (item: RoadmapItem) => {
+    setItems(prev => {
+      if (prev.some(existing => existing.id === item.id)) {
+        return prev.map(existing => (existing.id === item.id ? item : existing));
+      }
+      return [...prev, item];
+    });
+    setSelectedId(item.id);
+  };
+
+  const handleSubmit = (event: React.FormEvent) => {
+    event.preventDefault();
+    const safeTitle = formData.title.trim();
+    if (!safeTitle) return;
+
+    const safeStart = formData.startDate || todayIso();
+    const safeEnd = formData.type === 'milestone' ? safeStart : (formData.endDate || safeStart);
+    const adjustedEnd = dateToTs(safeEnd) < dateToTs(safeStart) ? safeStart : safeEnd;
+
+    const next: RoadmapItem = {
+      id: editingId || crypto.randomUUID(),
+      title: safeTitle,
+      type: formData.type,
+      status: formData.status,
+      startDate: safeStart,
+      endDate: formData.type === 'milestone' ? safeStart : adjustedEnd,
+      progress: formData.type === 'milestone' ? (formData.status === 'completed' ? 100 : 0) : clampProgress(formData.progress),
+      description: formData.description.trim()
+    };
+
+    upsertItem(next);
+    closeModal();
+  };
+
+  const handleDuplicate = (item: RoadmapItem) => {
+    const duplicate: RoadmapItem = {
+      ...item,
+      id: crypto.randomUUID(),
+      title: `${item.title} Copy`,
+      status: item.status === 'completed' ? 'planned' : item.status,
+      progress: item.type === 'milestone' ? 0 : Math.min(95, item.progress)
+    };
+    upsertItem(duplicate);
+  };
+
+  const setItemStatus = (id: string, status: RoadmapStatus) => {
+    setItems(prev =>
+      prev.map(item => {
+        if (item.id !== id) return item;
+        if (item.type === 'milestone') {
+          return { ...item, status, progress: status === 'completed' ? 100 : 0 };
+        }
+        return { ...item, status, progress: status === 'completed' ? 100 : item.progress };
+      })
+    );
+  };
+
+  const nudgeProgress = (id: string, delta: number) => {
+    setItems(prev =>
+      prev.map(item => {
+        if (item.id !== id || item.type !== 'phase') return item;
+        const nextProgress = clampProgress(item.progress + delta);
+        const nextStatus = nextProgress >= 100 ? 'completed' : item.status;
+        return { ...item, progress: nextProgress, status: nextStatus };
+      })
+    );
   };
 
   const appendFileLinkToDescription = (fileId: string) => {
-    const selected = projectFiles.find(f => f.id === fileId);
-    if (!selected) return;
-    setFormData(prev => ({ ...prev, description: `${prev.description || ''}${prev.description ? '\n' : ''}[${selected.name}](file://${selected.id})` }));
+    const file = projectFiles.find(entry => entry.id === fileId);
+    if (!file) return;
+    setFormData(prev => ({
+      ...prev,
+      description: `${prev.description}${prev.description ? '\n' : ''}[${file.name}](file://${file.id})`
+    }));
     setLinkPickerOpen(false);
     setLinkPickerQuery('');
   };
@@ -160,65 +338,69 @@ const RoadmapEditor: React.FC<EditorProps> = ({ initialContent, onSave, fileName
     setLinkPickerQuery('');
   };
 
-  const getDraggedProjectFile = (e: React.DragEvent): { id: string; name: string } | null => {
-    const raw = e.dataTransfer.getData(FILE_LINK_DRAG_MIME);
+  const getDraggedProjectFile = (event: React.DragEvent): { id: string; name: string } | null => {
+    const raw = event.dataTransfer.getData(FILE_LINK_DRAG_MIME);
     if (raw) {
       try {
         const parsed = JSON.parse(raw) as { id?: string; name?: string };
-        if (parsed?.id) return { id: parsed.id, name: parsed.name || projectFiles.find(f => f.id === parsed.id)?.name || 'Linked File' };
+        if (parsed?.id) return { id: parsed.id, name: parsed.name || fileLookup.get(parsed.id) || 'Linked File' };
       } catch {
-        const fallback = projectFiles.find(f => f.id === raw);
+        const fallback = projectFiles.find(file => file.id === raw);
         if (fallback) return { id: fallback.id, name: fallback.name };
       }
     }
-    const uri = e.dataTransfer.getData('text/uri-list');
+
+    const uri = event.dataTransfer.getData('text/uri-list');
     if (uri?.startsWith('file://')) {
-      const uriId = uri.replace('file://', '').trim();
-      const file = projectFiles.find(f => f.id === uriId);
+      const id = uri.replace('file://', '').trim();
+      const file = projectFiles.find(entry => entry.id === id);
       if (file) return { id: file.id, name: file.name };
     }
-    const text = e.dataTransfer.getData('text/plain');
-    const mdMatch = text.match(/\[([^\]]+)\]\(file:\/\/([^)]+)\)/);
-    if (mdMatch?.[2]) {
-      const mdFile = projectFiles.find(f => f.id === mdMatch[2]);
-      if (mdFile) return { id: mdFile.id, name: mdFile.name };
+
+    const text = event.dataTransfer.getData('text/plain');
+    const markdownMatch = text.match(/\[([^\]]+)\]\(file:\/\/([^)]+)\)/);
+    if (markdownMatch?.[2]) {
+      const file = projectFiles.find(entry => entry.id === markdownMatch[2]);
+      if (file) return { id: file.id, name: file.name };
     }
-    const file = projectFiles.find(f => f.id === text.trim());
-    if (!file) return null;
-    return { id: file.id, name: file.name };
+
+    const fallback = projectFiles.find(entry => entry.id === text.trim());
+    if (!fallback) return null;
+    return { id: fallback.id, name: fallback.name };
   };
 
-  const handleDescriptionDragOver = (e: React.DragEvent<HTMLTextAreaElement>) => {
-    if (!getDraggedProjectFile(e)) return;
-    e.preventDefault();
-    e.dataTransfer.dropEffect = 'copy';
+  const handleDescriptionDragOver = (event: React.DragEvent<HTMLTextAreaElement>) => {
+    if (!getDraggedProjectFile(event)) return;
+    event.preventDefault();
+    event.dataTransfer.dropEffect = 'copy';
   };
 
-  const handleDescriptionDrop = (e: React.DragEvent<HTMLTextAreaElement>) => {
-    const file = getDraggedProjectFile(e);
+  const handleDescriptionDrop = (event: React.DragEvent<HTMLTextAreaElement>) => {
+    const file = getDraggedProjectFile(event);
     if (!file) return;
-    e.preventDefault();
-    setFormData(prev => ({ ...prev, description: `${prev.description || ''}${prev.description ? '\n' : ''}[${file.name}](file://${file.id})` }));
+    event.preventDefault();
+    setFormData(prev => ({
+      ...prev,
+      description: `${prev.description}${prev.description ? '\n' : ''}[${file.name}](file://${file.id})`
+    }));
   };
 
   const renderTextWithFileLinks = (text: string) => {
     const nodes: React.ReactNode[] = [];
     const regex = /\[([^\]]+)\]\(file:\/\/([^)]+)\)/g;
-    let lastIdx = 0;
+    let last = 0;
     let match: RegExpExecArray | null = null;
 
     while ((match = regex.exec(text)) !== null) {
-      if (match.index > lastIdx) {
-        nodes.push(<span key={`txt-${lastIdx}`}>{text.slice(lastIdx, match.index)}</span>);
-      }
+      if (match.index > last) nodes.push(<span key={`txt-${last}`}>{text.slice(last, match.index)}</span>);
       const label = match[1];
       const fileId = match[2];
       const exists = fileLookup.has(fileId);
       nodes.push(
         <button
           key={`lnk-${fileId}-${match.index}`}
-          onClick={(e) => {
-            e.stopPropagation();
+          onClick={(event) => {
+            event.stopPropagation();
             onOpenFile?.(fileId);
           }}
           className={`underline underline-offset-2 ${exists ? 'text-cyan-400 hover:text-cyan-300' : 'text-zinc-500 line-through'}`}
@@ -227,536 +409,651 @@ const RoadmapEditor: React.FC<EditorProps> = ({ initialContent, onSave, fileName
           {label}
         </button>
       );
-      lastIdx = regex.lastIndex;
+      last = regex.lastIndex;
     }
 
-    if (lastIdx < text.length) {
-      nodes.push(<span key={`txt-end-${lastIdx}`}>{text.slice(lastIdx)}</span>);
-    }
-    return nodes.length ? nodes : text;
+    if (last < text.length) nodes.push(<span key={`txt-end-${last}`}>{text.slice(last)}</span>);
+    return nodes.length > 0 ? nodes : text;
   };
 
-  const handleSubmit = (e: React.FormEvent) => {
-    e.preventDefault();
-    const safeTitle = (formData.title || '').trim();
-    if (!safeTitle) return;
-    const safeStartDate = formData.startDate || new Date().toISOString().split('T')[0];
-    const computedEndDate = formData.type === 'milestone' ? safeStartDate : (formData.endDate || safeStartDate);
-    const safeEndDate = new Date(computedEndDate) < new Date(safeStartDate) ? safeStartDate : computedEndDate;
-
-    const newItem: RoadmapItem = {
-      id: editingId || crypto.randomUUID(),
-      title: safeTitle,
-      startDate: safeStartDate,
-      endDate: safeEndDate,
-      type: formData.type as RoadmapItemType,
-      status: formData.status as RoadmapStatus,
-      progress: Number(formData.progress) || 0,
-      description: formData.description || ''
-    };
-
-    if (editingId) {
-      setItems(items.map(i => i.id === editingId ? newItem : i));
-    } else {
-      setItems([...items, newItem]);
-    }
-
-    setIsFormOpen(false);
+  const resetFilters = () => {
+    setSearchQuery('');
+    setStatusFilter('All');
+    setTypeFilter('All');
+    setScopeFilter('all');
+    setSortBy('start');
   };
 
-  // --- Timeline Calculations ---
-  const visibleItems = [...items]
-    .filter(item => {
-      if (filterStatus !== 'All' && item.status !== filterStatus) return false;
-      if (filterType !== 'All' && item.type !== filterType) return false;
-      if (searchQuery) {
-        const q = searchQuery.toLowerCase();
+  const todayTs = useMemo(() => dateToTs(todayIso()), []);
+
+  const visibleItems = useMemo(() => {
+    let next = [...items];
+
+    next = next.filter(item => {
+      if (statusFilter !== 'All' && item.status !== statusFilter) return false;
+      if (typeFilter !== 'All' && item.type !== typeFilter) return false;
+
+      if (searchQuery.trim()) {
+        const q = searchQuery.trim().toLowerCase();
         const searchable = `${item.title} ${item.description || ''}`.toLowerCase();
         if (!searchable.includes(q)) return false;
       }
+
+      const scope = parseScope(item, todayTs);
+      if (scopeFilter === 'active' && !scope.isActive) return false;
+      if (scopeFilter === 'next90' && !scope.isNext90) return false;
+      if (scopeFilter === 'overdue' && !scope.isOverdue) return false;
+      if (scopeFilter === 'completed' && !scope.isCompleted) return false;
       return true;
-    })
-    .sort((a, b) => new Date(a.startDate).getTime() - new Date(b.startDate).getTime());
+    });
 
-  const timelineData = useMemo(() => {
-    if (visibleItems.length === 0) return { months: [], totalDays: 0, startTs: 0, endTs: 0 };
+    next.sort((a, b) => {
+      if (sortBy === 'title') return a.title.localeCompare(b.title, undefined, { sensitivity: 'base' });
+      if (sortBy === 'progress') return b.progress - a.progress;
+      if (sortBy === 'end') return dateToTs(a.type === 'milestone' ? a.startDate : a.endDate) - dateToTs(b.type === 'milestone' ? b.startDate : b.endDate);
+      return dateToTs(a.startDate) - dateToTs(b.startDate);
+    });
 
-    // Find range
-    const timestamps = visibleItems.flatMap(i => [new Date(i.startDate).getTime(), new Date(i.endDate).getTime()]);
-    let minTs = Math.min(...timestamps);
-    let maxTs = Math.max(...timestamps);
+    return next;
+  }, [items, statusFilter, typeFilter, searchQuery, scopeFilter, sortBy, todayTs]);
 
-    // Buffer (1 month before, 1 month after)
-    minTs -= 2629800000; 
-    maxTs += 2629800000;
+  const stats = useMemo(
+    () => ({
+      total: items.length,
+      active: items.filter(item => item.status === 'in-progress').length,
+      overdue: items.filter(item => parseScope(item, todayTs).isOverdue).length,
+      completed: items.filter(item => item.status === 'completed').length
+    }),
+    [items, todayTs]
+  );
 
-    const startDate = new Date(minTs);
-    const endDate = new Date(maxTs);
-    const totalDays = (maxTs - minTs) / (1000 * 60 * 60 * 24);
-
-    // Generate Month Grid
-    const months: { label: string, offset: number }[] = [];
-    let current = new Date(startDate.getFullYear(), startDate.getMonth(), 1);
-    
-    while (current.getTime() < maxTs) {
-      const offset = (current.getTime() - minTs) / (maxTs - minTs) * 100;
-      months.push({ 
-        label: current.toLocaleDateString(undefined, { month: 'short', year: '2-digit' }), 
-        offset 
-      });
-      current.setMonth(current.getMonth() + 1);
+  const timelineRange = useMemo(() => {
+    if (visibleItems.length === 0) {
+      const start = new Date();
+      start.setDate(start.getDate() - 30);
+      const end = new Date();
+      end.setDate(end.getDate() + 150);
+      return {
+        startTs: start.getTime(),
+        endTs: end.getTime(),
+        span: Math.max(1, end.getTime() - start.getTime())
+      };
     }
 
-    return { months, totalDays, startTs: minTs, endTs: maxTs };
+    const timestamps = visibleItems.flatMap(item => [
+      dateToTs(item.startDate),
+      dateToTs(item.type === 'milestone' ? item.startDate : item.endDate)
+    ]);
+    const minTs = Math.min(...timestamps);
+    const maxTs = Math.max(...timestamps);
+    const buffer = 1000 * 60 * 60 * 24 * 20;
+    const startTs = minTs - buffer;
+    const endTs = maxTs + buffer;
+    return { startTs, endTs, span: Math.max(1, endTs - startTs) };
   }, [visibleItems]);
 
-  const getPositionStyles = (start: string, end: string) => {
-    if (!timelineData.totalDays) return { left: '0%', width: '0%' };
-    
-    const s = new Date(start).getTime();
-    const e = new Date(end).getTime();
-    const totalMs = timelineData.endTs - timelineData.startTs;
-
-    const left = ((s - timelineData.startTs) / totalMs) * 100;
-    const width = Math.max(((e - s) / totalMs) * 100, 0.5); // Min width visibility
-
-    return { left: `${left}%`, width: `${width}%` };
-  };
-
-  // --- Helpers ---
-
-  const getStatusColor = (status: RoadmapStatus) => {
-    switch (status) {
-      case 'completed': return 'bg-emerald-500';
-      case 'in-progress': return 'bg-blue-500';
-      case 'delayed': return 'bg-red-500';
-      case 'dropped': return 'bg-zinc-600';
-      default: return 'bg-zinc-500'; // planned
+  const monthMarkers = useMemo(() => {
+    const markers: Array<{ label: string; left: number }> = [];
+    const cursor = new Date(timelineRange.startTs);
+    cursor.setDate(1);
+    cursor.setHours(0, 0, 0, 0);
+    while (cursor.getTime() <= timelineRange.endTs + 1000 * 60 * 60 * 24 * 32) {
+      const left = ((cursor.getTime() - timelineRange.startTs) / timelineRange.span) * 100;
+      markers.push({
+        label: cursor.toLocaleDateString(undefined, { month: 'short', year: '2-digit' }),
+        left
+      });
+      cursor.setMonth(cursor.getMonth() + 1);
     }
+    return markers;
+  }, [timelineRange]);
+
+  const todayLeft = Math.min(100, Math.max(0, ((Date.now() - timelineRange.startTs) / timelineRange.span) * 100));
+
+  const getTimelinePosition = (item: RoadmapItem) => {
+    const start = dateToTs(item.startDate);
+    const end = dateToTs(item.type === 'milestone' ? item.startDate : item.endDate);
+    const left = ((start - timelineRange.startTs) / timelineRange.span) * 100;
+    const width = item.type === 'milestone' ? 0.9 : Math.max(((end - start) / timelineRange.span) * 100, 1.5);
+    return { left, width };
   };
 
-  const getStatusBadge = (status: RoadmapStatus) => {
-    switch (status) {
-      case 'completed': return <span className="text-emerald-400 bg-emerald-400/10 px-2 py-0.5 rounded text-[10px] uppercase font-bold border border-emerald-400/20">Done</span>;
-      case 'in-progress': return <span className="text-blue-400 bg-blue-400/10 px-2 py-0.5 rounded text-[10px] uppercase font-bold border border-blue-400/20">Active</span>;
-      case 'delayed': return <span className="text-red-400 bg-red-400/10 px-2 py-0.5 rounded text-[10px] uppercase font-bold border border-red-400/20">Delayed</span>;
-      default: return <span className="text-zinc-400 bg-zinc-800 px-2 py-0.5 rounded text-[10px] uppercase font-bold border border-zinc-700">Planned</span>;
-    }
-  };
+  const selectedItem = useMemo(() => visibleItems.find(item => item.id === selectedId) || null, [visibleItems, selectedId]);
 
-  const todayLeft = timelineData.totalDays
-    ? `${Math.min(100, Math.max(0, ((Date.now() - timelineData.startTs) / (timelineData.endTs - timelineData.startTs || 1)) * 100))}%`
-    : '0%';
-  const roadmapStats = useMemo(() => ({
-    total: visibleItems.length,
-    active: visibleItems.filter(item => item.status === 'in-progress').length,
-    delayed: visibleItems.filter(item => item.status === 'delayed').length,
-    milestones: visibleItems.filter(item => item.type === 'milestone').length
-  }), [visibleItems]);
+  const boardBuckets = useMemo(() => {
+    const map: Record<RoadmapStatus, RoadmapItem[]> = {
+      planned: [],
+      'in-progress': [],
+      completed: [],
+      delayed: [],
+      dropped: []
+    };
+    for (const item of visibleItems) map[item.status].push(item);
+    return map;
+  }, [visibleItems]);
+
+  const statusStep = (status: RoadmapStatus, direction: -1 | 1) => {
+    const idx = STATUS_ORDER.indexOf(status);
+    const next = idx + direction;
+    if (next < 0 || next >= STATUS_ORDER.length) return status;
+    return STATUS_ORDER[next];
+  };
 
   return (
     <div className="h-full flex flex-col bg-zinc-900">
-      {/* Header */}
-      <div className="h-16 border-b border-zinc-800 flex items-center justify-between px-6 bg-zinc-900/50 backdrop-blur-sm sticky top-0 z-20">
-        <div className="flex items-center gap-3">
-            <h3 className="text-zinc-200 font-medium">{fileName}</h3>
-        </div>
-        <div className="flex items-center gap-3">
-             <div className="flex items-center mr-2">
-                {saveStatus === 'saving' && <span className="text-xs text-zinc-500 flex items-center gap-1"><Loader2 className="w-3 h-3 animate-spin" /> Saving...</span>}
-                {saveStatus === 'saved' && <span className="text-xs text-zinc-500 flex items-center gap-1 opacity-50"><Check className="w-3 h-3" /> Saved</span>}
-                {saveStatus === 'unsaved' && <span className="text-xs text-orange-400 flex items-center gap-1"><AlertCircle className="w-3 h-3" /> Unsaved</span>}
-            </div>
-            <button onClick={handleAddNew} className="flex items-center gap-2 bg-zinc-800 hover:bg-zinc-700 text-zinc-200 px-4 py-2 rounded-md text-sm font-medium transition-colors border border-zinc-700">
-                <Plus className="w-4 h-4" /> Add Item
-            </button>
-            <button onClick={handleManualSave} className={`flex items-center gap-2 px-4 py-2 rounded-md text-sm font-medium transition-colors shadow-lg ${saveStatus === 'unsaved' ? 'bg-emerald-600 hover:bg-emerald-700 text-white shadow-emerald-900/20' : 'bg-zinc-700 hover:bg-zinc-600 text-zinc-200'}`}>
-                <Save className="w-4 h-4" /> Save
-            </button>
-        </div>
-      </div>
-
-      <div className="px-6 py-3 border-b border-zinc-800 bg-zinc-900 flex flex-wrap items-center gap-3">
-        <div className="relative w-60">
-          <Search className="w-4 h-4 text-zinc-500 absolute left-3 top-1/2 -translate-y-1/2" />
-          <input
-            type="text"
-            value={searchQuery}
-            onChange={(e) => setSearchQuery(e.target.value)}
-            placeholder="Search roadmap items..."
-            className="w-full bg-zinc-950 border border-zinc-800 rounded-md py-1.5 pl-9 pr-3 text-sm text-zinc-200 focus:outline-none focus:border-zinc-600"
-          />
-        </div>
-        <div className="flex items-center gap-2 bg-zinc-950 border border-zinc-800 rounded-md px-2 py-1.5 text-xs text-zinc-300">
-          <Filter className="w-3.5 h-3.5 text-zinc-500" />
-          <span>Status</span>
-          <select
-            value={filterStatus}
-            onChange={(e) => setFilterStatus(e.target.value as 'All' | RoadmapStatus)}
-            className="bg-transparent focus:outline-none text-xs text-zinc-200"
-          >
-            <option value="All">All</option>
-            {ROADMAP_STATUS_OPTIONS.map(status => (
-              <option key={status} value={status}>{status}</option>
-            ))}
-          </select>
-        </div>
-        <div className="flex items-center gap-2 bg-zinc-950 border border-zinc-800 rounded-md px-2 py-1.5 text-xs text-zinc-300">
-          <span>Type</span>
-          <select
-            value={filterType}
-            onChange={(e) => setFilterType(e.target.value as 'All' | RoadmapItemType)}
-            className="bg-transparent focus:outline-none text-xs text-zinc-200"
-          >
-            <option value="All">All</option>
-            {ROADMAP_TYPE_OPTIONS.map(type => (
-              <option key={type} value={type}>{type}</option>
-            ))}
-          </select>
-        </div>
-        <button
-          onClick={resetRoadmapFilters}
-          className="px-2.5 py-1.5 rounded-md border border-zinc-800 bg-zinc-950 text-xs text-zinc-300 hover:text-white flex items-center gap-1"
-        >
-          <RotateCcw className="w-3 h-3" /> Reset
-        </button>
-        <div className="ml-auto flex items-center gap-2 text-[11px] text-zinc-500">
-          <span className="rounded border border-zinc-800 bg-zinc-950 px-2 py-1">Total {roadmapStats.total}</span>
-          <span className="rounded border border-zinc-800 bg-zinc-950 px-2 py-1">Active {roadmapStats.active}</span>
-          <span className="rounded border border-zinc-800 bg-zinc-950 px-2 py-1">Delayed {roadmapStats.delayed}</span>
-          <span className="rounded border border-zinc-800 bg-zinc-950 px-2 py-1">Milestones {roadmapStats.milestones}</span>
-        </div>
-      </div>
-
-      <div className="flex-1 flex flex-col lg:flex-row overflow-hidden">
-        
-        {/* Left Panel: List View */}
-        <div className="w-full lg:w-1/3 border-r border-zinc-800 flex flex-col bg-zinc-950/50">
-           <div className="p-4 border-b border-zinc-800 bg-zinc-950 font-semibold text-sm text-zinc-400 uppercase tracking-wider">
-              Items List
-              <span className="ml-2 text-[10px] font-normal text-zinc-500 normal-case">
-                {visibleItems.length} shown / {items.length} total
-              </span>
-           </div>
-           <div className="flex-1 overflow-y-auto custom-scrollbar p-2 space-y-2">
-              {visibleItems.length === 0 ? (
-                  <div className="text-center py-10 text-zinc-600 text-sm">
-                    {items.length === 0 ? 'No roadmap items yet.' : 'No items match the current filters.'}
-                  </div>
-              ) : (
-                  visibleItems.map(item => (
-                      <div 
-                        key={item.id} 
-                        onClick={() => handleEdit(item)}
-                        className={`p-3 rounded-lg border cursor-pointer hover:border-zinc-600 transition-all ${editingId === item.id ? 'bg-zinc-900 border-blue-500/50 shadow-md' : 'bg-zinc-900/50 border-zinc-800'}`}
-                      >
-                          <div className="flex justify-between items-start mb-2">
-                             <div className="flex items-center gap-2">
-                                {item.type === 'milestone' ? <Flag className="w-4 h-4 text-amber-500" /> : <Calendar className="w-4 h-4 text-blue-500" />}
-                                <span className="font-medium text-zinc-200 text-sm">{item.title}</span>
-                             </div>
-                             {getStatusBadge(item.status)}
-                          </div>
-                          
-                          <div className="flex justify-between items-center text-xs text-zinc-500">
-                             <span>{new Date(item.startDate).toLocaleDateString()} {item.type === 'phase' && ` - ${new Date(item.endDate).toLocaleDateString()}`}</span>
-                             {item.type === 'phase' && (
-                                <span className="flex items-center gap-1"><TrendingUp className="w-3 h-3" /> {item.progress}%</span>
-                             )}
-                          </div>
-                          
-                          {item.type === 'phase' && (
-                              <div className="w-full h-1 bg-zinc-800 rounded-full mt-2 overflow-hidden">
-                                  <div className={`h-full ${getStatusColor(item.status)}`} style={{ width: `${item.progress}%`, opacity: 0.7 }}></div>
-                              </div>
-                          )}
-                      </div>
-                  ))
+      <div className="border-b border-zinc-800 bg-zinc-900/60 backdrop-blur-sm px-6 py-3 space-y-3 shrink-0">
+        <div className="flex items-center justify-between gap-3">
+          <div className="flex items-center gap-2">
+            <Calendar className="w-4 h-4 text-cyan-400" />
+            <h3 className="text-zinc-100 font-semibold">{fileName}</h3>
+          </div>
+          <div className="flex items-center gap-2">
+            <div className="text-xs">
+              {saveStatus === 'saving' && (
+                <span className="text-zinc-400 flex items-center gap-1">
+                  <Loader2 className="w-3 h-3 animate-spin" />
+                  Saving...
+                </span>
               )}
-           </div>
+              {saveStatus === 'saved' && (
+                <span className="text-zinc-500 flex items-center gap-1">
+                  <Check className="w-3 h-3" />
+                  Saved
+                </span>
+              )}
+              {saveStatus === 'unsaved' && (
+                <span className="text-amber-400 flex items-center gap-1">
+                  <AlertCircle className="w-3 h-3" />
+                  Unsaved
+                </span>
+              )}
+            </div>
+            <button onClick={() => openCreate('phase')} className="px-3 py-2 rounded-md bg-blue-600 hover:bg-blue-700 text-white text-sm font-medium flex items-center gap-2">
+              <Plus className="w-4 h-4" />
+              New Phase
+            </button>
+            <button
+              onClick={() => openCreate('milestone')}
+              className="px-3 py-2 rounded-md bg-zinc-800 hover:bg-zinc-700 text-zinc-200 text-sm font-medium flex items-center gap-2 border border-zinc-700"
+            >
+              <Flag className="w-4 h-4" />
+              New Milestone
+            </button>
+            <button onClick={handleManualSave} className="px-3 py-2 rounded-md bg-emerald-600 hover:bg-emerald-700 text-white text-sm font-medium flex items-center gap-2">
+              <Save className="w-4 h-4" />
+              Save
+            </button>
+          </div>
         </div>
 
-        {/* Right Panel: Timeline Visualization */}
-        <div className="flex-1 flex flex-col bg-zinc-900 overflow-hidden relative">
-            {/* Timeline Header */}
-            <div className="h-10 bg-zinc-950 border-b border-zinc-800 relative overflow-hidden shrink-0 select-none">
-                {timelineData.months.map((m, idx) => (
-                    <div 
-                        key={idx} 
-                        className="absolute top-0 bottom-0 border-l border-zinc-800 text-[10px] text-zinc-500 pl-1 pt-2 truncate"
-                        style={{ left: `${m.offset}%` }}
-                    >
-                        {m.label}
-                    </div>
-                ))}
-            </div>
+        <div className="flex flex-wrap items-center gap-3">
+          <div className="relative w-64 max-w-full">
+            <Search className="w-4 h-4 text-zinc-500 absolute left-3 top-1/2 -translate-y-1/2" />
+            <input
+              type="text"
+              value={searchQuery}
+              onChange={(event) => setSearchQuery(event.target.value)}
+              placeholder="Search title or description..."
+              className="w-full bg-zinc-950 border border-zinc-800 rounded-md py-2 pl-9 pr-3 text-sm text-zinc-200 focus:outline-none focus:border-zinc-600"
+            />
+          </div>
 
-            {/* Timeline Body */}
-            <div className="flex-1 overflow-y-auto overflow-x-hidden custom-scrollbar relative p-4 bg-[url('data:image/svg+xml;base64,PHN2ZyB3aWR0aD0iNDAiIGhlaWdodD0iNDAiIHhtbG5zPSJodHRwOi8vd3d3LnczLm9yZy8yMDAwL3N2ZyI+PGNpcmNsZSBjeD0iMSIgY3k9IjEiIHI9IjEiIGZpbGw9InJnYmEoMjU1LDI1NSwyNTUsMC4wNSkiLz48L3N2Zz4=')]">
-                {/* Vertical Grid Lines */}
-                <div className="absolute inset-0 pointer-events-none z-0">
-                    {timelineData.months.map((m, idx) => (
-                        <div key={idx} className="absolute top-0 bottom-0 border-l border-zinc-800/30" style={{ left: `${m.offset}%` }}></div>
-                    ))}
-                    {/* Today Line */}
-                    <div 
-                        className="absolute top-0 bottom-0 border-l border-red-500/50 z-0"
-                        style={{ left: todayLeft }}
-                    >
-                        <div className="text-[9px] text-red-500 bg-red-500/10 px-1 ml-1 mt-1 rounded">Today</div>
-                    </div>
-                </div>
+          <div className="flex items-center gap-2 bg-zinc-950 border border-zinc-800 rounded-md px-2 py-1.5 text-xs text-zinc-300">
+            <Filter className="w-3.5 h-3.5 text-zinc-500" />
+            <span>Status</span>
+            <select
+              value={statusFilter}
+              onChange={(event) => setStatusFilter(event.target.value as 'All' | RoadmapStatus)}
+              className="bg-transparent text-xs text-zinc-200 focus:outline-none"
+            >
+              <option value="All">All</option>
+              {STATUS_ORDER.map(status => (
+                <option key={status} value={status}>
+                  {STATUS_META[status].label}
+                </option>
+              ))}
+            </select>
+          </div>
 
-                {/* Items */}
-                <div className="relative z-10 space-y-6 mt-2">
-                    {visibleItems.length === 0 && (
-                        <div className="rounded-lg border border-zinc-800 bg-zinc-950/70 p-4 text-center text-sm text-zinc-500">
-                            No timeline items for the current filters.
-                        </div>
-                    )}
-                    {visibleItems.map(item => {
-                        const style = getPositionStyles(item.startDate, item.endDate);
-                        
-                        if (item.type === 'milestone') {
-                            return (
-                                <div key={item.id} className="relative h-6 group">
-                                    <div 
-                                        className="absolute transform -translate-x-1/2 flex flex-col items-center cursor-pointer"
-                                        style={{ left: style.left }}
-                                        onClick={() => handleEdit(item)}
-                                    >
-                                        <div className={`w-3 h-3 rotate-45 border border-zinc-900 ${getStatusColor(item.status)} shadow-lg shadow-black/50 hover:scale-125 transition-transform`}></div>
-                                        <div className="w-0.5 h-full bg-zinc-700/50 absolute top-3"></div>
-                                        <span className="text-xs text-zinc-300 mt-1 whitespace-nowrap bg-zinc-950/80 px-1.5 rounded border border-zinc-800">{item.title}</span>
-                                        <span className="text-[10px] text-zinc-500 whitespace-nowrap opacity-0 group-hover:opacity-100 transition-opacity">{new Date(item.startDate).toLocaleDateString()}</span>
-                                    </div>
-                                </div>
-                            );
-                        } else {
-                            // Phase
-                            return (
-                                <div 
-                                    key={item.id} 
-                                    className="relative h-8 group cursor-pointer" 
-                                    style={{ marginLeft: style.left, width: style.width }}
-                                    onClick={() => handleEdit(item)}
-                                >
-                                    <div className={`h-full rounded-md border border-white/5 overflow-hidden relative shadow-sm hover:shadow-lg transition-shadow bg-zinc-800`}>
-                                        {/* Progress Fill */}
-                                        <div 
-                                            className={`absolute top-0 left-0 bottom-0 ${getStatusColor(item.status)} opacity-20`} 
-                                            style={{ width: '100%' }}
-                                        ></div>
-                                        <div 
-                                            className={`absolute top-0 left-0 bottom-0 ${getStatusColor(item.status)}`} 
-                                            style={{ width: `${item.progress}%` }}
-                                        ></div>
-                                        
-                                        {/* Label */}
-                                        <div className="absolute inset-0 flex items-center px-2">
-                                            <span className="text-xs font-medium text-white drop-shadow-md truncate sticky left-0">{item.title}</span>
-                                        </div>
-                                    </div>
-                                    {/* Dates Tooltip */}
-                                    <div className="absolute top-full left-0 mt-1 bg-black text-white text-[10px] px-2 py-1 rounded opacity-0 group-hover:opacity-100 transition-opacity whitespace-nowrap z-20 pointer-events-none border border-zinc-800">
-                                        {new Date(item.startDate).toLocaleDateString()} - {new Date(item.endDate).toLocaleDateString()} ({item.progress}%)
-                                    </div>
-                                </div>
-                            );
-                        }
-                    })}
-                </div>
-            </div>
+          <div className="flex items-center gap-2 bg-zinc-950 border border-zinc-800 rounded-md px-2 py-1.5 text-xs text-zinc-300">
+            <span>Type</span>
+            <select
+              value={typeFilter}
+              onChange={(event) => setTypeFilter(event.target.value as 'All' | RoadmapItemType)}
+              className="bg-transparent text-xs text-zinc-200 focus:outline-none"
+            >
+              <option value="All">All</option>
+              {TYPE_OPTIONS.map(type => (
+                <option key={type} value={type}>
+                  {typeLabel(type)}
+                </option>
+              ))}
+            </select>
+          </div>
+
+          <div className="flex items-center gap-2 bg-zinc-950 border border-zinc-800 rounded-md px-2 py-1.5 text-xs text-zinc-300">
+            <Clock3 className="w-3.5 h-3.5 text-zinc-500" />
+            <select value={scopeFilter} onChange={(event) => setScopeFilter(event.target.value as ScopeFilter)} className="bg-transparent text-xs text-zinc-200 focus:outline-none">
+              <option value="all">All Scope</option>
+              <option value="active">Active Now</option>
+              <option value="next90">Next 90 Days</option>
+              <option value="overdue">Overdue</option>
+              <option value="completed">Completed</option>
+            </select>
+          </div>
+
+          <div className="flex items-center gap-2 bg-zinc-950 border border-zinc-800 rounded-md px-2 py-1.5 text-xs text-zinc-300">
+            <span>Sort</span>
+            <select value={sortBy} onChange={(event) => setSortBy(event.target.value as SortBy)} className="bg-transparent text-xs text-zinc-200 focus:outline-none">
+              <option value="start">Start Date</option>
+              <option value="end">End Date</option>
+              <option value="title">Title</option>
+              <option value="progress">Progress</option>
+            </select>
+          </div>
+
+          <div className="inline-flex rounded-md overflow-hidden border border-zinc-700">
+            <button
+              onClick={() => setViewMode('timeline')}
+              className={`px-3 py-1.5 text-xs font-medium ${viewMode === 'timeline' ? 'bg-cyan-600 text-white' : 'bg-zinc-900 text-zinc-300 hover:text-white'}`}
+            >
+              Timeline
+            </button>
+            <button
+              onClick={() => setViewMode('board')}
+              className={`px-3 py-1.5 text-xs font-medium ${viewMode === 'board' ? 'bg-cyan-600 text-white' : 'bg-zinc-900 text-zinc-300 hover:text-white'}`}
+            >
+              Board
+            </button>
+          </div>
+
+          <button onClick={resetFilters} className="px-2.5 py-1.5 rounded-md border border-zinc-800 bg-zinc-950 text-xs text-zinc-300 hover:text-white flex items-center gap-1">
+            <RotateCcw className="w-3.5 h-3.5" />
+            Reset
+          </button>
+
+          <div className="ml-auto flex items-center gap-2 text-[11px] text-zinc-500">
+            <span className="rounded border border-zinc-800 bg-zinc-950 px-2 py-1">Total {stats.total}</span>
+            <span className="rounded border border-zinc-800 bg-zinc-950 px-2 py-1">Active {stats.active}</span>
+            <span className="rounded border border-zinc-800 bg-zinc-950 px-2 py-1">Overdue {stats.overdue}</span>
+            <span className="rounded border border-zinc-800 bg-zinc-950 px-2 py-1">Done {stats.completed}</span>
+          </div>
         </div>
       </div>
 
-      {/* Edit Modal */}
-      {isFormOpen && (
-        <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/80 backdrop-blur-sm p-4">
-            <div className="bg-zinc-900 border border-zinc-800 rounded-xl w-full max-w-md p-6 shadow-2xl">
-                <h2 className="text-xl font-bold text-white mb-6">{editingId ? 'Edit Item' : 'Add Roadmap Item'}</h2>
-                <form onSubmit={handleSubmit} className="space-y-4">
-                    <div>
-                        <label className="block text-sm text-zinc-400 mb-1">Title</label>
-                        <input 
-                            type="text" 
-                            required
-                            value={formData.title} 
-                            onChange={e => setFormData({...formData, title: e.target.value})}
-                            className="w-full bg-zinc-950 border border-zinc-800 rounded p-2 text-white focus:border-blue-500 outline-none" 
-                        />
+      <div className="flex-1 min-h-0 flex overflow-hidden">
+        <div className="flex-1 min-h-0 overflow-auto custom-scrollbar p-4">
+          {viewMode === 'timeline' ? (
+            <div className="min-w-[1050px] border border-zinc-800 rounded-xl overflow-hidden bg-zinc-950">
+              <div className="grid grid-cols-[320px_1fr] border-b border-zinc-800 bg-zinc-900 sticky top-0 z-10">
+                <div className="px-4 py-3 text-xs uppercase tracking-wide text-zinc-500">Roadmap Items</div>
+                <div className="relative px-2 py-3 min-h-[40px]">
+                  {monthMarkers.map(marker => (
+                    <div key={`${marker.label}-${marker.left}`} className="absolute top-0 bottom-0 text-[10px] text-zinc-500 border-l border-zinc-800/60 pl-1 pt-3" style={{ left: `${marker.left}%` }}>
+                      {marker.label}
                     </div>
-                    
-                    <div className="grid grid-cols-2 gap-4">
-                        <div>
-                            <label className="block text-sm text-zinc-400 mb-1">Type</label>
-                            <select 
-                                value={formData.type}
-                                onChange={e => {
-                                  const nextType = e.target.value as RoadmapItemType;
-                                  setFormData(prev => ({
-                                    ...prev,
-                                    type: nextType,
-                                    endDate: nextType === 'milestone' ? prev.startDate : prev.endDate
-                                  }));
-                                }}
-                                className="w-full bg-zinc-950 border border-zinc-800 rounded p-2 text-white focus:border-blue-500 outline-none"
-                            >
-                                {ROADMAP_TYPE_OPTIONS.map(type => (
-                                  <option key={type} value={type}>{type}</option>
-                                ))}
-                            </select>
-                        </div>
-                        <div>
-                            <label className="block text-sm text-zinc-400 mb-1">Status</label>
-                            <select 
-                                value={formData.status}
-                                onChange={e => setFormData({...formData, status: e.target.value as RoadmapStatus})}
-                                className="w-full bg-zinc-950 border border-zinc-800 rounded p-2 text-white focus:border-blue-500 outline-none"
-                            >
-                                {ROADMAP_STATUS_OPTIONS.map(status => (
-                                  <option key={status} value={status}>{status}</option>
-                                ))}
-                            </select>
-                        </div>
-                    </div>
+                  ))}
+                </div>
+              </div>
 
-                    <div className="grid grid-cols-2 gap-4">
-                        <div>
-                            <label className="block text-sm text-zinc-400 mb-1">{formData.type === 'milestone' ? 'Date' : 'Start Date'}</label>
-                            <input 
-                                type="date" 
-                                required
-                                value={formData.startDate} 
-                                onChange={e => setFormData({...formData, startDate: e.target.value})}
-                                className="w-full bg-zinc-950 border border-zinc-800 rounded p-2 text-white focus:border-blue-500 outline-none [color-scheme:dark]" 
-                            />
-                        </div>
-                        {formData.type === 'phase' && (
-                            <div>
-                                <label className="block text-sm text-zinc-400 mb-1">End Date</label>
-                                <input 
-                                    type="date" 
-                                    required
-                                    value={formData.endDate} 
-                                    onChange={e => setFormData({...formData, endDate: e.target.value})}
-                                    className="w-full bg-zinc-950 border border-zinc-800 rounded p-2 text-white focus:border-blue-500 outline-none [color-scheme:dark]" 
-                                />
-                                <div className="mt-2 flex flex-wrap gap-2">
-                                    {[7, 14, 30, 60].map(days => (
-                                      <button
-                                        key={days}
-                                        type="button"
-                                        onClick={() => setFormData(prev => ({ ...prev, endDate: addDays(prev.startDate, days) || prev.endDate }))}
-                                        className="px-2 py-1 text-[10px] rounded border border-zinc-700 bg-zinc-900 text-zinc-300 hover:text-white"
-                                      >
-                                        +{days}d
-                                      </button>
-                                    ))}
-                                </div>
-                            </div>
-                        )}
-                    </div>
+              {visibleItems.length === 0 && (
+                <div className="p-10 text-center text-sm text-zinc-500">No roadmap items match your current filters.</div>
+              )}
 
-                    {formData.type === 'phase' && (
-                        <div>
-                            <label className="block text-sm text-zinc-400 mb-1">Progress ({formData.progress}%)</label>
-                            <input 
-                                type="range" 
-                                min="0" max="100" 
-                                value={formData.progress} 
-                                onChange={e => setFormData({...formData, progress: parseInt(e.target.value)})}
-                                className="w-full accent-blue-500" 
-                            />
-                        </div>
-                    )}
-
-                    <div>
-                        <div className="flex items-center justify-between mb-1">
-                            <label className="block text-sm text-zinc-400">Description</label>
-                            <div className="relative" ref={linkPickerRef}>
-                                <button
-                                    type="button"
-                                    onClick={toggleLinkPicker}
-                                    disabled={linkableFiles.length === 0}
-                                    className="text-xs text-cyan-400 hover:text-cyan-300 disabled:text-zinc-600 disabled:cursor-not-allowed flex items-center gap-1"
-                                    title={linkableFiles.length === 0 ? 'No files available to link' : 'Insert File Link'}
-                                >
-                                    <LinkIcon className="w-3 h-3" /> Link File
-                                </button>
-                                {linkPickerOpen && (
-                                    <div className="absolute right-0 top-5 z-30 w-72 rounded-md border border-zinc-700 bg-zinc-900 p-2 shadow-lg">
-                                        <input
-                                            type="text"
-                                            value={linkPickerQuery}
-                                            onChange={(e) => setLinkPickerQuery(e.target.value)}
-                                            placeholder="Search files..."
-                                            className="mb-2 w-full rounded border border-zinc-700 bg-zinc-950 px-2 py-1.5 text-xs text-zinc-200 focus:outline-none focus:border-zinc-500"
-                                            autoFocus
-                                        />
-                                        <div className="max-h-44 overflow-y-auto space-y-1 custom-scrollbar">
-                                            {filteredLinkableFiles.length === 0 ? (
-                                                <p className="px-2 py-2 text-xs text-zinc-500">No matching files.</p>
-                                            ) : (
-                                                filteredLinkableFiles.map(file => (
-                                                    <button
-                                                        key={file.id}
-                                                        type="button"
-                                                        onClick={() => appendFileLinkToDescription(file.id)}
-                                                        className="flex w-full items-center justify-between rounded px-2 py-1.5 text-left text-xs text-zinc-300 transition hover:bg-zinc-800 hover:text-white"
-                                                        title={file.id}
-                                                    >
-                                                        <span className="truncate pr-2">{file.name}</span>
-                                                        <span className="text-[10px] text-zinc-500">{file.id.slice(0, 8)}</span>
-                                                    </button>
-                                                ))
-                                            )}
-                                        </div>
-                                    </div>
-                                )}
-                            </div>
-                        </div>
-                        <textarea 
-                            value={formData.description} 
-                            onChange={e => setFormData({...formData, description: e.target.value})}
-                            onDragOver={handleDescriptionDragOver}
-                            onDrop={handleDescriptionDrop}
-                            className="w-full bg-zinc-950 border border-zinc-800 rounded p-2 text-white focus:border-blue-500 outline-none min-h-[80px]" 
-                        />
-                        {formData.description && formData.description.includes('file://') && (
-                            <div className="mt-2 text-xs text-zinc-400 bg-zinc-950 border border-zinc-800 rounded p-2 break-words">
-                                {renderTextWithFileLinks(formData.description)}
-                            </div>
-                        )}
-                    </div>
-
-                    <div className="flex gap-3 pt-4 border-t border-zinc-800 mt-4">
-                        {editingId && (
-                            <button 
-                                type="button" 
-                                onClick={() => handleDelete(editingId)}
-                                className="px-4 py-2 bg-red-500/10 text-red-500 hover:bg-red-500/20 rounded font-medium text-sm border border-red-500/20"
-                            >
-                                Delete
-                            </button>
-                        )}
-                        <div className="flex-1"></div>
-                        <button 
-                            type="button" 
-                            onClick={() => setIsFormOpen(false)}
-                            className="px-4 py-2 text-zinc-400 hover:text-white font-medium text-sm"
-                        >
-                            Cancel
+              {visibleItems.map(item => {
+                const meta = STATUS_META[item.status];
+                const position = getTimelinePosition(item);
+                return (
+                  <div key={item.id} className="grid grid-cols-[320px_1fr] border-b border-zinc-900/80 hover:bg-zinc-900/40 transition-colors">
+                    <div className="px-4 py-3 border-r border-zinc-900">
+                      <div className="flex items-start justify-between gap-2 mb-2">
+                        <button onClick={() => setSelectedId(item.id)} className="text-left">
+                          <div className="text-sm font-medium text-zinc-200 hover:text-white">{item.title}</div>
+                          <div className="mt-1 flex items-center gap-2">
+                            <span className={`text-[10px] px-1.5 py-0.5 rounded border ${meta.chip}`}>{meta.label}</span>
+                            <span className="text-[10px] px-1.5 py-0.5 rounded border border-zinc-700 bg-zinc-900 text-zinc-400">{typeLabel(item.type)}</span>
+                          </div>
                         </button>
-                        <button 
-                            type="submit" 
-                            className="px-6 py-2 bg-blue-600 hover:bg-blue-700 text-white rounded font-medium text-sm"
-                        >
-                            {editingId ? 'Save Changes' : 'Create Item'}
-                        </button>
+                        <div className="flex items-center gap-1">
+                          <button onClick={() => openEdit(item)} className="p-1.5 rounded text-zinc-500 hover:text-blue-300 hover:bg-zinc-800" title="Edit">
+                            <Pencil className="w-3.5 h-3.5" />
+                          </button>
+                          <button onClick={() => handleDelete(item.id)} className="p-1.5 rounded text-zinc-500 hover:text-red-400 hover:bg-zinc-800" title="Delete">
+                            <Trash2 className="w-3.5 h-3.5" />
+                          </button>
+                        </div>
+                      </div>
+
+                      <div className="text-xs text-zinc-500">
+                        {new Date(item.startDate).toLocaleDateString()}
+                        {item.type === 'phase' && ` - ${new Date(item.endDate).toLocaleDateString()}`}
+                      </div>
+
+                      {item.type === 'phase' && (
+                        <div className="mt-2 flex items-center gap-2">
+                          <button onClick={() => nudgeProgress(item.id, -10)} className="px-2 py-1 text-xs rounded border border-zinc-700 bg-zinc-900 text-zinc-300 hover:text-white">
+                            -10%
+                          </button>
+                          <div className="flex-1">
+                            <div className="h-1.5 rounded-full bg-zinc-800 overflow-hidden">
+                              <div className={`h-full ${meta.bar}`} style={{ width: `${item.progress}%` }} />
+                            </div>
+                            <div className="mt-1 text-[10px] text-zinc-500">{item.progress}%</div>
+                          </div>
+                          <button onClick={() => nudgeProgress(item.id, 10)} className="px-2 py-1 text-xs rounded border border-zinc-700 bg-zinc-900 text-zinc-300 hover:text-white">
+                            +10%
+                          </button>
+                        </div>
+                      )}
                     </div>
-                </form>
+
+                    <div className="relative px-2 py-4">
+                      <div className="absolute top-0 bottom-0 border-l border-red-500/50 pointer-events-none" style={{ left: `${todayLeft}%` }} />
+                      <div className="relative h-9 rounded-md bg-zinc-900 border border-zinc-800">
+                        {item.type === 'milestone' ? (
+                          <button
+                            onClick={() => openEdit(item)}
+                            className="absolute top-1/2 -translate-y-1/2 -translate-x-1/2"
+                            style={{ left: `${position.left}%` }}
+                            title={item.title}
+                          >
+                            <span className={`block w-3.5 h-3.5 rotate-45 rounded-sm ${meta.bar} border border-zinc-900`} />
+                          </button>
+                        ) : (
+                          <button
+                            onClick={() => openEdit(item)}
+                            className={`absolute top-1/2 -translate-y-1/2 h-5 rounded ${meta.bar} bg-opacity-80 hover:bg-opacity-100 transition-opacity`}
+                            style={{ left: `${position.left}%`, width: `${position.width}%` }}
+                            title={`${item.title} (${item.progress}%)`}
+                          />
+                        )}
+                      </div>
+                    </div>
+                  </div>
+                );
+              })}
             </div>
+          ) : (
+            <div className="grid grid-cols-1 md:grid-cols-2 xl:grid-cols-5 gap-4 min-w-[950px]">
+              {STATUS_ORDER.map(status => {
+                const bucket = boardBuckets[status];
+                const meta = STATUS_META[status];
+                return (
+                  <section key={status} className={`rounded-xl border bg-zinc-950/80 ${meta.panel} min-h-[220px] flex flex-col`}>
+                    <header className="px-3 py-2 border-b border-zinc-800 flex items-center justify-between">
+                      <div className="flex items-center gap-2">
+                        <span className={`w-2 h-2 rounded-full ${meta.dot}`} />
+                        <h4 className="text-sm font-medium text-zinc-200">{meta.label}</h4>
+                      </div>
+                      <span className="text-xs text-zinc-500">{bucket.length}</span>
+                    </header>
+
+                    <div className="p-2 space-y-2 overflow-y-auto custom-scrollbar">
+                      {bucket.length === 0 && <div className="text-xs text-zinc-600 px-2 py-6 text-center">No items</div>}
+                      {bucket.map(item => (
+                        <article key={item.id} className="rounded-lg border border-zinc-800 bg-zinc-900 p-3">
+                          <div className="flex items-start justify-between gap-2">
+                            <button onClick={() => setSelectedId(item.id)} className="text-left flex-1">
+                              <h5 className="text-sm font-medium text-zinc-100">{item.title}</h5>
+                              <p className="text-[11px] text-zinc-500 mt-1">
+                                {new Date(item.startDate).toLocaleDateString()}
+                                {item.type === 'phase' && ` - ${new Date(item.endDate).toLocaleDateString()}`}
+                              </p>
+                            </button>
+                            <div className="flex gap-1">
+                              <button onClick={() => openEdit(item)} className="p-1 rounded text-zinc-500 hover:text-blue-300 hover:bg-zinc-800" title="Edit">
+                                <Pencil className="w-3.5 h-3.5" />
+                              </button>
+                              <button onClick={() => handleDelete(item.id)} className="p-1 rounded text-zinc-500 hover:text-red-400 hover:bg-zinc-800" title="Delete">
+                                <Trash2 className="w-3.5 h-3.5" />
+                              </button>
+                            </div>
+                          </div>
+
+                          {item.type === 'phase' && (
+                            <div className="mt-2">
+                              <div className="h-1.5 rounded-full bg-zinc-800 overflow-hidden">
+                                <div className={`h-full ${meta.bar}`} style={{ width: `${item.progress}%` }} />
+                              </div>
+                              <p className="text-[10px] text-zinc-500 mt-1">{item.progress}%</p>
+                            </div>
+                          )}
+
+                          <div className="mt-2 grid grid-cols-2 gap-1.5">
+                            <button
+                              onClick={() => setItemStatus(item.id, statusStep(item.status, -1))}
+                              className="px-2 py-1 text-[10px] rounded border border-zinc-700 bg-zinc-900 text-zinc-300 hover:text-white"
+                            >
+                              Prev
+                            </button>
+                            <button
+                              onClick={() => setItemStatus(item.id, statusStep(item.status, 1))}
+                              className="px-2 py-1 text-[10px] rounded border border-zinc-700 bg-zinc-900 text-zinc-300 hover:text-white"
+                            >
+                              Next
+                            </button>
+                          </div>
+                        </article>
+                      ))}
+                    </div>
+                  </section>
+                );
+              })}
+            </div>
+          )}
+        </div>
+
+        <aside className="w-80 border-l border-zinc-800 bg-zinc-950/70 p-4 overflow-y-auto custom-scrollbar">
+          <h4 className="text-sm font-semibold text-zinc-200 mb-3">Details</h4>
+          {!selectedItem ? (
+            <div className="text-sm text-zinc-500">Select an item to inspect details.</div>
+          ) : (
+            <div className="space-y-3">
+              <div>
+                <h5 className="text-lg font-semibold text-zinc-100">{selectedItem.title}</h5>
+                <div className="mt-2 flex flex-wrap gap-2">
+                  <span className={`text-[11px] px-2 py-1 rounded border ${STATUS_META[selectedItem.status].chip}`}>{STATUS_META[selectedItem.status].label}</span>
+                  <span className="text-[11px] px-2 py-1 rounded border border-zinc-700 bg-zinc-900 text-zinc-400">{typeLabel(selectedItem.type)}</span>
+                </div>
+              </div>
+
+              <div className="text-xs text-zinc-400 space-y-1">
+                <p>Start: {new Date(selectedItem.startDate).toLocaleDateString()}</p>
+                <p>End: {new Date((selectedItem.type === 'milestone' ? selectedItem.startDate : selectedItem.endDate)).toLocaleDateString()}</p>
+                {selectedItem.type === 'phase' && <p>Progress: {selectedItem.progress}%</p>}
+              </div>
+
+              {selectedItem.description ? (
+                <div className="text-xs text-zinc-300 leading-relaxed border border-zinc-800 rounded-lg bg-zinc-900 p-3 break-words">
+                  {renderTextWithFileLinks(selectedItem.description)}
+                </div>
+              ) : (
+                <div className="text-xs text-zinc-600 border border-zinc-800 rounded-lg bg-zinc-900 p-3">No description yet.</div>
+              )}
+
+              <div className="grid grid-cols-2 gap-2">
+                <button onClick={() => openEdit(selectedItem)} className="px-3 py-2 rounded-md bg-blue-600 hover:bg-blue-700 text-white text-sm font-medium">
+                  Edit
+                </button>
+                <button onClick={() => handleDuplicate(selectedItem)} className="px-3 py-2 rounded-md bg-zinc-800 hover:bg-zinc-700 text-zinc-200 text-sm font-medium border border-zinc-700">
+                  Duplicate
+                </button>
+              </div>
+            </div>
+          )}
+        </aside>
+      </div>
+
+      {isModalOpen && (
+        <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/80 backdrop-blur-sm p-4">
+          <div className="bg-zinc-900 border border-zinc-800 rounded-xl w-full max-w-2xl p-6 shadow-2xl">
+            <h2 className="text-xl font-bold text-white mb-5">{editingId ? 'Edit Roadmap Item' : 'Create Roadmap Item'}</h2>
+            <form onSubmit={handleSubmit} className="space-y-4">
+              <div>
+                <label className="block text-sm text-zinc-400 mb-1">Title</label>
+                <input
+                  autoFocus
+                  type="text"
+                  value={formData.title}
+                  onChange={(event) => setFormData(prev => ({ ...prev, title: event.target.value }))}
+                  className="w-full bg-zinc-950 border border-zinc-800 rounded p-2.5 text-white focus:border-cyan-500 outline-none"
+                  required
+                />
+              </div>
+
+              <div className="grid grid-cols-1 sm:grid-cols-3 gap-4">
+                <div>
+                  <label className="block text-sm text-zinc-400 mb-1">Type</label>
+                  <select
+                    value={formData.type}
+                    onChange={(event) => {
+                      const nextType = event.target.value as RoadmapItemType;
+                      setFormData(prev => ({
+                        ...prev,
+                        type: nextType,
+                        endDate: nextType === 'milestone' ? prev.startDate : prev.endDate
+                      }));
+                    }}
+                    className="w-full bg-zinc-950 border border-zinc-800 rounded p-2.5 text-white focus:border-cyan-500 outline-none"
+                  >
+                    {TYPE_OPTIONS.map(type => (
+                      <option key={type} value={type}>
+                        {typeLabel(type)}
+                      </option>
+                    ))}
+                  </select>
+                </div>
+                <div>
+                  <label className="block text-sm text-zinc-400 mb-1">Status</label>
+                  <select
+                    value={formData.status}
+                    onChange={(event) => setFormData(prev => ({ ...prev, status: event.target.value as RoadmapStatus }))}
+                    className="w-full bg-zinc-950 border border-zinc-800 rounded p-2.5 text-white focus:border-cyan-500 outline-none"
+                  >
+                    {STATUS_ORDER.map(status => (
+                      <option key={status} value={status}>
+                        {STATUS_META[status].label}
+                      </option>
+                    ))}
+                  </select>
+                </div>
+                <div>
+                  <label className="block text-sm text-zinc-400 mb-1">Progress ({formData.progress}%)</label>
+                  <input
+                    type="range"
+                    min={0}
+                    max={100}
+                    step={5}
+                    value={formData.type === 'milestone' ? (formData.status === 'completed' ? 100 : 0) : formData.progress}
+                    onChange={(event) => setFormData(prev => ({ ...prev, progress: clampProgress(Number(event.target.value)) }))}
+                    disabled={formData.type === 'milestone'}
+                    className="w-full accent-cyan-500 disabled:opacity-40"
+                  />
+                </div>
+              </div>
+
+              <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
+                <div>
+                  <label className="block text-sm text-zinc-400 mb-1">{formData.type === 'milestone' ? 'Date' : 'Start Date'}</label>
+                  <input
+                    type="date"
+                    value={formData.startDate}
+                    onChange={(event) =>
+                      setFormData(prev => ({
+                        ...prev,
+                        startDate: event.target.value,
+                        endDate: prev.type === 'milestone' ? event.target.value : prev.endDate
+                      }))
+                    }
+                    className="w-full bg-zinc-950 border border-zinc-800 rounded p-2.5 text-white focus:border-cyan-500 outline-none [color-scheme:dark]"
+                    required
+                  />
+                </div>
+                {formData.type === 'phase' && (
+                  <div>
+                    <label className="block text-sm text-zinc-400 mb-1">End Date</label>
+                    <input
+                      type="date"
+                      value={formData.endDate}
+                      onChange={(event) => setFormData(prev => ({ ...prev, endDate: event.target.value }))}
+                      className="w-full bg-zinc-950 border border-zinc-800 rounded p-2.5 text-white focus:border-cyan-500 outline-none [color-scheme:dark]"
+                      required
+                    />
+                  </div>
+                )}
+              </div>
+
+              <div>
+                <div className="flex items-center justify-between mb-1">
+                  <label className="block text-sm text-zinc-400">Description</label>
+                  <div className="relative" ref={linkPickerRef}>
+                    <button
+                      type="button"
+                      onClick={toggleLinkPicker}
+                      disabled={linkableFiles.length === 0}
+                      className="text-xs text-cyan-400 hover:text-cyan-300 disabled:text-zinc-600 disabled:cursor-not-allowed flex items-center gap-1"
+                    >
+                      <LinkIcon className="w-3 h-3" />
+                      Link File
+                    </button>
+                    {linkPickerOpen && (
+                      <div className="absolute right-0 top-5 z-30 w-72 rounded-md border border-zinc-700 bg-zinc-900 p-2 shadow-lg">
+                        <input
+                          type="text"
+                          value={linkPickerQuery}
+                          onChange={(event) => setLinkPickerQuery(event.target.value)}
+                          placeholder="Search files..."
+                          className="mb-2 w-full rounded border border-zinc-700 bg-zinc-950 px-2 py-1.5 text-xs text-zinc-200 focus:outline-none focus:border-zinc-500"
+                          autoFocus
+                        />
+                        <div className="max-h-44 overflow-y-auto space-y-1 custom-scrollbar">
+                          {filteredLinkableFiles.length === 0 ? (
+                            <p className="px-2 py-2 text-xs text-zinc-500">No matching files.</p>
+                          ) : (
+                            filteredLinkableFiles.map(file => (
+                              <button
+                                key={file.id}
+                                type="button"
+                                onClick={() => appendFileLinkToDescription(file.id)}
+                                className="flex w-full items-center justify-between rounded px-2 py-1.5 text-left text-xs text-zinc-300 transition hover:bg-zinc-800 hover:text-white"
+                                title={file.id}
+                              >
+                                <span className="truncate pr-2">{file.name}</span>
+                                <span className="text-[10px] text-zinc-500">{file.id.slice(0, 8)}</span>
+                              </button>
+                            ))
+                          )}
+                        </div>
+                      </div>
+                    )}
+                  </div>
+                </div>
+                <textarea
+                  value={formData.description}
+                  onChange={(event) => setFormData(prev => ({ ...prev, description: event.target.value }))}
+                  onDragOver={handleDescriptionDragOver}
+                  onDrop={handleDescriptionDrop}
+                  className="w-full bg-zinc-950 border border-zinc-800 rounded p-2.5 text-white focus:border-cyan-500 outline-none min-h-[110px]"
+                  placeholder="Context, risks, dependencies, linked docs..."
+                />
+              </div>
+
+              <div className="flex items-center gap-3 pt-3 border-t border-zinc-800">
+                {editingId && (
+                  <button type="button" onClick={() => handleDelete(editingId)} className="px-4 py-2 rounded-md border border-red-500/40 bg-red-500/10 text-red-300 text-sm font-medium">
+                    Delete
+                  </button>
+                )}
+                <div className="flex-1" />
+                <button type="button" onClick={closeModal} className="px-4 py-2 text-sm font-medium text-zinc-400 hover:text-white">
+                  Cancel
+                </button>
+                <button type="submit" className="px-5 py-2 rounded-md bg-cyan-600 hover:bg-cyan-700 text-white text-sm font-medium">
+                  {editingId ? 'Save Changes' : 'Create Item'}
+                </button>
+              </div>
+            </form>
+          </div>
         </div>
       )}
     </div>

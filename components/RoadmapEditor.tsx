@@ -108,6 +108,10 @@ const trimOverview = (text: string) => {
   return safe.length > 180 ? `${safe.slice(0, 180)}...` : safe;
 };
 
+const formatDisplayDate = (date: string) => new Date(dateToTs(date)).toLocaleDateString();
+
+const clampPercent = (value: number) => Math.max(0, Math.min(100, value));
+
 const getDurationDays = (item: RoadmapItem) => {
   if (item.type === 'milestone') return 1;
   const start = dateToTs(item.startDate);
@@ -310,8 +314,10 @@ const RoadmapEditor: React.FC<EditorProps> = ({ initialContent, onSave, fileName
   const weekSegments = useMemo(() => {
     return weekMarkers.map((marker, index) => {
       const next = weekMarkers[index + 1];
-      const width = next ? Math.max(0, next.left - marker.left) : Math.max(0, 100 - marker.left);
-      return { ...marker, width };
+      const start = clampPercent(marker.left);
+      const end = next ? clampPercent(next.left) : 100;
+      const width = Math.max(0, end - start);
+      return { ...marker, left: start, width };
     });
   }, [weekMarkers]);
 
@@ -319,9 +325,10 @@ const RoadmapEditor: React.FC<EditorProps> = ({ initialContent, onSave, fileName
 
   const getPosition = (item: RoadmapItem) => {
     const start = dateToTs(item.startDate);
-    const end = dateToTs(item.type === 'milestone' ? item.startDate : item.endDate);
-    const left = ((start - timelineRange.startTs) / timelineRange.span) * 100;
-    const width = item.type === 'milestone' ? 0.9 : Math.max(((end - start) / timelineRange.span) * 100, 1.6);
+    const endTsInclusive = item.type === 'milestone' ? start : dateToTs(item.endDate) + DAY_MS;
+    const left = clampPercent(((start - timelineRange.startTs) / timelineRange.span) * 100);
+    const right = clampPercent(((endTsInclusive - timelineRange.startTs) / timelineRange.span) * 100);
+    const width = item.type === 'milestone' ? 1.1 : Math.max(right - left, 1.8);
     return { left, width };
   };
 
@@ -440,48 +447,35 @@ const RoadmapEditor: React.FC<EditorProps> = ({ initialContent, onSave, fileName
       </div>
 
       <div className="flex-1 min-h-0 overflow-auto custom-scrollbar p-4">
-        <div className="min-w-[1440px] border border-zinc-800 rounded-xl overflow-hidden bg-zinc-950">
-          <div className="grid grid-cols-[430px_1fr] sticky top-0 z-20 border-b border-zinc-800 bg-zinc-900 shadow-[0_6px_18px_rgba(0,0,0,0.35)]">
-            <div className="sticky left-0 z-30 border-r border-zinc-800 bg-gradient-to-b from-zinc-900 to-zinc-950">
-              <div className="h-9 px-3 flex items-center justify-between text-[11px] uppercase tracking-wide text-zinc-500 border-b border-zinc-800">
-                <span>Gantt Tasks</span>
-                <span className="text-zinc-600">{visibleItems.length}</span>
-              </div>
-              <div className="h-9 grid grid-cols-[34px_1fr_74px_74px_64px_46px] items-center px-3 gap-2 text-[10px] uppercase tracking-wide text-zinc-600">
-                <span className="text-center">#</span>
-                <span>Item</span>
-                <span className="text-center">Start</span>
-                <span className="text-center">End</span>
-                <span className="text-center">Days</span>
-                <span className="text-center">%</span>
-              </div>
+        <div className="min-w-[1100px] border border-zinc-800 rounded-xl overflow-hidden bg-zinc-950">
+          <div className="sticky top-0 z-20 border-b border-zinc-800 bg-zinc-900 shadow-[0_6px_18px_rgba(0,0,0,0.35)]">
+            <div className="h-8 px-3 flex items-center justify-between text-[11px] uppercase tracking-wide text-zinc-500 border-b border-zinc-800">
+              <span>Gantt Timeline</span>
+              <span>{visibleItems.length} items</span>
             </div>
-
-            <div className="relative">
-              <div className="absolute right-2 top-1 z-20 rounded-sm border border-red-400/50 bg-red-500/20 px-1.5 py-0.5 text-[10px] font-medium text-red-200">Today</div>
-              <div className="relative h-9 border-b border-zinc-800 bg-zinc-900">
-                {monthMarkers.map(marker => (
-                  <div
-                    key={`month-${marker.label}-${marker.left}`}
-                    className="absolute top-0 bottom-0 border-l border-zinc-700/70 pl-1.5 pt-1 text-[10px] text-zinc-300"
-                    style={{ left: `${marker.left}%` }}
-                  >
-                    {marker.label}
-                  </div>
-                ))}
-              </div>
-              <div className="relative h-9 bg-zinc-900/70">
-                {weekSegments.map((segment, idx) => (
-                  <div
-                    key={`week-${segment.weekOfYear}-${idx}`}
-                    className={`absolute top-0 bottom-0 border-l border-zinc-800/90 pt-1 text-[10px] text-center ${idx % 2 === 0 ? 'bg-zinc-900/25 text-zinc-600' : 'bg-zinc-800/20 text-zinc-500'}`}
-                    style={{ left: `${segment.left}%`, width: `${segment.width}%` }}
-                  >
-                    {segment.label}
-                  </div>
-                ))}
-                <div className="absolute top-0 bottom-0 border-l border-red-500/70 pointer-events-none" style={{ left: `${todayLeft}%` }} />
-              </div>
+            <div className="relative h-9 border-b border-zinc-800 bg-zinc-900">
+              {monthMarkers.map((marker, idx) => (
+                <div
+                  key={`month-${marker.label}-${idx}`}
+                  className="absolute top-0 bottom-0 border-l border-zinc-700/70 pl-1.5 pt-1 text-[10px] text-zinc-300"
+                  style={{ left: `${clampPercent(marker.left)}%` }}
+                >
+                  {marker.label}
+                </div>
+              ))}
+            </div>
+            <div className="relative h-8 bg-zinc-900/75">
+              {weekSegments.map((segment, idx) => (
+                <div
+                  key={`week-${segment.weekOfYear}-${idx}`}
+                  className={`absolute top-0 bottom-0 border-l border-zinc-800/90 pt-1 text-[10px] text-center ${idx % 2 === 0 ? 'bg-zinc-900/25 text-zinc-600' : 'bg-zinc-800/20 text-zinc-500'}`}
+                  style={{ left: `${segment.left}%`, width: `${segment.width}%` }}
+                >
+                  {segment.label}
+                </div>
+              ))}
+              <div className="absolute top-0 bottom-0 border-l border-red-500/75 pointer-events-none z-10" style={{ left: `${todayLeft}%` }} />
+              <div className="absolute right-2 top-1 rounded-sm border border-red-400/50 bg-red-500/20 px-1.5 py-0.5 text-[10px] font-medium text-red-200">Today</div>
             </div>
           </div>
 
@@ -497,99 +491,91 @@ const RoadmapEditor: React.FC<EditorProps> = ({ initialContent, onSave, fileName
             const duration = getDurationDays(item);
 
             return (
-              <div key={item.id} className={`group grid grid-cols-[430px_1fr] border-b border-zinc-900/80 ${isSelected ? 'bg-zinc-900/70' : index % 2 === 0 ? 'bg-zinc-950' : 'bg-zinc-950/70'}`}>
-                <div className={`sticky left-0 z-10 border-r border-zinc-900 px-3 h-16 grid grid-cols-[34px_1fr_74px_74px_64px_46px] items-center gap-2 ${isSelected ? 'bg-zinc-900/90' : index % 2 === 0 ? 'bg-zinc-950' : 'bg-zinc-950/88'}`}>
-                  <span className="text-[11px] text-zinc-600 text-center">{index + 1}</span>
-                  <div className="min-w-0">
-                    <div className="flex items-center gap-1.5">
-                      {item.type === 'milestone' ? <Flag className="w-3.5 h-3.5 text-amber-400" /> : <Calendar className="w-3.5 h-3.5 text-cyan-400" />}
-                      <button onClick={() => setSelectedId(item.id)} className="truncate text-left text-sm text-zinc-100 hover:text-white">
-                        {item.title}
-                      </button>
-                    </div>
-                    <div className="mt-0.5">
-                      <span className={`text-[10px] px-1.5 py-0.5 rounded border ${meta.badge}`}>{meta.label}</span>
-                    </div>
+              <div key={item.id} className={`group relative h-20 border-b border-zinc-900/80 ${isSelected ? 'bg-zinc-900/65' : index % 2 === 0 ? 'bg-zinc-950' : 'bg-zinc-950/72'}`}>
+                {weekSegments.map((segment, idx) => (
+                  <div
+                    key={`${item.id}-grid-${segment.weekOfYear}-${idx}`}
+                    className={`absolute top-0 bottom-0 border-l border-zinc-900/80 pointer-events-none ${idx % 2 === 0 ? 'bg-zinc-900/20' : ''}`}
+                    style={{ left: `${segment.left}%`, width: `${segment.width}%` }}
+                  />
+                ))}
+                <div className="absolute left-0 right-0 top-1/2 -translate-y-1/2 border-t border-zinc-800/75 pointer-events-none" />
+                <div className="absolute top-0 bottom-0 border-l border-red-500/60 pointer-events-none z-10" style={{ left: `${todayLeft}%` }} />
+
+                <div className="absolute left-3 top-2 z-20 max-w-[56%]">
+                  <div className="flex items-center gap-1.5 min-w-0">
+                    {item.type === 'milestone' ? <Flag className="w-3.5 h-3.5 text-amber-400 shrink-0" /> : <Calendar className="w-3.5 h-3.5 text-cyan-400 shrink-0" />}
+                    <button onClick={() => setSelectedId(item.id)} className="truncate text-left text-sm text-zinc-100 hover:text-white">
+                      {item.title}
+                    </button>
+                    <span className={`text-[10px] px-1.5 py-0.5 rounded border shrink-0 ${meta.badge}`}>{meta.label}</span>
                   </div>
-                  <span className="text-[11px] text-zinc-400 text-center">{new Date(item.startDate).toLocaleDateString()}</span>
-                  <span className="text-[11px] text-zinc-400 text-center">{new Date(endDateText).toLocaleDateString()}</span>
-                  <span className="text-[11px] text-zinc-500 text-center">{duration}</span>
-                  <span className="text-[11px] text-zinc-400 text-center">{item.progress}</span>
+                  <p className="mt-1 text-[11px] text-zinc-500 truncate">
+                    {formatDisplayDate(item.startDate)} - {formatDisplayDate(endDateText)} • {duration} day{duration === 1 ? '' : 's'} • {item.progress}%
+                  </p>
                 </div>
 
-                <div className="relative h-16 overflow-visible pr-16">
-                  {weekSegments.map((segment, idx) => (
-                    <div
-                      key={`${item.id}-grid-${segment.weekOfYear}-${idx}`}
-                      className={`absolute top-0 bottom-0 border-l border-zinc-900/80 pointer-events-none ${idx % 2 === 0 ? 'bg-zinc-900/25' : ''}`}
-                      style={{ left: `${segment.left}%`, width: `${segment.width}%` }}
+                <div className="absolute right-2 top-2 z-30 flex items-center gap-1 opacity-0 group-hover:opacity-100 transition-opacity">
+                  <button onClick={() => openEdit(item)} className="p-1.5 rounded text-zinc-300 bg-zinc-900/90 border border-zinc-700 hover:text-blue-300 hover:border-blue-500/50" title="Edit">
+                    <Pencil className="w-3.5 h-3.5" />
+                  </button>
+                  <button onClick={() => handleDelete(item.id)} className="p-1.5 rounded text-zinc-300 bg-zinc-900/90 border border-zinc-700 hover:text-red-400 hover:border-red-500/50" title="Delete">
+                    <Trash2 className="w-3.5 h-3.5" />
+                  </button>
+                </div>
+
+                {item.type === 'milestone' ? (
+                  <div className="absolute top-1/2 -translate-y-1/2 -translate-x-1/2 group z-20" style={{ left: `${position.left}%` }}>
+                    <button
+                      onClick={() => {
+                        setSelectedId(item.id);
+                        openEdit(item);
+                      }}
+                      className="block w-5 h-5 rotate-45 rounded-sm border shadow-[0_0_0_1px_rgba(0,0,0,0.45)]"
+                      style={{ backgroundColor: colors.solid, borderColor: colors.border }}
+                      title={item.title}
                     />
-                  ))}
-                  <div className="absolute left-0 right-0 top-1/2 -translate-y-1/2 border-t border-zinc-800/70 pointer-events-none" />
-                  <div className="absolute top-0 bottom-0 border-l border-red-500/60 pointer-events-none" style={{ left: `${todayLeft}%` }} />
-
-                  <div className="absolute right-2 top-1/2 -translate-y-1/2 z-30 flex items-center gap-1 opacity-0 group-hover:opacity-100 transition-opacity">
-                    <button onClick={() => openEdit(item)} className="p-1.5 rounded text-zinc-300 bg-zinc-900/90 border border-zinc-700 hover:text-blue-300 hover:border-blue-500/50" title="Edit">
-                      <Pencil className="w-3.5 h-3.5" />
-                    </button>
-                    <button onClick={() => handleDelete(item.id)} className="p-1.5 rounded text-zinc-300 bg-zinc-900/90 border border-zinc-700 hover:text-red-400 hover:border-red-500/50" title="Delete">
-                      <Trash2 className="w-3.5 h-3.5" />
-                    </button>
+                    <div className="absolute left-1/2 top-full mt-2 -translate-x-1/2 w-64 rounded-md border border-zinc-700 bg-black/95 px-3 py-2 text-left opacity-0 group-hover:opacity-100 transition-opacity pointer-events-none z-30">
+                      <p className="text-xs font-semibold text-white mb-1">{item.title}</p>
+                      <p className="text-[11px] text-zinc-300 mb-1">{meta.label} • Milestone</p>
+                      <p className="text-[11px] text-zinc-400 mb-1">{formatDisplayDate(item.startDate)}</p>
+                      <p className="text-[11px] text-zinc-500 break-words">{overview}</p>
+                    </div>
                   </div>
-
-                  {item.type === 'milestone' ? (
-                    <div className="absolute top-1/2 -translate-y-1/2 -translate-x-1/2 group z-10" style={{ left: `${position.left}%` }}>
-                      <button
-                        onClick={() => {
-                          setSelectedId(item.id);
-                          openEdit(item);
+                ) : (
+                  <div className="absolute top-1/2 -translate-y-1/2 group z-20" style={{ left: `${position.left}%`, width: `${position.width}%`, maxWidth: 'calc(100% - 92px)' }}>
+                    <div className="absolute -left-1 top-1/2 -translate-y-1/2 h-2.5 w-2.5 rounded-full border" style={{ backgroundColor: colors.solid, borderColor: colors.border }} />
+                    <button
+                      onClick={() => {
+                        setSelectedId(item.id);
+                        openEdit(item);
+                      }}
+                      className="relative h-8 w-full rounded-md border shadow-sm hover:brightness-110 transition flex items-center px-2 overflow-hidden"
+                      style={{ backgroundColor: colors.soft, borderColor: colors.border }}
+                      title={`${item.title} (${item.progress}%)`}
+                    >
+                      <span
+                        className="absolute left-0 top-0 bottom-0"
+                        style={{
+                          width: `${item.progress}%`,
+                          backgroundColor: colors.solid,
+                          opacity: item.status === 'delayed' ? 0.75 : 0.95
                         }}
-                        className="block w-5 h-5 rotate-45 rounded-sm border shadow-[0_0_0_1px_rgba(0,0,0,0.4)]"
-                        style={{ backgroundColor: colors.solid, borderColor: colors.border }}
-                        title={item.title}
                       />
-                      <div className="absolute left-1/2 top-full mt-2 -translate-x-1/2 w-64 rounded-md border border-zinc-700 bg-black/95 px-3 py-2 text-left opacity-0 group-hover:opacity-100 transition-opacity pointer-events-none z-20">
-                        <p className="text-xs font-semibold text-white mb-1">{item.title}</p>
-                        <p className="text-[11px] text-zinc-300 mb-1">{meta.label} • Milestone</p>
-                        <p className="text-[11px] text-zinc-400 mb-1">{new Date(item.startDate).toLocaleDateString()}</p>
-                        <p className="text-[11px] text-zinc-500 break-words">{overview}</p>
-                      </div>
+                      <span className="relative text-xs text-zinc-100 truncate flex-1">{item.title}</span>
+                      <span className="relative text-[10px] text-zinc-200 ml-2 shrink-0">{item.progress}%</span>
+                    </button>
+                    <div className="absolute -right-1 top-1/2 -translate-y-1/2 h-2.5 w-2.5 rounded-full border" style={{ backgroundColor: colors.solid, borderColor: colors.border }} />
+                    <div className="absolute left-0 top-full mt-2 w-72 rounded-md border border-zinc-700 bg-black/95 px-3 py-2 text-left opacity-0 group-hover:opacity-100 transition-opacity pointer-events-none z-30">
+                      <p className="text-xs font-semibold text-white mb-1">{item.title}</p>
+                      <p className="text-[11px] text-zinc-300 mb-1">{meta.label} • Phase • {item.progress}% • {duration} days</p>
+                      <p className="text-[11px] text-zinc-400 mb-1">
+                        {formatDisplayDate(item.startDate)} - {formatDisplayDate(item.endDate)}
+                      </p>
+                      <p className="text-[11px] text-zinc-500 break-words">{overview}</p>
                     </div>
-                  ) : (
-                    <div className="absolute top-1/2 -translate-y-1/2 group z-10" style={{ left: `${position.left}%`, width: `${position.width}%`, maxWidth: 'calc(100% - 96px)' }}>
-                      <div className="absolute -left-1 top-1/2 -translate-y-1/2 h-2.5 w-2.5 rounded-full border" style={{ backgroundColor: colors.solid, borderColor: colors.border }} />
-                      <button
-                        onClick={() => {
-                          setSelectedId(item.id);
-                          openEdit(item);
-                        }}
-                        className="relative h-8 w-full rounded-md border shadow-sm hover:brightness-110 transition flex items-center px-2 overflow-hidden"
-                        style={{ backgroundColor: colors.soft, borderColor: colors.border }}
-                        title={`${item.title} (${item.progress}%)`}
-                      >
-                        <span
-                          className="absolute left-0 top-0 bottom-0"
-                          style={{
-                            width: `${item.progress}%`,
-                            backgroundColor: colors.solid,
-                            opacity: item.status === 'delayed' ? 0.75 : 0.95
-                          }}
-                        />
-                        <span className="relative text-xs text-zinc-100 truncate flex-1">{item.title}</span>
-                        <span className="relative text-[10px] text-zinc-200 ml-2 shrink-0">{item.progress}%</span>
-                      </button>
-                      <div className="absolute -right-1 top-1/2 -translate-y-1/2 h-2.5 w-2.5 rounded-full border" style={{ backgroundColor: colors.solid, borderColor: colors.border }} />
-                      <div className="absolute left-0 top-full mt-2 w-72 rounded-md border border-zinc-700 bg-black/95 px-3 py-2 text-left opacity-0 group-hover:opacity-100 transition-opacity pointer-events-none z-20">
-                        <p className="text-xs font-semibold text-white mb-1">{item.title}</p>
-                        <p className="text-[11px] text-zinc-300 mb-1">{meta.label} • Phase • {item.progress}% • {duration} days</p>
-                        <p className="text-[11px] text-zinc-400 mb-1">
-                          {new Date(item.startDate).toLocaleDateString()} - {new Date(item.endDate).toLocaleDateString()}
-                        </p>
-                        <p className="text-[11px] text-zinc-500 break-words">{overview}</p>
-                      </div>
-                    </div>
-                  )}
-                </div>
+                  </div>
+                )}
               </div>
             );
           })}

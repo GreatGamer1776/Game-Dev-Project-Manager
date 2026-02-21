@@ -20,9 +20,7 @@ import { EditorProps, RoadmapItem, RoadmapItemType, RoadmapStatus } from '../typ
 const FILE_LINK_DRAG_MIME = 'application/x-gdpm-file-id';
 const STATUS_ORDER: RoadmapStatus[] = ['planned', 'in-progress', 'completed', 'delayed', 'dropped'];
 const TYPE_OPTIONS: RoadmapItemType[] = ['phase', 'milestone'];
-const VIEW_MODES = ['timeline', 'board'] as const;
 
-type ViewMode = (typeof VIEW_MODES)[number];
 type SaveStatus = 'saved' | 'saving' | 'unsaved';
 type ScopeFilter = 'all' | 'active' | 'next90' | 'overdue' | 'completed';
 type SortBy = 'start' | 'end' | 'title' | 'progress';
@@ -85,6 +83,23 @@ const dateToTs = (date: string) => {
 
 const clampProgress = (value: number) => Math.max(0, Math.min(100, Math.round(value)));
 
+const getItemHue = (id: string) => {
+  let hash = 0;
+  for (let i = 0; i < id.length; i++) {
+    hash = (hash * 31 + id.charCodeAt(i)) | 0;
+  }
+  return Math.abs(hash) % 360;
+};
+
+const getItemColors = (id: string) => {
+  const hue = getItemHue(id);
+  return {
+    solid: `hsl(${hue} 72% 52%)`,
+    soft: `hsla(${hue}, 72%, 52%, 0.22)`,
+    border: `hsla(${hue}, 72%, 52%, 0.55)`
+  };
+};
+
 const defaultForm = (type: RoadmapItemType = 'phase'): RoadmapFormState => {
   const start = todayIso();
   const end = new Date(Date.now() + 1000 * 60 * 60 * 24 * 14).toISOString().split('T')[0];
@@ -143,7 +158,6 @@ const RoadmapEditor: React.FC<EditorProps> = ({ initialContent, onSave, fileName
   const [saveStatus, setSaveStatus] = useState<SaveStatus>('saved');
   const lastSavedData = useRef(JSON.stringify(initialItems.current));
 
-  const [viewMode, setViewMode] = useState<ViewMode>('timeline');
   const [searchQuery, setSearchQuery] = useState('');
   const [statusFilter, setStatusFilter] = useState<'All' | RoadmapStatus>('All');
   const [typeFilter, setTypeFilter] = useState<'All' | RoadmapItemType>('All');
@@ -285,29 +299,6 @@ const RoadmapEditor: React.FC<EditorProps> = ({ initialContent, onSave, fileName
 
     upsertItem(next);
     closeModal();
-  };
-
-  const handleDuplicate = (item: RoadmapItem) => {
-    const duplicate: RoadmapItem = {
-      ...item,
-      id: crypto.randomUUID(),
-      title: `${item.title} Copy`,
-      status: item.status === 'completed' ? 'planned' : item.status,
-      progress: item.type === 'milestone' ? 0 : Math.min(95, item.progress)
-    };
-    upsertItem(duplicate);
-  };
-
-  const setItemStatus = (id: string, status: RoadmapStatus) => {
-    setItems(prev =>
-      prev.map(item => {
-        if (item.id !== id) return item;
-        if (item.type === 'milestone') {
-          return { ...item, status, progress: status === 'completed' ? 100 : 0 };
-        }
-        return { ...item, status, progress: status === 'completed' ? 100 : item.progress };
-      })
-    );
   };
 
   const nudgeProgress = (id: string, delta: number) => {
@@ -518,27 +509,6 @@ const RoadmapEditor: React.FC<EditorProps> = ({ initialContent, onSave, fileName
     return { left, width };
   };
 
-  const selectedItem = useMemo(() => visibleItems.find(item => item.id === selectedId) || null, [visibleItems, selectedId]);
-
-  const boardBuckets = useMemo(() => {
-    const map: Record<RoadmapStatus, RoadmapItem[]> = {
-      planned: [],
-      'in-progress': [],
-      completed: [],
-      delayed: [],
-      dropped: []
-    };
-    for (const item of visibleItems) map[item.status].push(item);
-    return map;
-  }, [visibleItems]);
-
-  const statusStep = (status: RoadmapStatus, direction: -1 | 1) => {
-    const idx = STATUS_ORDER.indexOf(status);
-    const next = idx + direction;
-    if (next < 0 || next >= STATUS_ORDER.length) return status;
-    return STATUS_ORDER[next];
-  };
-
   return (
     <div className="h-full flex flex-col bg-zinc-900">
       <div className="border-b border-zinc-800 bg-zinc-900/60 backdrop-blur-sm px-6 py-3 space-y-3 shrink-0">
@@ -652,20 +622,9 @@ const RoadmapEditor: React.FC<EditorProps> = ({ initialContent, onSave, fileName
             </select>
           </div>
 
-          <div className="inline-flex rounded-md overflow-hidden border border-zinc-700">
-            <button
-              onClick={() => setViewMode('timeline')}
-              className={`px-3 py-1.5 text-xs font-medium ${viewMode === 'timeline' ? 'bg-cyan-600 text-white' : 'bg-zinc-900 text-zinc-300 hover:text-white'}`}
-            >
-              Timeline
-            </button>
-            <button
-              onClick={() => setViewMode('board')}
-              className={`px-3 py-1.5 text-xs font-medium ${viewMode === 'board' ? 'bg-cyan-600 text-white' : 'bg-zinc-900 text-zinc-300 hover:text-white'}`}
-            >
-              Board
-            </button>
-          </div>
+          <span className="px-3 py-1.5 rounded-md border border-cyan-500/40 bg-cyan-500/15 text-cyan-300 text-xs font-medium">
+            Calendar View
+          </span>
 
           <button onClick={resetFilters} className="px-2.5 py-1.5 rounded-md border border-zinc-800 bg-zinc-950 text-xs text-zinc-300 hover:text-white flex items-center gap-1">
             <RotateCcw className="w-3.5 h-3.5" />
@@ -681,207 +640,118 @@ const RoadmapEditor: React.FC<EditorProps> = ({ initialContent, onSave, fileName
         </div>
       </div>
 
-      <div className="flex-1 min-h-0 flex overflow-hidden">
-        <div className="flex-1 min-h-0 overflow-auto custom-scrollbar p-4">
-          {viewMode === 'timeline' ? (
-            <div className="min-w-[1050px] border border-zinc-800 rounded-xl overflow-hidden bg-zinc-950">
-              <div className="grid grid-cols-[320px_1fr] border-b border-zinc-800 bg-zinc-900 sticky top-0 z-10">
-                <div className="px-4 py-3 text-xs uppercase tracking-wide text-zinc-500">Roadmap Items</div>
-                <div className="relative px-2 py-3 min-h-[40px]">
-                  {monthMarkers.map(marker => (
-                    <div key={`${marker.label}-${marker.left}`} className="absolute top-0 bottom-0 text-[10px] text-zinc-500 border-l border-zinc-800/60 pl-1 pt-3" style={{ left: `${marker.left}%` }}>
-                      {marker.label}
-                    </div>
-                  ))}
+      <div className="flex-1 min-h-0 overflow-auto custom-scrollbar p-4">
+        <div className="min-w-[1050px] border border-zinc-800 rounded-xl overflow-hidden bg-zinc-950">
+          <div className="grid grid-cols-[340px_1fr] border-b border-zinc-800 bg-zinc-900 sticky top-0 z-10">
+            <div className="px-4 py-3 text-xs uppercase tracking-wide text-zinc-500">Roadmap Calendar</div>
+            <div className="relative px-2 py-3 min-h-[40px]">
+              {monthMarkers.map(marker => (
+                <div key={`${marker.label}-${marker.left}`} className="absolute top-0 bottom-0 text-[10px] text-zinc-500 border-l border-zinc-800/60 pl-1 pt-3" style={{ left: `${marker.left}%` }}>
+                  {marker.label}
                 </div>
-              </div>
+              ))}
+            </div>
+          </div>
 
-              {visibleItems.length === 0 && (
-                <div className="p-10 text-center text-sm text-zinc-500">No roadmap items match your current filters.</div>
-              )}
+          {visibleItems.length === 0 && <div className="p-10 text-center text-sm text-zinc-500">No roadmap items match your current filters.</div>}
 
-              {visibleItems.map(item => {
-                const meta = STATUS_META[item.status];
-                const position = getTimelinePosition(item);
-                return (
-                  <div key={item.id} className="grid grid-cols-[320px_1fr] border-b border-zinc-900/80 hover:bg-zinc-900/40 transition-colors">
-                    <div className="px-4 py-3 border-r border-zinc-900">
-                      <div className="flex items-start justify-between gap-2 mb-2">
-                        <button onClick={() => setSelectedId(item.id)} className="text-left">
-                          <div className="text-sm font-medium text-zinc-200 hover:text-white">{item.title}</div>
-                          <div className="mt-1 flex items-center gap-2">
-                            <span className={`text-[10px] px-1.5 py-0.5 rounded border ${meta.chip}`}>{meta.label}</span>
-                            <span className="text-[10px] px-1.5 py-0.5 rounded border border-zinc-700 bg-zinc-900 text-zinc-400">{typeLabel(item.type)}</span>
-                          </div>
-                        </button>
-                        <div className="flex items-center gap-1">
-                          <button onClick={() => openEdit(item)} className="p-1.5 rounded text-zinc-500 hover:text-blue-300 hover:bg-zinc-800" title="Edit">
-                            <Pencil className="w-3.5 h-3.5" />
-                          </button>
-                          <button onClick={() => handleDelete(item.id)} className="p-1.5 rounded text-zinc-500 hover:text-red-400 hover:bg-zinc-800" title="Delete">
-                            <Trash2 className="w-3.5 h-3.5" />
-                          </button>
-                        </div>
+          {visibleItems.map(item => {
+            const meta = STATUS_META[item.status];
+            const position = getTimelinePosition(item);
+            const colors = getItemColors(item.id);
+            const isSelected = selectedId === item.id;
+            const overview = (item.description || 'No description provided.').trim();
+            const overviewText = overview.length > 180 ? `${overview.slice(0, 180)}...` : overview;
+
+            return (
+              <div
+                key={item.id}
+                className={`grid grid-cols-[340px_1fr] border-b border-zinc-900/80 transition-colors ${isSelected ? 'bg-zinc-900/70' : 'hover:bg-zinc-900/40'}`}
+              >
+                <div className="px-4 py-3 border-r border-zinc-900">
+                  <div className="flex items-start justify-between gap-2 mb-2">
+                    <button onClick={() => setSelectedId(item.id)} className="text-left">
+                      <div className="text-sm font-medium text-zinc-100 hover:text-white">{item.title}</div>
+                      <div className="mt-1 flex items-center gap-2">
+                        <span className={`text-[10px] px-1.5 py-0.5 rounded border ${meta.chip}`}>{meta.label}</span>
+                        <span className="text-[10px] px-1.5 py-0.5 rounded border border-zinc-700 bg-zinc-900 text-zinc-400">{typeLabel(item.type)}</span>
                       </div>
-
-                      <div className="text-xs text-zinc-500">
-                        {new Date(item.startDate).toLocaleDateString()}
-                        {item.type === 'phase' && ` - ${new Date(item.endDate).toLocaleDateString()}`}
-                      </div>
-
-                      {item.type === 'phase' && (
-                        <div className="mt-2 flex items-center gap-2">
-                          <button onClick={() => nudgeProgress(item.id, -10)} className="px-2 py-1 text-xs rounded border border-zinc-700 bg-zinc-900 text-zinc-300 hover:text-white">
-                            -10%
-                          </button>
-                          <div className="flex-1">
-                            <div className="h-1.5 rounded-full bg-zinc-800 overflow-hidden">
-                              <div className={`h-full ${meta.bar}`} style={{ width: `${item.progress}%` }} />
-                            </div>
-                            <div className="mt-1 text-[10px] text-zinc-500">{item.progress}%</div>
-                          </div>
-                          <button onClick={() => nudgeProgress(item.id, 10)} className="px-2 py-1 text-xs rounded border border-zinc-700 bg-zinc-900 text-zinc-300 hover:text-white">
-                            +10%
-                          </button>
-                        </div>
-                      )}
-                    </div>
-
-                    <div className="relative px-2 py-4">
-                      <div className="absolute top-0 bottom-0 border-l border-red-500/50 pointer-events-none" style={{ left: `${todayLeft}%` }} />
-                      <div className="relative h-9 rounded-md bg-zinc-900 border border-zinc-800">
-                        {item.type === 'milestone' ? (
-                          <button
-                            onClick={() => openEdit(item)}
-                            className="absolute top-1/2 -translate-y-1/2 -translate-x-1/2"
-                            style={{ left: `${position.left}%` }}
-                            title={item.title}
-                          >
-                            <span className={`block w-3.5 h-3.5 rotate-45 rounded-sm ${meta.bar} border border-zinc-900`} />
-                          </button>
-                        ) : (
-                          <button
-                            onClick={() => openEdit(item)}
-                            className={`absolute top-1/2 -translate-y-1/2 h-5 rounded ${meta.bar} bg-opacity-80 hover:bg-opacity-100 transition-opacity`}
-                            style={{ left: `${position.left}%`, width: `${position.width}%` }}
-                            title={`${item.title} (${item.progress}%)`}
-                          />
-                        )}
-                      </div>
+                    </button>
+                    <div className="flex items-center gap-1">
+                      <button onClick={() => openEdit(item)} className="p-1.5 rounded text-zinc-500 hover:text-blue-300 hover:bg-zinc-800" title="Edit">
+                        <Pencil className="w-3.5 h-3.5" />
+                      </button>
+                      <button onClick={() => handleDelete(item.id)} className="p-1.5 rounded text-zinc-500 hover:text-red-400 hover:bg-zinc-800" title="Delete">
+                        <Trash2 className="w-3.5 h-3.5" />
+                      </button>
                     </div>
                   </div>
-                );
-              })}
-            </div>
-          ) : (
-            <div className="grid grid-cols-1 md:grid-cols-2 xl:grid-cols-5 gap-4 min-w-[950px]">
-              {STATUS_ORDER.map(status => {
-                const bucket = boardBuckets[status];
-                const meta = STATUS_META[status];
-                return (
-                  <section key={status} className={`rounded-xl border bg-zinc-950/80 ${meta.panel} min-h-[220px] flex flex-col`}>
-                    <header className="px-3 py-2 border-b border-zinc-800 flex items-center justify-between">
-                      <div className="flex items-center gap-2">
-                        <span className={`w-2 h-2 rounded-full ${meta.dot}`} />
-                        <h4 className="text-sm font-medium text-zinc-200">{meta.label}</h4>
+
+                  <div className="text-xs text-zinc-500">
+                    {new Date(item.startDate).toLocaleDateString()}
+                    {item.type === 'phase' && ` - ${new Date(item.endDate).toLocaleDateString()}`}
+                  </div>
+
+                  {item.type === 'phase' && (
+                    <div className="mt-2 flex items-center gap-2">
+                      <button onClick={() => nudgeProgress(item.id, -10)} className="px-2 py-1 text-xs rounded border border-zinc-700 bg-zinc-900 text-zinc-300 hover:text-white">
+                        -10%
+                      </button>
+                      <div className="flex-1">
+                        <div className="h-1.5 rounded-full bg-zinc-800 overflow-hidden">
+                          <div className="h-full" style={{ width: `${item.progress}%`, backgroundColor: colors.solid }} />
+                        </div>
+                        <div className="mt-1 text-[10px] text-zinc-500">{item.progress}%</div>
                       </div>
-                      <span className="text-xs text-zinc-500">{bucket.length}</span>
-                    </header>
-
-                    <div className="p-2 space-y-2 overflow-y-auto custom-scrollbar">
-                      {bucket.length === 0 && <div className="text-xs text-zinc-600 px-2 py-6 text-center">No items</div>}
-                      {bucket.map(item => (
-                        <article key={item.id} className="rounded-lg border border-zinc-800 bg-zinc-900 p-3">
-                          <div className="flex items-start justify-between gap-2">
-                            <button onClick={() => setSelectedId(item.id)} className="text-left flex-1">
-                              <h5 className="text-sm font-medium text-zinc-100">{item.title}</h5>
-                              <p className="text-[11px] text-zinc-500 mt-1">
-                                {new Date(item.startDate).toLocaleDateString()}
-                                {item.type === 'phase' && ` - ${new Date(item.endDate).toLocaleDateString()}`}
-                              </p>
-                            </button>
-                            <div className="flex gap-1">
-                              <button onClick={() => openEdit(item)} className="p-1 rounded text-zinc-500 hover:text-blue-300 hover:bg-zinc-800" title="Edit">
-                                <Pencil className="w-3.5 h-3.5" />
-                              </button>
-                              <button onClick={() => handleDelete(item.id)} className="p-1 rounded text-zinc-500 hover:text-red-400 hover:bg-zinc-800" title="Delete">
-                                <Trash2 className="w-3.5 h-3.5" />
-                              </button>
-                            </div>
-                          </div>
-
-                          {item.type === 'phase' && (
-                            <div className="mt-2">
-                              <div className="h-1.5 rounded-full bg-zinc-800 overflow-hidden">
-                                <div className={`h-full ${meta.bar}`} style={{ width: `${item.progress}%` }} />
-                              </div>
-                              <p className="text-[10px] text-zinc-500 mt-1">{item.progress}%</p>
-                            </div>
-                          )}
-
-                          <div className="mt-2 grid grid-cols-2 gap-1.5">
-                            <button
-                              onClick={() => setItemStatus(item.id, statusStep(item.status, -1))}
-                              className="px-2 py-1 text-[10px] rounded border border-zinc-700 bg-zinc-900 text-zinc-300 hover:text-white"
-                            >
-                              Prev
-                            </button>
-                            <button
-                              onClick={() => setItemStatus(item.id, statusStep(item.status, 1))}
-                              className="px-2 py-1 text-[10px] rounded border border-zinc-700 bg-zinc-900 text-zinc-300 hover:text-white"
-                            >
-                              Next
-                            </button>
-                          </div>
-                        </article>
-                      ))}
+                      <button onClick={() => nudgeProgress(item.id, 10)} className="px-2 py-1 text-xs rounded border border-zinc-700 bg-zinc-900 text-zinc-300 hover:text-white">
+                        +10%
+                      </button>
                     </div>
-                  </section>
-                );
-              })}
-            </div>
-          )}
+                  )}
+                </div>
+
+                <div className="relative px-2 py-4 overflow-visible">
+                  <div className="absolute top-0 bottom-0 border-l border-red-500/50 pointer-events-none" style={{ left: `${todayLeft}%` }} />
+                  <div className="relative h-10 rounded-md bg-zinc-900 border border-zinc-800 overflow-visible">
+                    {item.type === 'milestone' ? (
+                      <div className="absolute top-1/2 -translate-y-1/2 -translate-x-1/2 group" style={{ left: `${position.left}%` }}>
+                        <button
+                          onClick={() => openEdit(item)}
+                          className="block w-4 h-4 rotate-45 rounded-sm border shadow-md"
+                          style={{ backgroundColor: colors.solid, borderColor: colors.border }}
+                          title={item.title}
+                        />
+                        <div className="absolute left-1/2 top-full mt-2 -translate-x-1/2 w-64 rounded-md border border-zinc-700 bg-black/95 px-3 py-2 text-left opacity-0 group-hover:opacity-100 transition-opacity pointer-events-none z-20">
+                          <p className="text-xs font-semibold text-white mb-1">{item.title}</p>
+                          <p className="text-[11px] text-zinc-300 mb-1">{meta.label} • {typeLabel(item.type)}</p>
+                          <p className="text-[11px] text-zinc-400 mb-1">{new Date(item.startDate).toLocaleDateString()}</p>
+                          <p className="text-[11px] text-zinc-500 break-words">{overviewText}</p>
+                        </div>
+                      </div>
+                    ) : (
+                      <div className="absolute top-1/2 -translate-y-1/2 group" style={{ left: `${position.left}%`, width: `${position.width}%` }}>
+                        <button
+                          onClick={() => openEdit(item)}
+                          className="h-5 w-full rounded border shadow-sm hover:brightness-110 transition"
+                          style={{ backgroundColor: colors.solid, borderColor: colors.border }}
+                          title={`${item.title} (${item.progress}%)`}
+                        />
+                        <div className="absolute left-0 top-full mt-2 w-72 rounded-md border border-zinc-700 bg-black/95 px-3 py-2 text-left opacity-0 group-hover:opacity-100 transition-opacity pointer-events-none z-20">
+                          <p className="text-xs font-semibold text-white mb-1">{item.title}</p>
+                          <p className="text-[11px] text-zinc-300 mb-1">{meta.label} • {typeLabel(item.type)} • {item.progress}%</p>
+                          <p className="text-[11px] text-zinc-400 mb-1">
+                            {new Date(item.startDate).toLocaleDateString()} - {new Date(item.endDate).toLocaleDateString()}
+                          </p>
+                          <p className="text-[11px] text-zinc-500 break-words">{overviewText}</p>
+                        </div>
+                      </div>
+                    )}
+                  </div>
+                </div>
+              </div>
+            );
+          })}
         </div>
-
-        <aside className="w-80 border-l border-zinc-800 bg-zinc-950/70 p-4 overflow-y-auto custom-scrollbar">
-          <h4 className="text-sm font-semibold text-zinc-200 mb-3">Details</h4>
-          {!selectedItem ? (
-            <div className="text-sm text-zinc-500">Select an item to inspect details.</div>
-          ) : (
-            <div className="space-y-3">
-              <div>
-                <h5 className="text-lg font-semibold text-zinc-100">{selectedItem.title}</h5>
-                <div className="mt-2 flex flex-wrap gap-2">
-                  <span className={`text-[11px] px-2 py-1 rounded border ${STATUS_META[selectedItem.status].chip}`}>{STATUS_META[selectedItem.status].label}</span>
-                  <span className="text-[11px] px-2 py-1 rounded border border-zinc-700 bg-zinc-900 text-zinc-400">{typeLabel(selectedItem.type)}</span>
-                </div>
-              </div>
-
-              <div className="text-xs text-zinc-400 space-y-1">
-                <p>Start: {new Date(selectedItem.startDate).toLocaleDateString()}</p>
-                <p>End: {new Date((selectedItem.type === 'milestone' ? selectedItem.startDate : selectedItem.endDate)).toLocaleDateString()}</p>
-                {selectedItem.type === 'phase' && <p>Progress: {selectedItem.progress}%</p>}
-              </div>
-
-              {selectedItem.description ? (
-                <div className="text-xs text-zinc-300 leading-relaxed border border-zinc-800 rounded-lg bg-zinc-900 p-3 break-words">
-                  {renderTextWithFileLinks(selectedItem.description)}
-                </div>
-              ) : (
-                <div className="text-xs text-zinc-600 border border-zinc-800 rounded-lg bg-zinc-900 p-3">No description yet.</div>
-              )}
-
-              <div className="grid grid-cols-2 gap-2">
-                <button onClick={() => openEdit(selectedItem)} className="px-3 py-2 rounded-md bg-blue-600 hover:bg-blue-700 text-white text-sm font-medium">
-                  Edit
-                </button>
-                <button onClick={() => handleDuplicate(selectedItem)} className="px-3 py-2 rounded-md bg-zinc-800 hover:bg-zinc-700 text-zinc-200 text-sm font-medium border border-zinc-700">
-                  Duplicate
-                </button>
-              </div>
-            </div>
-          )}
-        </aside>
       </div>
 
       {isModalOpen && (

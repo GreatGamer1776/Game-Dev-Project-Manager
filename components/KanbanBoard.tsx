@@ -5,6 +5,9 @@ import { Bug, BugSeverity, BugStatus, EditorProps } from '../types';
 const FILE_LINK_DRAG_MIME = 'application/x-gdpm-file-id';
 const BUG_CATEGORIES = ['General', 'Gameplay', 'UI/UX', 'Audio', 'Performance', 'Networking', 'Build/CI'] as const;
 type BugSort = 'Newest' | 'Oldest' | 'Severity' | 'Due Date';
+const BUG_COLUMNS: BugStatus[] = ['Open', 'In Progress', 'Resolved', 'Closed'];
+const COLUMN_CARD_ESTIMATE = 250;
+const COLUMN_OVERSCAN = 3;
 
 const KanbanBoard: React.FC<EditorProps> = ({ initialContent, onSave, fileName, projectFiles = [], onOpenFile, activeFileId }) => {
   const [bugs, setBugs] = useState<Bug[]>(initialContent?.tasks || []);
@@ -36,6 +39,24 @@ const KanbanBoard: React.FC<EditorProps> = ({ initialContent, onSave, fileName, 
 
   const [draggedBugId, setDraggedBugId] = useState<string | null>(null);
   const [activeDropZone, setActiveDropZone] = useState<BugStatus | null>(null);
+  const columnBodyRefs = useRef<Record<BugStatus, HTMLDivElement | null>>({
+    Open: null,
+    'In Progress': null,
+    Resolved: null,
+    Closed: null
+  });
+  const [columnScrollTop, setColumnScrollTop] = useState<Record<BugStatus, number>>({
+    Open: 0,
+    'In Progress': 0,
+    Resolved: 0,
+    Closed: 0
+  });
+  const [columnViewportHeights, setColumnViewportHeights] = useState<Record<BugStatus, number>>({
+    Open: 600,
+    'In Progress': 600,
+    Resolved: 600,
+    Closed: 600
+  });
   const fileLookup = React.useMemo(() => new Map(projectFiles.map(f => [f.id, f.name])), [projectFiles]);
   const linkableFiles = React.useMemo(
     () => projectFiles.filter(f => f.id !== activeFileId).sort((a, b) => a.name.localeCompare(b.name, undefined, { sensitivity: 'base' })),
@@ -103,8 +124,6 @@ const KanbanBoard: React.FC<EditorProps> = ({ initialContent, onSave, fileName, 
     lastSavedData.current = JSON.stringify(bugs);
     setTimeout(() => setSaveStatus('saved'), 500);
   };
-
-  const columns: BugStatus[] = ['Open', 'In Progress', 'Resolved', 'Closed'];
 
   const resetForm = () => {
     setNewTitle('');
@@ -385,7 +404,37 @@ const KanbanBoard: React.FC<EditorProps> = ({ initialContent, onSave, fileName, 
       }
     });
 
-  const visibleColumns: BugStatus[] = filterStatus === 'All' ? columns : [filterStatus];
+  const visibleColumns: BugStatus[] = filterStatus === 'All' ? BUG_COLUMNS : [filterStatus];
+
+  useEffect(() => {
+    const observers: ResizeObserver[] = [];
+    const statuses = visibleColumns.length > 0 ? visibleColumns : BUG_COLUMNS;
+    for (const status of statuses) {
+      const el = columnBodyRefs.current[status];
+      if (!el) continue;
+      const updateHeight = () => {
+        const nextHeight = el.clientHeight || 600;
+        setColumnViewportHeights(prev => (prev[status] === nextHeight ? prev : { ...prev, [status]: nextHeight }));
+      };
+      updateHeight();
+      const observer = new ResizeObserver(updateHeight);
+      observer.observe(el);
+      observers.push(observer);
+    }
+    return () => observers.forEach(observer => observer.disconnect());
+  }, [visibleColumns]);
+
+  const setColumnBodyRef = (status: BugStatus) => (el: HTMLDivElement | null) => {
+    columnBodyRefs.current[status] = el;
+    if (!el) return;
+    const nextHeight = el.clientHeight || 600;
+    setColumnViewportHeights(prev => (prev[status] === nextHeight ? prev : { ...prev, [status]: nextHeight }));
+  };
+
+  const handleColumnScroll = (status: BugStatus) => (e: React.UIEvent<HTMLDivElement>) => {
+    const nextTop = e.currentTarget.scrollTop;
+    setColumnScrollTop(prev => (prev[status] === nextTop ? prev : { ...prev, [status]: nextTop }));
+  };
 
   return (
     <div className="h-full flex flex-col bg-zinc-900">
@@ -461,7 +510,7 @@ const KanbanBoard: React.FC<EditorProps> = ({ initialContent, onSave, fileName, 
               className="bg-transparent focus:outline-none text-xs text-zinc-200"
             >
               <option value="All">All</option>
-              {columns.map(status => (
+              {BUG_COLUMNS.map(status => (
                 <option key={status} value={status}>{status}</option>
               ))}
             </select>
@@ -508,6 +557,15 @@ const KanbanBoard: React.FC<EditorProps> = ({ initialContent, onSave, fileName, 
           {visibleColumns.map(status => {
              const colBugs = filteredBugs.filter(b => b.status === status);
              const isActiveDrop = activeDropZone === status;
+             const shouldVirtualize = colBugs.length > 32;
+             const viewportHeight = columnViewportHeights[status] || 600;
+             const scrollTop = columnScrollTop[status] || 0;
+             const virtualCount = Math.ceil(viewportHeight / COLUMN_CARD_ESTIMATE) + COLUMN_OVERSCAN * 2;
+             const virtualStart = shouldVirtualize ? Math.max(0, Math.floor(scrollTop / COLUMN_CARD_ESTIMATE) - COLUMN_OVERSCAN) : 0;
+             const virtualEnd = shouldVirtualize ? Math.min(colBugs.length, virtualStart + virtualCount) : colBugs.length;
+             const visibleBugs = shouldVirtualize ? colBugs.slice(virtualStart, virtualEnd) : colBugs;
+             const topSpacerHeight = shouldVirtualize ? virtualStart * COLUMN_CARD_ESTIMATE : 0;
+             const bottomSpacerHeight = shouldVirtualize ? Math.max(0, (colBugs.length - virtualEnd) * COLUMN_CARD_ESTIMATE) : 0;
              
              return (
                <div 
@@ -526,8 +584,13 @@ const KanbanBoard: React.FC<EditorProps> = ({ initialContent, onSave, fileName, 
                     <span className="text-xs bg-zinc-800 text-zinc-400 px-2 py-1 rounded-full">{colBugs.length}</span>
                  </div>
                  
-                 <div className="flex-1 overflow-y-auto p-3 space-y-3 custom-scrollbar">
-                    {colBugs.map(bug => (
+                 <div
+                    ref={setColumnBodyRef(status)}
+                    onScroll={handleColumnScroll(status)}
+                    className="flex-1 overflow-y-auto p-3 space-y-3 custom-scrollbar"
+                 >
+                    {topSpacerHeight > 0 && <div style={{ height: topSpacerHeight }} />}
+                    {visibleBugs.map(bug => (
                       <div 
                         key={bug.id}
                         draggable
@@ -593,7 +656,7 @@ const KanbanBoard: React.FC<EditorProps> = ({ initialContent, onSave, fileName, 
                          <div className="flex justify-between items-center mt-3 pt-3 border-t border-zinc-800 pointer-events-auto relative z-10">
                            {status !== 'Open' ? (
                              <button 
-                               onClick={() => updateStatus(bug.id, columns[columns.indexOf(status) - 1])}
+                               onClick={() => updateStatus(bug.id, BUG_COLUMNS[BUG_COLUMNS.indexOf(status) - 1])}
                                className="text-xs text-zinc-500 hover:text-zinc-300 flex items-center gap-1 hover:bg-zinc-800 px-2 py-1 rounded transition-colors"
                              >
                                <ChevronLeft className="w-3 h-3" /> Prev
@@ -602,7 +665,7 @@ const KanbanBoard: React.FC<EditorProps> = ({ initialContent, onSave, fileName, 
                            
                            {status !== 'Closed' ? (
                              <button 
-                               onClick={() => updateStatus(bug.id, columns[columns.indexOf(status) + 1])}
+                               onClick={() => updateStatus(bug.id, BUG_COLUMNS[BUG_COLUMNS.indexOf(status) + 1])}
                                className="text-xs text-zinc-500 hover:text-zinc-300 flex items-center gap-1 hover:bg-zinc-800 px-2 py-1 rounded transition-colors"
                              >
                                Next <ChevronRight className="w-3 h-3" />
@@ -611,6 +674,7 @@ const KanbanBoard: React.FC<EditorProps> = ({ initialContent, onSave, fileName, 
                          </div>
                       </div>
                     ))}
+                    {bottomSpacerHeight > 0 && <div style={{ height: bottomSpacerHeight }} />}
                     {colBugs.length === 0 && (
                       <div className={`text-center py-8 pointer-events-none transition-opacity ${isActiveDrop ? 'opacity-50 text-blue-400' : 'opacity-30 text-zinc-500'}`}>
                         <div className="text-sm italic">{isActiveDrop ? 'Drop to move here' : 'Drop items here'}</div>
@@ -672,7 +736,7 @@ const KanbanBoard: React.FC<EditorProps> = ({ initialContent, onSave, fileName, 
                     onChange={(e) => setNewStatus(e.target.value as BugStatus)}
                     className="w-full bg-zinc-950 border border-zinc-800 rounded-lg p-2.5 text-white focus:ring-2 focus:ring-red-600 focus:border-transparent outline-none transition-all"
                   >
-                    {columns.map(status => (
+                    {BUG_COLUMNS.map(status => (
                       <option key={status} value={status}>{status}</option>
                     ))}
                   </select>

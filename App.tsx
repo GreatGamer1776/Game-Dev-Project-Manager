@@ -13,6 +13,7 @@ import AssetBrowser from './components/AssetBrowser';
 import CommandPalette from './components/CommandPalette';
 import HelpModal from './components/HelpModal';
 import { Project, ViewState, ProjectFile, FileType, EditorProps, ProjectFolder } from './types';
+import { useProjectStore } from './stores/useProjectStore';
 
 // --- UTILS ---
 
@@ -35,13 +36,22 @@ const base64ToBlob = (base64: string): Blob => {
 };
 
 // IndexedDB Wrapper
+type PersistedAppState = {
+  currentView: ViewState;
+  activeProjectId: string | null;
+  activeFileId: string | null;
+};
+
 const IDB = {
+    DB_VERSION: 3,
     DB_NAME: 'devarchitect_db',
     STORE_PROJECTS: 'projects',
     STORE_HANDLES: 'handles',
+    STORE_APP_STATE: 'app_state',
+    APP_STATE_KEY: 'session',
     init: function() {
         return new Promise<void>((resolve, reject) => {
-            const req = indexedDB.open(this.DB_NAME, 2);
+            const req = indexedDB.open(this.DB_NAME, this.DB_VERSION);
             req.onerror = () => reject(req.error);
             req.onupgradeneeded = (e: any) => {
                 const db = e.target.result;
@@ -51,13 +61,16 @@ const IDB = {
                 if (!db.objectStoreNames.contains(this.STORE_HANDLES)) {
                     db.createObjectStore(this.STORE_HANDLES); 
                 }
+                if (!db.objectStoreNames.contains(this.STORE_APP_STATE)) {
+                    db.createObjectStore(this.STORE_APP_STATE);
+                }
             };
             req.onsuccess = () => resolve();
         });
     },
     saveProject: function(project: Project) {
         return new Promise<void>((resolve, reject) => {
-            const req = indexedDB.open(this.DB_NAME, 2);
+            const req = indexedDB.open(this.DB_NAME, this.DB_VERSION);
             req.onsuccess = (e: any) => {
                 const tx = e.target.result.transaction([this.STORE_PROJECTS], 'readwrite');
                 tx.objectStore(this.STORE_PROJECTS).put(project);
@@ -68,7 +81,7 @@ const IDB = {
     },
     saveHandle: function(id: string, handle: any) {
         return new Promise<void>((resolve, reject) => {
-            const req = indexedDB.open(this.DB_NAME, 2);
+            const req = indexedDB.open(this.DB_NAME, this.DB_VERSION);
             req.onsuccess = (e: any) => {
                 const tx = e.target.result.transaction([this.STORE_HANDLES], 'readwrite');
                 tx.objectStore(this.STORE_HANDLES).put(handle, id);
@@ -79,7 +92,7 @@ const IDB = {
     },
     loadAllProjects: function() {
         return new Promise<Project[]>((resolve, reject) => {
-            const req = indexedDB.open(this.DB_NAME, 2);
+            const req = indexedDB.open(this.DB_NAME, this.DB_VERSION);
             req.onsuccess = (e: any) => {
                 const tx = e.target.result.transaction([this.STORE_PROJECTS], 'readonly');
                 const reqAll = tx.objectStore(this.STORE_PROJECTS).getAll();
@@ -91,7 +104,7 @@ const IDB = {
     },
     loadHandle: function(id: string) {
         return new Promise<any>((resolve, reject) => {
-             const req = indexedDB.open(this.DB_NAME, 2);
+             const req = indexedDB.open(this.DB_NAME, this.DB_VERSION);
              req.onsuccess = (e: any) => {
                  const tx = e.target.result.transaction([this.STORE_HANDLES], 'readonly');
                  const reqGet = tx.objectStore(this.STORE_HANDLES).get(id);
@@ -103,13 +116,37 @@ const IDB = {
     },
     delete: function(id: string) {
         return new Promise<void>((resolve, reject) => {
-            const req = indexedDB.open(this.DB_NAME, 2);
+            const req = indexedDB.open(this.DB_NAME, this.DB_VERSION);
             req.onsuccess = (e: any) => {
                 const tx = e.target.result.transaction([this.STORE_PROJECTS, this.STORE_HANDLES], 'readwrite');
                 tx.objectStore(this.STORE_PROJECTS).delete(id);
                 tx.objectStore(this.STORE_HANDLES).delete(id);
                 tx.oncomplete = () => resolve();
             };
+        });
+    },
+    saveAppState: function(appState: PersistedAppState) {
+        return new Promise<void>((resolve) => {
+            const req = indexedDB.open(this.DB_NAME, this.DB_VERSION);
+            req.onsuccess = (e: any) => {
+                const tx = e.target.result.transaction([this.STORE_APP_STATE], 'readwrite');
+                tx.objectStore(this.STORE_APP_STATE).put(appState, this.APP_STATE_KEY);
+                tx.oncomplete = () => resolve();
+                tx.onerror = () => resolve();
+            };
+            req.onerror = () => resolve();
+        });
+    },
+    loadAppState: function() {
+        return new Promise<PersistedAppState | null>((resolve) => {
+            const req = indexedDB.open(this.DB_NAME, this.DB_VERSION);
+            req.onsuccess = (e: any) => {
+                const tx = e.target.result.transaction([this.STORE_APP_STATE], 'readonly');
+                const reqGet = tx.objectStore(this.STORE_APP_STATE).get(this.APP_STATE_KEY);
+                reqGet.onsuccess = () => resolve(reqGet.result || null);
+                reqGet.onerror = () => resolve(null);
+            };
+            req.onerror = () => resolve(null);
         });
     }
 };
@@ -211,11 +248,16 @@ const MOCK_PROJECTS: Project[] = [{
 }];
 
 const App: React.FC = () => {
-  const [projects, setProjects] = useState<Project[]>([]);
-  const [isLoaded, setIsLoaded] = useState(false);
-  const [currentView, setCurrentView] = useState<ViewState>(ViewState.DASHBOARD);
-  const [activeProjectId, setActiveProjectId] = useState<string | null>(null);
-  const [activeFileId, setActiveFileId] = useState<string | null>(null);
+  const projects = useProjectStore(state => state.projects);
+  const isLoaded = useProjectStore(state => state.isLoaded);
+  const currentView = useProjectStore(state => state.currentView);
+  const activeProjectId = useProjectStore(state => state.activeProjectId);
+  const activeFileId = useProjectStore(state => state.activeFileId);
+  const setProjects = useProjectStore(state => state.setProjects);
+  const setIsLoaded = useProjectStore(state => state.setIsLoaded);
+  const setCurrentView = useProjectStore(state => state.setCurrentView);
+  const setActiveProjectId = useProjectStore(state => state.setActiveProjectId);
+  const setActiveFileId = useProjectStore(state => state.setActiveFileId);
   
   const [isPaletteOpen, setIsPaletteOpen] = useState(false);
   const [isHelpOpen, setIsHelpOpen] = useState(false);
@@ -244,6 +286,7 @@ const App: React.FC = () => {
         try {
             await IDB.init();
             const loaded = await IDB.loadAllProjects();
+            const savedAppState = await IDB.loadAppState();
             for (const p of loaded) {
                 if (p.isLocal) {
                     const handle = await IDB.loadHandle(p.id);
@@ -251,22 +294,58 @@ const App: React.FC = () => {
                 }
             }
             const normalizedLoaded = loaded.map(normalizeProjectFiles);
-            setProjects(normalizedLoaded.length > 0 ? normalizedLoaded : MOCK_PROJECTS.map(normalizeProjectFiles));
+            const hydratedProjects = normalizedLoaded.length > 0 ? normalizedLoaded : MOCK_PROJECTS.map(normalizeProjectFiles);
+            setProjects(hydratedProjects);
+
+            const hydratedProjectId = savedAppState?.activeProjectId && hydratedProjects.some(p => p.id === savedAppState.activeProjectId)
+              ? savedAppState.activeProjectId
+              : null;
+            const hydratedProject = hydratedProjectId
+              ? hydratedProjects.find(p => p.id === hydratedProjectId)
+              : null;
+            const fallbackFileId = hydratedProject
+              ? (hydratedProject.files.find(f => f.type !== ASSET_LIBRARY_TYPE) || hydratedProject.files.find(f => f.type === ASSET_LIBRARY_TYPE))?.id || null
+              : null;
+            const hydratedFileId = savedAppState?.activeFileId && hydratedProject?.files.some(f => f.id === savedAppState.activeFileId)
+              ? savedAppState.activeFileId
+              : fallbackFileId;
+
+            if (hydratedProjectId && savedAppState?.currentView === ViewState.PROJECT) {
+              setCurrentView(ViewState.PROJECT);
+              setActiveProjectId(hydratedProjectId);
+              setActiveFileId(hydratedFileId);
+            } else {
+              setCurrentView(ViewState.DASHBOARD);
+              setActiveProjectId(null);
+              setActiveFileId(null);
+            }
         } catch (e) {
             console.error("Init error", e);
             setProjects(MOCK_PROJECTS.map(normalizeProjectFiles));
+            setCurrentView(ViewState.DASHBOARD);
+            setActiveProjectId(null);
+            setActiveFileId(null);
         } finally {
             setIsLoaded(true);
         }
     };
     load();
-  }, []);
+  }, [setActiveFileId, setActiveProjectId, setCurrentView, setIsLoaded, setProjects]);
 
   useEffect(() => {
     if (isLoaded && projects.length > 0) {
         projects.forEach(p => IDB.saveProject(p));
     }
   }, [projects, isLoaded]);
+
+  useEffect(() => {
+    if (!isLoaded) return;
+    IDB.saveAppState({
+      currentView,
+      activeProjectId,
+      activeFileId
+    });
+  }, [isLoaded, currentView, activeProjectId, activeFileId]);
 
   useEffect(() => {
     const handleKeyDown = (e: KeyboardEvent) => {

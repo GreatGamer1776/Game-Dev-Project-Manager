@@ -25,6 +25,11 @@ const DataGridEditor: React.FC<EditorProps> = ({ initialContent, onSave, fileNam
     { id: 'col_3', name: 'Value', type: 'number' }
   ]);
   const [rows, setRows] = useState<GridRow[]>(initialContent?.rows || []);
+  const tableScrollRef = useRef<HTMLDivElement | null>(null);
+  const [scrollTop, setScrollTop] = useState(0);
+  const [viewportHeight, setViewportHeight] = useState(600);
+  const ROW_HEIGHT = 44;
+  const ROW_OVERSCAN = 8;
   
   // Save State
   const [saveStatus, setSaveStatus] = useState<'saved' | 'saving' | 'unsaved'>('saved');
@@ -39,6 +44,25 @@ const DataGridEditor: React.FC<EditorProps> = ({ initialContent, onSave, fileNam
     const timer = setTimeout(() => handleManualSave(), 2000);
     return () => clearTimeout(timer);
   }, [columns, rows]);
+
+  useEffect(() => {
+    const updateViewportHeight = () => {
+      const next = tableScrollRef.current?.clientHeight || 600;
+      setViewportHeight(next);
+    };
+
+    updateViewportHeight();
+    window.addEventListener('resize', updateViewportHeight);
+    return () => window.removeEventListener('resize', updateViewportHeight);
+  }, []);
+
+  const totalRows = rows.length;
+  const visibleRowCount = Math.ceil(viewportHeight / ROW_HEIGHT) + ROW_OVERSCAN * 2;
+  const startIndex = Math.max(0, Math.floor(scrollTop / ROW_HEIGHT) - ROW_OVERSCAN);
+  const endIndex = Math.min(totalRows, startIndex + visibleRowCount);
+  const visibleRows = rows.slice(startIndex, endIndex);
+  const topSpacerHeight = startIndex * ROW_HEIGHT;
+  const bottomSpacerHeight = Math.max(0, (totalRows - endIndex) * ROW_HEIGHT);
 
   const handleManualSave = () => {
     setSaveStatus('saving');
@@ -104,7 +128,11 @@ const DataGridEditor: React.FC<EditorProps> = ({ initialContent, onSave, fileNam
         </div>
       </div>
 
-      <div className="flex-1 overflow-auto custom-scrollbar p-6">
+      <div
+        ref={tableScrollRef}
+        onScroll={(e) => setScrollTop(e.currentTarget.scrollTop)}
+        className="flex-1 overflow-auto custom-scrollbar p-6"
+      >
         <div className="inline-block min-w-full align-middle">
             <div className="border border-zinc-700 rounded-lg overflow-hidden">
                 <table className="min-w-full divide-y divide-zinc-700">
@@ -129,11 +157,16 @@ const DataGridEditor: React.FC<EditorProps> = ({ initialContent, onSave, fileNam
                         </tr>
                     </thead>
                     <tbody className="bg-zinc-900 divide-y divide-zinc-800">
-                        {rows.map((row, idx) => (
+                        {topSpacerHeight > 0 && (
+                          <tr>
+                            <td colSpan={columns.length + 2} style={{ height: topSpacerHeight }} />
+                          </tr>
+                        )}
+                        {visibleRows.map((row, idx) => (
                             <tr key={row.id} className="hover:bg-zinc-800/50 transition-colors">
-                                <td className="px-3 py-2 whitespace-nowrap text-xs text-zinc-500">{idx + 1}</td>
+                                <td className="px-3 py-2 whitespace-nowrap text-xs text-zinc-500" style={{ height: ROW_HEIGHT }}>{startIndex + idx + 1}</td>
                                 {columns.map(col => (
-                                    <td key={col.id} className="px-3 py-2 whitespace-nowrap">
+                                    <td key={col.id} className="px-3 py-2 whitespace-nowrap" style={{ height: ROW_HEIGHT }}>
                                         <input
                                             type={col.type === 'number' ? 'number' : 'text'}
                                             value={row[col.id] || ''}
@@ -142,11 +175,16 @@ const DataGridEditor: React.FC<EditorProps> = ({ initialContent, onSave, fileNam
                                         />
                                     </td>
                                 ))}
-                                <td className="px-3 py-2 whitespace-nowrap text-right text-sm font-medium">
+                                <td className="px-3 py-2 whitespace-nowrap text-right text-sm font-medium" style={{ height: ROW_HEIGHT }}>
                                     <button onClick={() => deleteRow(row.id)} className="text-zinc-600 hover:text-red-400"><Trash2 className="w-4 h-4" /></button>
                                 </td>
                             </tr>
                         ))}
+                        {bottomSpacerHeight > 0 && (
+                          <tr>
+                            <td colSpan={columns.length + 2} style={{ height: bottomSpacerHeight }} />
+                          </tr>
+                        )}
                     </tbody>
                 </table>
             </div>

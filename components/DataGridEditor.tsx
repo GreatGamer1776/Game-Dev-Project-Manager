@@ -579,13 +579,20 @@ const DataGridEditor: React.FC<EditorProps> = ({ initialContent, onSave, fileNam
               <thead className="sticky top-0 z-10 bg-zinc-900 border-b border-zinc-800">
                 <tr>
                   <th className="w-10 px-2 py-2 text-left">
-                    <input
-                      type="checkbox"
-                      checked={allVisibleSelected}
-                      onChange={toggleSelectAllVisible}
-                      className="rounded border-zinc-700 bg-zinc-900 text-blue-500 focus:ring-blue-500"
+                    <button
+                      type="button"
+                      role="checkbox"
+                      aria-checked={allVisibleSelected}
+                      onClick={toggleSelectAllVisible}
+                      className={`inline-flex h-5 w-5 items-center justify-center rounded border transition-all focus:outline-none focus:ring-2 focus:ring-blue-500/70 focus:ring-offset-1 focus:ring-offset-zinc-900 ${
+                        allVisibleSelected
+                          ? 'border-blue-500 bg-blue-500 text-white shadow-[0_0_0_1px_rgba(59,130,246,0.25)]'
+                          : 'border-zinc-500 bg-zinc-900 text-transparent hover:border-zinc-300 hover:bg-zinc-800'
+                      }`}
                       aria-label="Select all visible rows"
-                    />
+                    >
+                      <Check className="h-3.5 w-3.5" />
+                    </button>
                   </th>
                   <th className="w-12 px-2 py-2 text-left text-xs font-semibold uppercase tracking-wide text-zinc-500">#</th>
                   {columns.map((column) => (
@@ -638,12 +645,20 @@ const DataGridEditor: React.FC<EditorProps> = ({ initialContent, onSave, fileNam
                   return (
                     <tr key={row.id} className={`border-b border-zinc-900 hover:bg-zinc-900/60 ${isSelected ? 'bg-blue-500/10' : 'bg-zinc-950'}`}>
                       <td className="px-2 py-2 align-middle" style={{ height: ROW_HEIGHT }}>
-                        <input
-                          type="checkbox"
-                          checked={isSelected}
-                          onChange={() => toggleRowSelection(row.id)}
-                          className="rounded border-zinc-700 bg-zinc-900 text-blue-500 focus:ring-blue-500"
-                        />
+                        <button
+                          type="button"
+                          role="checkbox"
+                          aria-checked={isSelected}
+                          onClick={() => toggleRowSelection(row.id)}
+                          className={`inline-flex h-5 w-5 items-center justify-center rounded border transition-all focus:outline-none focus:ring-2 focus:ring-blue-500/70 focus:ring-offset-1 focus:ring-offset-zinc-900 ${
+                            isSelected
+                              ? 'border-blue-500 bg-blue-500 text-white shadow-[0_0_0_1px_rgba(59,130,246,0.25)]'
+                              : 'border-zinc-500 bg-zinc-900 text-transparent hover:border-zinc-300 hover:bg-zinc-800'
+                          }`}
+                          aria-label={`Select row ${startIndex + idx + 1}`}
+                        >
+                          <Check className="h-3.5 w-3.5" />
+                        </button>
                       </td>
                       <td className="px-2 py-2 text-xs text-zinc-500 align-middle" style={{ height: ROW_HEIGHT }}>
                         {startIndex + idx + 1}

@@ -946,33 +946,42 @@ const App: React.FC = () => {
                         draggable
                         onDragStart={(e) => handleFileDragStart(e, file.id, file.name)}
                         onDragEnd={handleFileDragEnd}
-                        className={`group flex items-center gap-1 rounded-lg pr-1 mb-0.5 transition-colors cursor-grab active:cursor-grabbing ${isDragging ? 'opacity-45 grayscale' : 'opacity-100 hover:bg-zinc-900'}`}
+                        className={`group relative rounded-lg mb-0.5 transition-colors cursor-grab active:cursor-grabbing ${isDragging ? 'opacity-45 grayscale' : 'opacity-100 hover:bg-zinc-900'}`}
                       >
                           <button 
                             onClick={() => setActiveFileId(file.id)} 
                             draggable
                             onDragStart={(e) => handleFileDragStart(e, file.id, file.name)}
                             onDragEnd={handleFileDragEnd}
-                            className={`flex-1 flex items-center gap-2 pl-1.5 pr-2 py-1.5 text-sm text-left truncate ${activeFileId === file.id ? 'bg-zinc-800 text-white' : 'text-zinc-400 hover:text-zinc-200'}`}
+                            className={`w-full flex items-start gap-2 pl-1.5 pr-2 py-1.5 text-sm text-left transition-[padding] duration-150 group-hover:pr-28 ${activeFileId === file.id ? 'bg-zinc-800 text-white' : 'text-zinc-400 hover:text-zinc-200'}`}
+                            title={file.name}
                           >
-                             <Icon className={`w-4 h-4 shrink-0 ${activeFileId === file.id ? 'text-blue-400' : 'text-zinc-500'}`} />
-                             <span className="truncate">{file.name}</span>
+                             <Icon className={`w-4 h-4 shrink-0 mt-0.5 ${activeFileId === file.id ? 'text-blue-400' : 'text-zinc-500'}`} />
+                             <span className="min-w-0 flex-1 break-words leading-snug">{file.name}</span>
                           </button>
-                          <button
-                            onClick={(e) => { e.stopPropagation(); handleCopyFileId(file.id); }}
-                            className="p-1.5 text-zinc-600 hover:text-cyan-300 hover:bg-zinc-800 rounded opacity-0 group-hover:opacity-100"
-                            title="Copy File ID"
-                          >
-                            <CopyIcon className="w-3.5 h-3.5" />
-                          </button>
-                          <button
-                            onClick={(e) => handleOpenRenameFileModal(e, file.id)}
-                            className="p-1.5 text-zinc-600 hover:text-amber-300 hover:bg-zinc-800 rounded opacity-0 group-hover:opacity-100"
-                            title="Rename File"
-                          >
-                            <Pencil className="w-3.5 h-3.5" />
-                          </button>
-                          <button onClick={(e) => handleDeleteFile(e, file.id)} className="p-1.5 text-zinc-600 hover:text-red-400 hover:bg-zinc-800 rounded opacity-0 group-hover:opacity-100"><Trash2 className="w-3.5 h-3.5" /></button>
+                          <div className="absolute right-1 top-1/2 -translate-y-1/2 flex items-center gap-1 rounded-md border border-zinc-700/80 bg-zinc-900/95 px-1 py-0.5 opacity-0 pointer-events-none group-hover:opacity-100 group-hover:pointer-events-auto transition-opacity">
+                            <button
+                              onClick={(e) => { e.stopPropagation(); handleCopyFileId(file.id); }}
+                              className="p-1 text-zinc-500 hover:text-cyan-300 hover:bg-zinc-800 rounded"
+                              title="Copy File ID"
+                            >
+                              <CopyIcon className="w-3.5 h-3.5" />
+                            </button>
+                            <button
+                              onClick={(e) => handleOpenRenameFileModal(e, file.id)}
+                              className="p-1 text-zinc-500 hover:text-amber-300 hover:bg-zinc-800 rounded"
+                              title="Rename File"
+                            >
+                              <Pencil className="w-3.5 h-3.5" />
+                            </button>
+                            <button
+                              onClick={(e) => handleDeleteFile(e, file.id)}
+                              className="p-1 text-zinc-500 hover:text-red-400 hover:bg-zinc-800 rounded"
+                              title="Delete File"
+                            >
+                              <Trash2 className="w-3.5 h-3.5" />
+                            </button>
+                          </div>
                       </div>
                   );
               })}
@@ -996,7 +1005,7 @@ const App: React.FC = () => {
       );
     }
     return (
-      <aside className="w-64 bg-zinc-950 border-r border-zinc-800 flex flex-col z-20">
+      <aside className="w-80 bg-zinc-950 border-r border-zinc-800 flex flex-col z-20">
         <div className="h-16 flex items-center px-4 border-b border-zinc-800 shrink-0 gap-2">
           <button onClick={() => { setActiveProjectId(null); setCurrentView(ViewState.DASHBOARD); }} className="p-2 hover:bg-zinc-900 rounded-lg text-zinc-400 hover:text-white"><ArrowLeft className="w-4 h-4" /></button>
           <span className="font-semibold text-zinc-200 truncate flex-1">{activeProject.name}</span>
@@ -1034,14 +1043,14 @@ const App: React.FC = () => {
                     draggable
                     onDragStart={(e) => handleFileDragStart(e, file.id, file.name)}
                     onDragEnd={handleFileDragEnd}
-                    className={`w-full flex items-center gap-2 px-2 py-2 rounded-lg text-sm transition-colors border cursor-grab active:cursor-grabbing group ${activeFileId === file.id ? 'bg-zinc-800 text-white border-blue-500/40' : 'text-zinc-300 hover:text-white hover:bg-zinc-900 border-zinc-800'}`}
+                    className={`group relative w-full flex items-start gap-2 px-2 py-2 rounded-lg text-sm transition-colors border cursor-grab active:cursor-grabbing ${activeFileId === file.id ? 'bg-zinc-800 text-white border-blue-500/40' : 'text-zinc-300 hover:text-white hover:bg-zinc-900 border-zinc-800'}`}
                     title={`Drag to create link to ${file.name}`}
                   >
-                    <Icon className={`w-4 h-4 ${activeFileId === file.id ? 'text-blue-400' : 'text-zinc-500'}`} />
-                    <span className="truncate flex-1">{file.name}</span>
+                    <Icon className={`w-4 h-4 mt-0.5 shrink-0 ${activeFileId === file.id ? 'text-blue-400' : 'text-zinc-500'}`} />
+                    <span className="min-w-0 flex-1 break-words leading-snug text-left">{file.name}</span>
                     <span
                       onClick={(e) => { e.stopPropagation(); handleCopyFileId(file.id); }}
-                      className="p-1 text-zinc-500 hover:text-cyan-300 hover:bg-zinc-800 rounded opacity-0 group-hover:opacity-100"
+                      className="absolute right-1 top-1/2 -translate-y-1/2 p-1 text-zinc-500 hover:text-cyan-300 hover:bg-zinc-800 rounded border border-zinc-700/80 bg-zinc-900/95 opacity-0 pointer-events-none group-hover:opacity-100 group-hover:pointer-events-auto transition-opacity"
                       title="Copy File ID"
                     >
                       <CopyIcon className="w-3.5 h-3.5" />

@@ -11,6 +11,7 @@ interface AssetFolderItem {
 interface AssetLibraryContent {
   folders: AssetFolderItem[];
   assetFolderMap: Record<string, string | null>;
+  assetNameMap: Record<string, string>;
 }
 
 const normalizeLibraryContent = (content: any, assets: Record<string, string>): AssetLibraryContent => {
@@ -26,14 +27,18 @@ const normalizeLibraryContent = (content: any, assets: Record<string, string>): 
     parentId: f.parentId && folderIds.has(f.parentId) ? f.parentId : null
   }));
   const rawMap = content?.assetFolderMap && typeof content.assetFolderMap === 'object' ? content.assetFolderMap : {};
+  const rawNameMap = content?.assetNameMap && typeof content.assetNameMap === 'object' ? content.assetNameMap : {};
   const assetFolderMap: Record<string, string | null> = {};
+  const assetNameMap: Record<string, string> = {};
 
   Object.keys(assets).forEach(assetId => {
     const folderId = rawMap[assetId];
     assetFolderMap[assetId] = typeof folderId === 'string' && folderIds.has(folderId) ? folderId : null;
+    const assetName = rawNameMap[assetId];
+    assetNameMap[assetId] = typeof assetName === 'string' && assetName.trim() ? assetName.trim() : assetId;
   });
 
-  return { folders, assetFolderMap };
+  return { folders, assetFolderMap, assetNameMap };
 };
 
 const AssetBrowser: React.FC<EditorProps> = ({ initialContent, assets = {}, onAddAsset, onDeleteAsset, onSave, fileName }) => {
@@ -64,13 +69,21 @@ const AssetBrowser: React.FC<EditorProps> = ({ initialContent, assets = {}, onAd
     });
   };
 
-  const assetList = useMemo(() => Object.entries(assets).map(([id, data]) => ({ id, data })), [assets]);
+  const assetList = useMemo(
+    () => Object.entries(assets).map(([id, data]) => ({ id, data, name: libraryContent.assetNameMap[id] || id })),
+    [assets, libraryContent.assetNameMap]
+  );
 
   const filteredAssets = useMemo(() => {
+    const query = searchQuery.toLowerCase();
     return assetList
-      .filter(item => item.id.toLowerCase().includes(searchQuery.toLowerCase()))
+      .filter(item => item.id.toLowerCase().includes(query) || item.name.toLowerCase().includes(query))
       .filter(item => (libraryContent.assetFolderMap[item.id] ?? null) === selectedFolderId)
-      .sort((a, b) => a.id.localeCompare(b.id));
+      .sort((a, b) => {
+        const nameCompare = a.name.localeCompare(b.name, undefined, { sensitivity: 'base' });
+        if (nameCompare !== 0) return nameCompare;
+        return a.id.localeCompare(b.id);
+      });
   }, [assetList, searchQuery, libraryContent.assetFolderMap, selectedFolderId]);
 
   const sortedRootFolders = useMemo(
@@ -212,7 +225,7 @@ const AssetBrowser: React.FC<EditorProps> = ({ initialContent, assets = {}, onAd
 
     setIsUploading(true);
     try {
-      const newAssetIds: string[] = [];
+      const newAssets: Array<{ id: string; name: string }> = [];
       const failedFiles: string[] = [];
       for (let i = 0; i < imageFiles.length; i++) {
         setUploadStatus(`Uploading ${i + 1}/${imageFiles.length}...`);
@@ -220,7 +233,7 @@ const AssetBrowser: React.FC<EditorProps> = ({ initialContent, assets = {}, onAd
           const uri = await onAddAsset(imageFiles[i]);
           const assetId = typeof uri === 'string' && uri.startsWith('asset://') ? uri.slice('asset://'.length) : '';
           if (assetId) {
-            newAssetIds.push(assetId);
+            newAssets.push({ id: assetId, name: imageFiles[i].name || assetId });
           } else {
             failedFiles.push(imageFiles[i].name || `file-${i + 1}`);
           }
@@ -229,17 +242,19 @@ const AssetBrowser: React.FC<EditorProps> = ({ initialContent, assets = {}, onAd
           failedFiles.push(imageFiles[i].name || `file-${i + 1}`);
         }
       }
-      if (newAssetIds.length > 0) {
+      if (newAssets.length > 0) {
         commitLibraryContent(prev => {
           const nextMap = { ...prev.assetFolderMap };
-          newAssetIds.forEach(id => {
+          const nextNameMap = { ...prev.assetNameMap };
+          newAssets.forEach(({ id, name }) => {
             nextMap[id] = selectedFolderId;
+            nextNameMap[id] = name;
           });
-          return { ...prev, assetFolderMap: nextMap };
+          return { ...prev, assetFolderMap: nextMap, assetNameMap: nextNameMap };
         });
       }
 
-      const successCount = newAssetIds.length;
+      const successCount = newAssets.length;
       if (successCount === imageFiles.length) {
         setUploadStatus(`Uploaded ${successCount} image${successCount === 1 ? '' : 's'}.`);
       } else if (successCount === 0) {
@@ -305,16 +320,19 @@ const AssetBrowser: React.FC<EditorProps> = ({ initialContent, assets = {}, onAd
           onDeleteAsset(id);
           commitLibraryContent(prev => {
             const nextMap = { ...prev.assetFolderMap };
+            const nextNameMap = { ...prev.assetNameMap };
             delete nextMap[id];
-            return { ...prev, assetFolderMap: nextMap };
+            delete nextNameMap[id];
+            return { ...prev, assetFolderMap: nextMap, assetNameMap: nextNameMap };
           });
       }
   };
 
-  const downloadAsset = (data: string, id: string) => {
+  const downloadAsset = (data: string, id: string, name: string) => {
       const a = document.createElement('a');
       a.href = data;
-      a.download = `asset-${id.substring(0,8)}.png`;
+      const safeName = (name || '').trim().replace(/[\\/:*?"<>|]/g, '_');
+      a.download = safeName || `asset-${id.substring(0,8)}.png`;
       a.click();
   };
 
@@ -329,7 +347,7 @@ const AssetBrowser: React.FC<EditorProps> = ({ initialContent, assets = {}, onAd
                 <Search className="w-4 h-4 text-zinc-500 absolute left-3 top-1/2 -translate-y-1/2" />
                 <input 
                     type="text" 
-                    placeholder="Search ID..." 
+                    placeholder="Search assets..." 
                     value={searchQuery}
                     onChange={(e) => setSearchQuery(e.target.value)}
                     className="bg-zinc-950 border border-zinc-800 rounded-full py-1.5 pl-9 pr-4 text-sm text-zinc-300 focus:outline-none focus:border-zinc-700 w-48"
@@ -405,7 +423,7 @@ const AssetBrowser: React.FC<EditorProps> = ({ initialContent, assets = {}, onAd
               </div>
           ) : (
               <div className="grid grid-cols-2 md:grid-cols-3 lg:grid-cols-4 xl:grid-cols-5 gap-6">
-                  {filteredAssets.map(({ id, data }) => (
+                  {filteredAssets.map(({ id, data, name }) => (
                       <div
                         key={id}
                         draggable
@@ -415,7 +433,7 @@ const AssetBrowser: React.FC<EditorProps> = ({ initialContent, assets = {}, onAd
                       >
                           {/* Image Preview */}
                           <div className="aspect-square bg-[#101012] relative flex items-center justify-center overflow-hidden bg-[url('data:image/svg+xml;base64,PHN2ZyB3aWR0aD0iMjAiIGhlaWdodD0iMjAiIHhtbG5zPSJodHRwOi8vd3d3LnczLm9yZy8yMDAwL3N2ZyI+PHBhdGggZD0iTTAgMGgyMHYyMEgwem0xMCAxMGgxMHYxMEgxMHoiIGZpbGw9IiMxODE4MWIiIGZpbGwtb3BhY2l0eT0iMC40Ii8+PC9zdmc+')]">
-                              <img src={data} alt={id} className="max-w-full max-h-full object-contain" />
+                              <img src={data} alt={name} className="max-w-full max-h-full object-contain" />
                               
                               {/* Overlay Actions */}
                               <div className="absolute inset-0 bg-black/60 opacity-0 group-hover:opacity-100 transition-opacity flex items-center justify-center gap-2 backdrop-blur-sm">
@@ -427,7 +445,7 @@ const AssetBrowser: React.FC<EditorProps> = ({ initialContent, assets = {}, onAd
                                       {copiedId === id ? <Check className="w-4 h-4" /> : <Copy className="w-4 h-4" />}
                                   </button>
                                   <button 
-                                      onClick={() => downloadAsset(data, id)}
+                                      onClick={() => downloadAsset(data, id, name)}
                                       className="p-2 bg-zinc-800 text-white rounded-full hover:scale-110 transition-transform"
                                       title="Download"
                                   >
@@ -445,6 +463,9 @@ const AssetBrowser: React.FC<EditorProps> = ({ initialContent, assets = {}, onAd
 
                           {/* Footer info */}
                           <div className="p-3 border-t border-zinc-800 bg-zinc-900/50">
+                              <div className="text-[11px] text-zinc-200 truncate" title={name}>
+                                  {name}
+                              </div>
                               <div className="text-[10px] font-mono text-zinc-500 truncate" title={id}>
                                   {id}
                               </div>

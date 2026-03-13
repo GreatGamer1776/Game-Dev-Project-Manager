@@ -89,6 +89,10 @@ const TodoEditor: React.FC<EditorProps> = ({ initialContent, onSave, fileName, p
   const [filterStatus, setFilterStatus] = useState<'All' | TodoStatus>('All');
   const [filterTags, setFilterTags] = useState<string[]>([]);
   const [sortBy, setSortBy] = useState<'Newest' | 'Oldest' | 'Priority' | 'Due Date' | 'Alphabetical' | 'Effort'>('Newest');
+  const [selectedItemIds, setSelectedItemIds] = useState<string[]>([]);
+  const [bulkStatusAction, setBulkStatusAction] = useState('');
+  const [bulkPriorityAction, setBulkPriorityAction] = useState('');
+  const [bulkTagInput, setBulkTagInput] = useState('');
   
   const [expandedId, setExpandedId] = useState<string | null>(null);
   const [highlightedTaskId, setHighlightedTaskId] = useState<string | null>(null);
@@ -167,6 +171,10 @@ const TodoEditor: React.FC<EditorProps> = ({ initialContent, onSave, fileName, p
       window.clearTimeout(timeoutId);
     };
   }, [activeFileId, items, onTaskNavigationHandled, taskNavigationTarget]);
+
+  useEffect(() => {
+    setSelectedItemIds(current => current.filter(id => items.some(item => item.id === id)));
+  }, [items]);
 
   // Autosave
   useEffect(() => {
@@ -460,6 +468,71 @@ const TodoEditor: React.FC<EditorProps> = ({ initialContent, onSave, fileName, p
     );
   };
 
+  const toggleItemSelection = (id: string) => {
+    setSelectedItemIds(current =>
+      current.includes(id) ? current.filter(selectedId => selectedId !== id) : [...current, id]
+    );
+  };
+
+  const clearItemSelection = () => {
+    setSelectedItemIds([]);
+    setBulkStatusAction('');
+    setBulkPriorityAction('');
+    setBulkTagInput('');
+  };
+
+  const updateSelectedItems = (updater: (item: TodoItem) => TodoItem) => {
+    const selectedSet = new Set(selectedItemIds);
+    setItems(currentItems =>
+      currentItems.map(item => (selectedSet.has(item.id) ? updater(item) : item))
+    );
+  };
+
+  const handleBulkStatusChange = (status: TodoStatus) => {
+    updateSelectedItems(item => ({
+      ...item,
+      status,
+      completed: status === 'Done'
+    }));
+    setBulkStatusAction('');
+  };
+
+  const handleBulkPriorityChange = (priority: Priority) => {
+    updateSelectedItems(item => ({ ...item, priority }));
+    setBulkPriorityAction('');
+  };
+
+  const applyBulkTagChange = (mode: 'add' | 'remove') => {
+    const tags = parseTagInput(bulkTagInput);
+    if (tags.length === 0) return;
+
+    updateSelectedItems(item => {
+      const existing = item.tags || [];
+      const nextTags = mode === 'add'
+        ? Array.from(new Set([...existing, ...tags])).slice(0, 8)
+        : existing.filter(tag => !tags.includes(tag));
+
+      return {
+        ...item,
+        tags: nextTags.length > 0 ? nextTags : undefined
+      };
+    });
+
+    setBulkTagInput('');
+  };
+
+  const deleteSelectedItems = () => {
+    if (selectedItemIds.length === 0) return;
+    if (!confirm(`Delete ${selectedItemIds.length} selected task${selectedItemIds.length === 1 ? '' : 's'}?`)) return;
+
+    const selectedSet = new Set(selectedItemIds);
+    setItems(currentItems => currentItems.filter(item => !selectedSet.has(item.id)));
+    if (expandedId && selectedSet.has(expandedId)) {
+      setExpandedId(null);
+    }
+    clearItemSelection();
+  };
+
   // --- Drag & Drop ---
   const handleDragStart = (e: React.DragEvent, id: string) => {
     setDraggedItemId(id);
@@ -566,6 +639,10 @@ const TodoEditor: React.FC<EditorProps> = ({ initialContent, onSave, fileName, p
       }
     });
 
+  const selectedItemSet = new Set(selectedItemIds);
+  const visibleItemIds = filteredItems.map(item => item.id);
+  const hasVisibleItems = visibleItemIds.length > 0;
+  const allVisibleSelected = hasVisibleItems && visibleItemIds.every(id => selectedItemSet.has(id)) && selectedItemIds.length === visibleItemIds.length;
   const visibleColumns: TodoStatus[] = filterStatus === 'All' ? TODO_COLUMNS : [filterStatus];
   const boardMinWidth = visibleColumns.length === 1 ? 320 : visibleColumns.length * 300 + (visibleColumns.length - 1) * 24;
 
@@ -664,6 +741,88 @@ const TodoEditor: React.FC<EditorProps> = ({ initialContent, onSave, fileName, p
           </div>
         </div>
 
+        {selectedItemIds.length > 0 && (
+          <div className="mt-3 flex flex-wrap items-center gap-2 rounded-lg border border-blue-500/30 bg-blue-500/5 p-3">
+            <span className="text-xs font-medium text-blue-200">
+              {selectedItemIds.length} selected
+            </span>
+            <button
+              onClick={() => setSelectedItemIds(visibleItemIds)}
+              disabled={!hasVisibleItems || allVisibleSelected}
+              className="rounded-md border border-zinc-700 bg-zinc-950 px-2.5 py-1 text-[11px] text-zinc-300 hover:text-white disabled:cursor-not-allowed disabled:opacity-40"
+            >
+              Select Visible
+            </button>
+            <button
+              onClick={clearItemSelection}
+              className="rounded-md border border-zinc-700 bg-zinc-950 px-2.5 py-1 text-[11px] text-zinc-300 hover:text-white"
+            >
+              Clear Selection
+            </button>
+            <div className="flex items-center gap-2 rounded-md border border-zinc-700 bg-zinc-950 px-2 py-1">
+              <span className="text-[11px] text-zinc-400">Move</span>
+              <select
+                value={bulkStatusAction}
+                onChange={(e) => {
+                  const value = e.target.value as TodoStatus | '';
+                  setBulkStatusAction(value);
+                  if (value) handleBulkStatusChange(value as TodoStatus);
+                }}
+                className="bg-transparent text-[11px] text-zinc-200 focus:outline-none"
+              >
+                <option value="">Select bucket...</option>
+                {TODO_COLUMNS.map(status => (
+                  <option key={status} value={status}>{status}</option>
+                ))}
+              </select>
+            </div>
+            <div className="flex items-center gap-2 rounded-md border border-zinc-700 bg-zinc-950 px-2 py-1">
+              <span className="text-[11px] text-zinc-400">Priority</span>
+              <select
+                value={bulkPriorityAction}
+                onChange={(e) => {
+                  const value = e.target.value as Priority | '';
+                  setBulkPriorityAction(value);
+                  if (value) handleBulkPriorityChange(value as Priority);
+                }}
+                className="bg-transparent text-[11px] text-zinc-200 focus:outline-none"
+              >
+                <option value="">Set priority...</option>
+                <option value="High">High</option>
+                <option value="Medium">Medium</option>
+                <option value="Low">Low</option>
+              </select>
+            </div>
+            <input
+              type="text"
+              value={bulkTagInput}
+              onChange={(e) => setBulkTagInput(e.target.value)}
+              placeholder="tag1, tag2"
+              className="min-w-[180px] flex-1 rounded-md border border-zinc-700 bg-zinc-950 px-2.5 py-1 text-[11px] text-zinc-200 focus:border-zinc-500 focus:outline-none"
+            />
+            <button
+              onClick={() => applyBulkTagChange('add')}
+              disabled={!bulkTagInput.trim()}
+              className="rounded-md border border-zinc-700 bg-zinc-950 px-2.5 py-1 text-[11px] text-zinc-300 hover:text-white disabled:cursor-not-allowed disabled:opacity-40"
+            >
+              Add Tags
+            </button>
+            <button
+              onClick={() => applyBulkTagChange('remove')}
+              disabled={!bulkTagInput.trim()}
+              className="rounded-md border border-zinc-700 bg-zinc-950 px-2.5 py-1 text-[11px] text-zinc-300 hover:text-white disabled:cursor-not-allowed disabled:opacity-40"
+            >
+              Remove Tags
+            </button>
+            <button
+              onClick={deleteSelectedItems}
+              className="rounded-md border border-red-500/40 bg-red-500/10 px-2.5 py-1 text-[11px] text-red-300 hover:bg-red-500/20"
+            >
+              Delete Selected
+            </button>
+          </div>
+        )}
+
         {allTags.length > 0 && (
           <div className="mt-3 flex flex-wrap items-center gap-2">
             <div className="mr-1 flex items-center gap-1.5 text-xs text-zinc-500">
@@ -718,6 +877,7 @@ const TodoEditor: React.FC<EditorProps> = ({ initialContent, onSave, fileName, p
                          const progress = subTasks.length > 0 ? (completedSub / subTasks.length) * 100 : 0;
                          const isExpanded = expandedId === item.id;
                          const isHighlighted = highlightedTaskId === item.id;
+                         const isSelected = selectedItemSet.has(item.id);
 
                          return (
                             <div
@@ -729,7 +889,7 @@ const TodoEditor: React.FC<EditorProps> = ({ initialContent, onSave, fileName, p
                               onDragStart={(e) => handleDragStart(e, item.id)}
                               onDragEnd={handleDragEnd}
                               data-task-id={item.id}
-                              className={`group rounded-lg border bg-zinc-900 p-3 shadow-sm transition-all cursor-grab active:cursor-grabbing ${draggedItemId === item.id ? 'opacity-50 grayscale' : 'opacity-100'} ${isHighlighted ? 'border-cyan-400/60 ring-2 ring-cyan-400/30 shadow-[0_0_0_1px_rgba(34,211,238,0.2)]' : 'border-zinc-800 hover:border-zinc-700 hover:shadow-md'}`}
+                              className={`group rounded-lg border bg-zinc-900 p-3 shadow-sm transition-all cursor-grab active:cursor-grabbing ${draggedItemId === item.id ? 'opacity-50 grayscale' : 'opacity-100'} ${isHighlighted ? 'border-cyan-400/60 ring-2 ring-cyan-400/30 shadow-[0_0_0_1px_rgba(34,211,238,0.2)]' : isSelected ? 'border-blue-500/60 ring-2 ring-blue-500/20 shadow-[0_0_0_1px_rgba(59,130,246,0.15)]' : 'border-zinc-800 hover:border-zinc-700 hover:shadow-md'}`}
                             >
                               {/* Card Header */}
                               <div className="flex items-start gap-3 mb-2">
@@ -762,10 +922,24 @@ const TodoEditor: React.FC<EditorProps> = ({ initialContent, onSave, fileName, p
                                         </p>
                                       )}
                                   </div>
-                                  <button onClick={() => setExpandedId(isExpanded ? null : item.id)} className="text-zinc-600 hover:text-white transition-colors">
-                                     {isExpanded ? <ChevronUp className="w-4 h-4" /> : <MoreHorizontal className="w-4 h-4" />}
-                                  </button>
-                              </div>
+                                   <div className="flex items-center gap-1">
+                                     <button
+                                       onClick={(e) => {
+                                         e.stopPropagation();
+                                         toggleItemSelection(item.id);
+                                       }}
+                                       className="rounded-md p-1 text-zinc-500 transition-colors hover:bg-zinc-800 hover:text-white"
+                                       title={isSelected ? 'Deselect task' : 'Select task'}
+                                     >
+                                       <span className={`flex h-4 w-4 items-center justify-center rounded border ${isSelected ? 'border-blue-400 bg-blue-500 text-white' : 'border-zinc-700 bg-zinc-950 text-transparent group-hover:text-zinc-400'}`}>
+                                         <Check className="h-3 w-3" />
+                                       </span>
+                                     </button>
+                                     <button onClick={() => setExpandedId(isExpanded ? null : item.id)} className="text-zinc-600 hover:text-white transition-colors">
+                                        {isExpanded ? <ChevronUp className="w-4 h-4" /> : <MoreHorizontal className="w-4 h-4" />}
+                                     </button>
+                                   </div>
+                               </div>
 
                                {/* Card Tags */}
                                <div className="flex flex-wrap items-center gap-2 mt-2">

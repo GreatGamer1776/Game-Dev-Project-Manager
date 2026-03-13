@@ -32,6 +32,10 @@ const KanbanBoard: React.FC<EditorProps> = ({ initialContent, onSave, fileName, 
   const [filterSeverity, setFilterSeverity] = useState<'All' | BugSeverity>('All');
   const [filterStatus, setFilterStatus] = useState<'All' | BugStatus>('All');
   const [sortBy, setSortBy] = useState<BugSort>('Newest');
+  const [selectedBugIds, setSelectedBugIds] = useState<string[]>([]);
+  const [bulkStatusAction, setBulkStatusAction] = useState('');
+  const [bulkSeverityAction, setBulkSeverityAction] = useState('');
+  const [bulkTagInput, setBulkTagInput] = useState('');
   
   const [newTitle, setNewTitle] = useState('');
   const [newSeverity, setNewSeverity] = useState<BugSeverity>('Medium');
@@ -100,6 +104,10 @@ const KanbanBoard: React.FC<EditorProps> = ({ initialContent, onSave, fileName, 
     document.addEventListener('mousedown', handleOutsideClick);
     return () => document.removeEventListener('mousedown', handleOutsideClick);
   }, [isModalOpen, linkPickerOpen]);
+
+  useEffect(() => {
+    setSelectedBugIds(current => current.filter(id => bugs.some(bug => bug.id === id)));
+  }, [bugs]);
 
   // Autosave Logic
   useEffect(() => {
@@ -363,6 +371,64 @@ const KanbanBoard: React.FC<EditorProps> = ({ initialContent, onSave, fileName, 
     setSortBy('Newest');
   };
 
+  const toggleBugSelection = (id: string) => {
+    setSelectedBugIds(current =>
+      current.includes(id) ? current.filter(selectedId => selectedId !== id) : [...current, id]
+    );
+  };
+
+  const clearBugSelection = () => {
+    setSelectedBugIds([]);
+    setBulkStatusAction('');
+    setBulkSeverityAction('');
+    setBulkTagInput('');
+  };
+
+  const updateSelectedBugs = (updater: (bug: Bug) => Bug) => {
+    const selectedSet = new Set(selectedBugIds);
+    setBugs(currentBugs =>
+      currentBugs.map(bug => (selectedSet.has(bug.id) ? updater(bug) : bug))
+    );
+  };
+
+  const handleBulkStatusChange = (status: BugStatus) => {
+    updateSelectedBugs(bug => ({ ...bug, status }));
+    setBulkStatusAction('');
+  };
+
+  const handleBulkSeverityChange = (severity: BugSeverity) => {
+    updateSelectedBugs(bug => ({ ...bug, severity }));
+    setBulkSeverityAction('');
+  };
+
+  const applyBulkTagChange = (mode: 'add' | 'remove') => {
+    const tags = parseTagInput(bulkTagInput);
+    if (tags.length === 0) return;
+
+    updateSelectedBugs(bug => {
+      const existing = bug.tags || [];
+      const nextTags = mode === 'add'
+        ? Array.from(new Set([...existing, ...tags])).slice(0, 8)
+        : existing.filter(tag => !tags.includes(tag));
+
+      return {
+        ...bug,
+        tags: nextTags.length > 0 ? nextTags : undefined
+      };
+    });
+
+    setBulkTagInput('');
+  };
+
+  const deleteSelectedBugs = () => {
+    if (selectedBugIds.length === 0) return;
+    if (!confirm(`Delete ${selectedBugIds.length} selected bug${selectedBugIds.length === 1 ? '' : 's'}?`)) return;
+
+    const selectedSet = new Set(selectedBugIds);
+    setBugs(currentBugs => currentBugs.filter(bug => !selectedSet.has(bug.id)));
+    clearBugSelection();
+  };
+
   const severityRank: Record<BugSeverity, number> = {
     Critical: 4,
     High: 3,
@@ -404,6 +470,10 @@ const KanbanBoard: React.FC<EditorProps> = ({ initialContent, onSave, fileName, 
       }
     });
 
+  const selectedBugSet = new Set(selectedBugIds);
+  const visibleBugIds = filteredBugs.map(bug => bug.id);
+  const hasVisibleBugs = visibleBugIds.length > 0;
+  const allVisibleSelected = hasVisibleBugs && visibleBugIds.every(id => selectedBugSet.has(id)) && selectedBugIds.length === visibleBugIds.length;
   const visibleColumns: BugStatus[] = filterStatus === 'All' ? BUG_COLUMNS : [filterStatus];
 
   useEffect(() => {
@@ -534,10 +604,95 @@ const KanbanBoard: React.FC<EditorProps> = ({ initialContent, onSave, fileName, 
          >
            Reset Filters
          </button>
-         <div className="ml-auto text-xs text-zinc-500">
-            Showing {filteredBugs.length} of {bugs.length} bugs
-         </div>
-      </div>
+          <div className="ml-auto text-xs text-zinc-500">
+             Showing {filteredBugs.length} of {bugs.length} bugs
+          </div>
+       </div>
+
+      {selectedBugIds.length > 0 && (
+        <div className="border-b border-zinc-800 bg-zinc-900 px-6 py-3">
+          <div className="flex flex-wrap items-center gap-2 rounded-lg border border-blue-500/30 bg-blue-500/5 p-3">
+            <span className="text-xs font-medium text-blue-200">
+              {selectedBugIds.length} selected
+            </span>
+            <button
+              onClick={() => setSelectedBugIds(visibleBugIds)}
+              disabled={!hasVisibleBugs || allVisibleSelected}
+              className="rounded-md border border-zinc-700 bg-zinc-950 px-2.5 py-1 text-[11px] text-zinc-300 hover:text-white disabled:cursor-not-allowed disabled:opacity-40"
+            >
+              Select Visible
+            </button>
+            <button
+              onClick={clearBugSelection}
+              className="rounded-md border border-zinc-700 bg-zinc-950 px-2.5 py-1 text-[11px] text-zinc-300 hover:text-white"
+            >
+              Clear Selection
+            </button>
+            <div className="flex items-center gap-2 rounded-md border border-zinc-700 bg-zinc-950 px-2 py-1">
+              <span className="text-[11px] text-zinc-400">Move</span>
+              <select
+                value={bulkStatusAction}
+                onChange={(e) => {
+                  const value = e.target.value as BugStatus | '';
+                  setBulkStatusAction(value);
+                  if (value) handleBulkStatusChange(value as BugStatus);
+                }}
+                className="bg-transparent text-[11px] text-zinc-200 focus:outline-none"
+              >
+                <option value="">Select status...</option>
+                {BUG_COLUMNS.map(status => (
+                  <option key={status} value={status}>{status}</option>
+                ))}
+              </select>
+            </div>
+            <div className="flex items-center gap-2 rounded-md border border-zinc-700 bg-zinc-950 px-2 py-1">
+              <span className="text-[11px] text-zinc-400">Severity</span>
+              <select
+                value={bulkSeverityAction}
+                onChange={(e) => {
+                  const value = e.target.value as BugSeverity | '';
+                  setBulkSeverityAction(value);
+                  if (value) handleBulkSeverityChange(value as BugSeverity);
+                }}
+                className="bg-transparent text-[11px] text-zinc-200 focus:outline-none"
+              >
+                <option value="">Set severity...</option>
+                <option value="Critical">Critical</option>
+                <option value="High">High</option>
+                <option value="Medium">Medium</option>
+                <option value="Low">Low</option>
+              </select>
+            </div>
+            <input
+              type="text"
+              value={bulkTagInput}
+              onChange={(e) => setBulkTagInput(e.target.value)}
+              placeholder="tag1, tag2"
+              className="min-w-[180px] flex-1 rounded-md border border-zinc-700 bg-zinc-950 px-2.5 py-1 text-[11px] text-zinc-200 focus:border-zinc-500 focus:outline-none"
+            />
+            <button
+              onClick={() => applyBulkTagChange('add')}
+              disabled={!bulkTagInput.trim()}
+              className="rounded-md border border-zinc-700 bg-zinc-950 px-2.5 py-1 text-[11px] text-zinc-300 hover:text-white disabled:cursor-not-allowed disabled:opacity-40"
+            >
+              Add Tags
+            </button>
+            <button
+              onClick={() => applyBulkTagChange('remove')}
+              disabled={!bulkTagInput.trim()}
+              className="rounded-md border border-zinc-700 bg-zinc-950 px-2.5 py-1 text-[11px] text-zinc-300 hover:text-white disabled:cursor-not-allowed disabled:opacity-40"
+            >
+              Remove Tags
+            </button>
+            <button
+              onClick={deleteSelectedBugs}
+              className="rounded-md border border-red-500/40 bg-red-500/10 px-2.5 py-1 text-[11px] text-red-300 hover:bg-red-500/20"
+            >
+              Delete Selected
+            </button>
+          </div>
+        </div>
+      )}
 
       <div className="flex-1 overflow-x-auto p-6">
         <div className={`flex gap-6 h-full ${visibleColumns.length === 1 ? 'min-w-[320px]' : 'min-w-[1000px]'}`}>
@@ -577,23 +732,40 @@ const KanbanBoard: React.FC<EditorProps> = ({ initialContent, onSave, fileName, 
                     className="flex-1 overflow-y-auto p-3 space-y-3 custom-scrollbar"
                  >
                     {topSpacerHeight > 0 && <div style={{ height: topSpacerHeight }} />}
-                    {visibleBugs.map(bug => (
-                      <div 
-                        key={bug.id}
-                        draggable
-                        onDragStart={(e) => handleDragStart(e, bug.id)}
-                        onDragEnd={handleDragEnd}
-                        className={`bg-zinc-900 border border-zinc-800 p-4 rounded-lg shadow-sm hover:border-zinc-700 transition-colors group cursor-grab active:cursor-grabbing ${draggedBugId === bug.id ? 'opacity-40 grayscale border-dashed border-zinc-600' : 'opacity-100'}`}
-                      >
+                     {visibleBugs.map(bug => {
+                       const isSelected = selectedBugSet.has(bug.id);
+
+                       return (
+                        <div 
+                          key={bug.id}
+                          draggable
+                          onDragStart={(e) => handleDragStart(e, bug.id)}
+                          onDragEnd={handleDragEnd}
+                          className={`border bg-zinc-900 p-4 rounded-lg shadow-sm transition-colors group cursor-grab active:cursor-grabbing ${draggedBugId === bug.id ? 'opacity-40 grayscale border-dashed border-zinc-600' : 'opacity-100'} ${isSelected ? 'border-blue-500/60 ring-2 ring-blue-500/20 shadow-[0_0_0_1px_rgba(59,130,246,0.15)]' : 'border-zinc-800 hover:border-zinc-700'}`}
+                        >
                          <div className="flex justify-between items-start mb-2 relative">
                             <span className={`text-[10px] font-bold px-2 py-0.5 rounded border flex items-center gap-1 pointer-events-none ${getSeverityColor(bug.severity)}`}>
                               {getSeverityIcon(bug.severity)}
                               {bug.severity}
                             </span>
-                            <div className="flex gap-1 opacity-0 group-hover:opacity-100 transition-opacity relative z-20">
-                                <button 
-                                    onClick={(e) => handleOpenEdit(e, bug)}
-                                    className="p-1 text-zinc-500 hover:text-blue-400 hover:bg-zinc-800 rounded cursor-pointer"
+                            <div className="flex items-center gap-1 relative z-20">
+                                <button
+                                    onClick={(e) => {
+                                      e.preventDefault();
+                                      e.stopPropagation();
+                                      toggleBugSelection(bug.id);
+                                    }}
+                                    className="rounded-md p-1 text-zinc-500 transition-colors hover:bg-zinc-800 hover:text-white"
+                                    title={isSelected ? 'Deselect bug' : 'Select bug'}
+                                >
+                                    <span className={`flex h-4 w-4 items-center justify-center rounded border ${isSelected ? 'border-blue-400 bg-blue-500 text-white' : 'border-zinc-700 bg-zinc-950 text-transparent group-hover:text-zinc-400'}`}>
+                                      <Check className="h-3 w-3" />
+                                    </span>
+                                </button>
+                                <div className="flex gap-1 opacity-0 group-hover:opacity-100 transition-opacity">
+                                 <button 
+                                     onClick={(e) => handleOpenEdit(e, bug)}
+                                     className="p-1 text-zinc-500 hover:text-blue-400 hover:bg-zinc-800 rounded cursor-pointer"
                                     title="Edit Bug"
                                 >
                                     <Pencil className="w-4 h-4" />
@@ -606,9 +778,10 @@ const KanbanBoard: React.FC<EditorProps> = ({ initialContent, onSave, fileName, 
                                     }} 
                                     className="p-1 text-zinc-500 hover:text-red-400 hover:bg-zinc-800 rounded cursor-pointer"
                                     title="Delete Bug"
-                                >
-                                    <Trash2 className="w-4 h-4" />
-                                </button>
+                                 >
+                                     <Trash2 className="w-4 h-4" />
+                                 </button>
+                                </div>
                             </div>
                          </div>
                          <h5 className="text-sm font-medium text-zinc-200 mb-1 pointer-events-none">{bug.title}</h5>
@@ -654,8 +827,8 @@ const KanbanBoard: React.FC<EditorProps> = ({ initialContent, onSave, fileName, 
                              </button>
                            ) : <div></div>}
                          </div>
-                      </div>
-                    ))}
+                       </div>
+                     )})}
                     {bottomSpacerHeight > 0 && <div style={{ height: bottomSpacerHeight }} />}
                     {colBugs.length === 0 && (
                       <div className={`text-center py-8 pointer-events-none transition-opacity ${isActiveDrop ? 'opacity-50 text-blue-400' : 'opacity-30 text-zinc-500'}`}>

@@ -6,7 +6,7 @@ import {
   Underline, Strikethrough, Palette, Video, Music, X, CheckSquare, FolderOpen
 } from 'lucide-react';
 import { EditorProps, TodoItem, TodoStatus } from '../types';
-import { ASSET_LINK_DRAG_MIME, AssetKind, getAssetKindFromMime, getAssetMimeType, sanitizeAssetLabel } from '../services/assetUtils';
+import { ASSET_LINK_DRAG_MIME, AssetKind, getAssetDisplayName, getAssetKindFromMime, getAssetMimeType, sanitizeAssetLabel } from '../services/assetUtils';
 
 // --- CUSTOM PARSER LOGIC ---
 const FILE_LINK_DRAG_MIME = 'application/x-gdpm-file-id';
@@ -24,8 +24,10 @@ type TaskLinkRecord = {
 type AssetLinkRecord = {
     id: string;
     name: string;
+    displayName: string;
     mime: string;
     kind: AssetKind;
+    data: string;
 };
 
 const getTaskLookupKey = (fileId: string, taskId: string) => `${fileId}::${taskId}`;
@@ -274,15 +276,19 @@ const DocEditor: React.FC<EditorProps> = ({ initialContent, onSave, fileName, as
     return Object.entries(assets)
       .map(([id, data]) => {
         const mime = getAssetMimeType(data);
+        const kind = getAssetKindFromMime(mime);
+        const rawName = assetNameMap[id] || id;
         return {
           id,
-          name: assetNameMap[id] || id,
+          name: rawName,
+          displayName: getAssetDisplayName(rawName, id, kind),
           mime,
-          kind: getAssetKindFromMime(mime)
+          kind,
+          data
         };
       })
       .sort((a, b) =>
-        a.name.localeCompare(b.name, undefined, { sensitivity: 'base' }) ||
+        a.displayName.localeCompare(b.displayName, undefined, { sensitivity: 'base' }) ||
         a.id.localeCompare(b.id)
       );
   }, [assetNameMap, assets]);
@@ -290,7 +296,7 @@ const DocEditor: React.FC<EditorProps> = ({ initialContent, onSave, fileName, as
     const query = assetQuery.trim().toLowerCase();
     if (!query) return linkableAssets;
     return linkableAssets.filter(asset =>
-      [asset.name, asset.id, asset.kind, asset.mime].join(' ').toLowerCase().includes(query)
+      [asset.displayName, asset.name, asset.id, asset.kind, asset.mime].join(' ').toLowerCase().includes(query)
     );
   }, [assetQuery, linkableAssets]);
 
@@ -450,7 +456,7 @@ const DocEditor: React.FC<EditorProps> = ({ initialContent, onSave, fileName, as
   const insertAssetReference = (assetId: string) => {
       const selected = linkableAssets.find(asset => asset.id === assetId);
       if (!selected) return;
-      insertText(`\n![${sanitizeAssetLabel(selected.name, 'Project Asset')}](asset://${selected.id})\n`);
+      insertText(`\n![${sanitizeAssetLabel(selected.displayName, 'Project Asset')}](asset://${selected.id})\n`);
       setShowAssetPicker(false);
       setAssetQuery('');
   };
@@ -519,11 +525,16 @@ const DocEditor: React.FC<EditorProps> = ({ initialContent, onSave, fileName, as
         try {
           const parsed = JSON.parse(raw) as { id?: string; name?: string; mime?: string; kind?: AssetKind };
           if (parsed?.id && assets[parsed.id]) {
+            const mime = parsed.mime || getAssetMimeType(assets[parsed.id]);
+            const kind = parsed.kind || getAssetKindFromMime(mime);
+            const rawName = parsed.name || assetNameMap[parsed.id] || parsed.id;
             return {
               id: parsed.id,
-              name: parsed.name || assetNameMap[parsed.id] || parsed.id,
-              mime: parsed.mime || getAssetMimeType(assets[parsed.id]),
-              kind: parsed.kind || getAssetKindFromMime(parsed.mime || getAssetMimeType(assets[parsed.id]))
+              name: rawName,
+              displayName: getAssetDisplayName(rawName, parsed.id, kind),
+              mime,
+              kind,
+              data: assets[parsed.id]
             };
           }
         } catch {
@@ -537,11 +548,15 @@ const DocEditor: React.FC<EditorProps> = ({ initialContent, onSave, fileName, as
         const assetData = assets[assetId];
         if (assetData) {
           const mime = getAssetMimeType(assetData);
+          const kind = getAssetKindFromMime(mime);
+          const rawName = assetNameMap[assetId] || assetId;
           return {
             id: assetId,
-            name: assetNameMap[assetId] || assetId,
+            name: rawName,
+            displayName: getAssetDisplayName(rawName, assetId, kind),
             mime,
-            kind: getAssetKindFromMime(mime)
+            kind,
+            data: assetData
           };
         }
       }
@@ -600,7 +615,7 @@ const DocEditor: React.FC<EditorProps> = ({ initialContent, onSave, fileName, as
       const draggedAsset = getDraggedAsset(e);
       if (draggedAsset) {
         e.preventDefault();
-        insertText(`\n![${sanitizeAssetLabel(draggedAsset.name, 'Project Asset')}](asset://${draggedAsset.id})\n`);
+        insertText(`\n![${sanitizeAssetLabel(draggedAsset.displayName, 'Project Asset')}](asset://${draggedAsset.id})\n`);
         return;
       }
 
@@ -826,35 +841,57 @@ const DocEditor: React.FC<EditorProps> = ({ initialContent, onSave, fileName, as
                    active={showAssetPicker}
                  />
                  {showAssetPicker && (
-                   <div className="absolute left-0 top-full mt-2 z-50 w-80 rounded-lg border border-zinc-700 bg-zinc-900 p-2 shadow-xl">
-                     <input
-                       type="text"
-                       value={assetQuery}
-                       onChange={(e) => setAssetQuery(e.target.value)}
-                       placeholder="Search assets..."
-                       className="mb-2 w-full rounded border border-zinc-700 bg-zinc-950 px-2 py-1.5 text-xs text-zinc-200 focus:border-zinc-500 focus:outline-none"
-                       autoFocus
-                     />
-                     <div className="max-h-56 space-y-1 overflow-y-auto custom-scrollbar">
-                       {filteredLinkableAssets.length === 0 ? (
-                         <p className="px-2 py-2 text-xs text-zinc-500">No matching assets.</p>
-                       ) : (
-                         filteredLinkableAssets.map(asset => (
-                           <button
-                             key={asset.id}
-                             type="button"
-                             onClick={() => insertAssetReference(asset.id)}
-                             className="w-full rounded px-2 py-2 text-left text-xs text-zinc-300 transition hover:bg-zinc-800 hover:text-white"
-                             title={`${asset.mime} • ${asset.id}`}
-                           >
-                             <div className="truncate font-medium text-zinc-200">{asset.name}</div>
-                             <div className="mt-1 flex items-center justify-between gap-2 text-[10px] text-zinc-500">
-                               <span className="uppercase">{asset.kind}</span>
-                               <span className="truncate">{asset.mime}</span>
-                             </div>
-                           </button>
-                         ))
-                       )}
+                    <div className="absolute left-0 top-full mt-2 z-50 w-96 rounded-lg border border-zinc-700 bg-zinc-900 p-2 shadow-xl">
+                      <input
+                        type="text"
+                        value={assetQuery}
+                        onChange={(e) => setAssetQuery(e.target.value)}
+                        placeholder="Search assets by name, type, or id..."
+                        className="mb-2 w-full rounded border border-zinc-700 bg-zinc-950 px-2 py-1.5 text-xs text-zinc-200 focus:border-zinc-500 focus:outline-none"
+                        autoFocus
+                      />
+                      <div className="max-h-56 space-y-1 overflow-y-auto custom-scrollbar">
+                        {filteredLinkableAssets.length === 0 ? (
+                          <p className="px-2 py-2 text-xs text-zinc-500">No matching assets.</p>
+                        ) : (
+                          filteredLinkableAssets.map(asset => (
+                            <button
+                              key={asset.id}
+                              type="button"
+                              onClick={() => insertAssetReference(asset.id)}
+                              className="w-full rounded px-2 py-2 text-left text-xs text-zinc-300 transition hover:bg-zinc-800 hover:text-white"
+                              title={`${asset.mime} • ${asset.id}`}
+                            >
+                              <div className="flex items-center gap-3">
+                                <div className="h-14 w-14 shrink-0 overflow-hidden rounded-md border border-zinc-700 bg-zinc-950">
+                                  {asset.kind === 'image' ? (
+                                    <img src={asset.data} alt={asset.displayName} className="h-full w-full object-cover" />
+                                  ) : asset.kind === 'video' ? (
+                                    <video src={asset.data} className="h-full w-full object-cover" muted preload="metadata" playsInline />
+                                  ) : asset.kind === 'audio' ? (
+                                    <div className="flex h-full w-full items-center justify-center bg-gradient-to-br from-purple-600/20 to-zinc-950 text-purple-300">
+                                      <Music className="h-6 w-6" />
+                                    </div>
+                                  ) : (
+                                    <div className="flex h-full w-full items-center justify-center bg-zinc-900 text-zinc-500">
+                                      <FolderOpen className="h-6 w-6" />
+                                    </div>
+                                  )}
+                                </div>
+                                <div className="min-w-0 flex-1">
+                                  <div className="truncate font-medium text-zinc-200">{asset.displayName}</div>
+                                  <div className="mt-1 flex items-center justify-between gap-2 text-[10px] text-zinc-500">
+                                    <span className="uppercase">{asset.kind}</span>
+                                    <span className="truncate">{asset.mime}</span>
+                                  </div>
+                                  <div className="mt-1 truncate text-[10px] text-zinc-600">
+                                    {asset.name !== asset.displayName ? `ID ${asset.id.slice(0, 8)}` : asset.id}
+                                  </div>
+                                </div>
+                              </div>
+                            </button>
+                          ))
+                        )}
                      </div>
                    </div>
                  )}

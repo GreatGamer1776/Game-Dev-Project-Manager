@@ -1,6 +1,7 @@
 export type AssetKind = 'image' | 'video' | 'audio' | 'other';
 
 export const ASSET_LINK_DRAG_MIME = 'application/x-gdpm-asset';
+const UUID_LIKE_PATTERN = /^[0-9a-f]{8}-[0-9a-f]{4}-[1-5][0-9a-f]{3}-[89ab][0-9a-f]{3}-[0-9a-f]{12}$/i;
 
 export const getAssetMimeType = (data: string) => {
   const match = data.match(/^data:([^;]+);/i);
@@ -38,4 +39,25 @@ export const getAssetExtensionFromMime = (mime: string) => {
 export const sanitizeAssetLabel = (label: string, fallback: string) => {
   const sanitized = label.trim().replace(/[\[\]\(\)]/g, '');
   return sanitized || fallback;
+};
+
+export const getDefaultAssetLabel = (kind: AssetKind) => {
+  switch (kind) {
+    case 'image':
+      return 'Image Asset';
+    case 'video':
+      return 'Video Asset';
+    case 'audio':
+      return 'Audio Asset';
+    default:
+      return 'Project Asset';
+  }
+};
+
+export const getAssetDisplayName = (label: string | null | undefined, assetId: string, kind: AssetKind) => {
+  const trimmed = label?.trim() || '';
+  if (trimmed && trimmed !== assetId && !UUID_LIKE_PATTERN.test(trimmed)) {
+    return trimmed;
+  }
+  return getDefaultAssetLabel(kind);
 };

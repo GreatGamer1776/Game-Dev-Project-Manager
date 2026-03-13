@@ -3,9 +3,10 @@ import {
   Save, Trash2, Bold, Italic, List, ListOrdered, 
   Heading1, Heading2, Quote, Code, Image as ImageIcon, 
   Eye, Columns, PenTool, Link as LinkIcon, Check, Loader2, AlertCircle,
-  Underline, Strikethrough, Palette, Video, Music, X, CheckSquare
+  Underline, Strikethrough, Palette, Video, Music, X, CheckSquare, FolderOpen
 } from 'lucide-react';
 import { EditorProps, TodoItem, TodoStatus } from '../types';
+import { ASSET_LINK_DRAG_MIME, AssetKind, getAssetKindFromMime, getAssetMimeType, sanitizeAssetLabel } from '../services/assetUtils';
 
 // --- CUSTOM PARSER LOGIC ---
 const FILE_LINK_DRAG_MIME = 'application/x-gdpm-file-id';
@@ -18,6 +19,13 @@ type TaskLinkRecord = {
     taskName: string;
     tags: string[];
     status: TodoStatus;
+};
+
+type AssetLinkRecord = {
+    id: string;
+    name: string;
+    mime: string;
+    kind: AssetKind;
 };
 
 const getTaskLookupKey = (fileId: string, taskId: string) => `${fileId}::${taskId}`;
@@ -190,6 +198,8 @@ const DocEditor: React.FC<EditorProps> = ({ initialContent, onSave, fileName, as
   const [linkPickerQuery, setLinkPickerQuery] = useState('');
   const [showTaskLinkPicker, setShowTaskLinkPicker] = useState(false);
   const [taskLinkQuery, setTaskLinkQuery] = useState('');
+  const [showAssetPicker, setShowAssetPicker] = useState(false);
+  const [assetQuery, setAssetQuery] = useState('');
 
   const [saveStatus, setSaveStatus] = useState<'saved' | 'saving' | 'unsaved'>('saved');
   const lastSavedContent = useRef(initialContent);
@@ -200,8 +210,16 @@ const DocEditor: React.FC<EditorProps> = ({ initialContent, onSave, fileName, as
   const colorPickerRef = useRef<HTMLDivElement>(null);
   const fileLinkPickerRef = useRef<HTMLDivElement>(null);
   const taskLinkPickerRef = useRef<HTMLDivElement>(null);
+  const assetPickerRef = useRef<HTMLDivElement>(null);
   const previewPaneRef = useRef<HTMLDivElement>(null);
   const fileLookup = React.useMemo(() => new Map(projectFiles.map(f => [f.id, f.name])), [projectFiles]);
+  const assetLibraryFile = React.useMemo(() => projectFiles.find(file => file.type === 'asset-gallery'), [projectFiles]);
+  const assetNameMap = React.useMemo(() => {
+    const content = assetLibraryFile?.content;
+    if (!content || typeof content !== 'object') return {} as Record<string, string>;
+    const rawMap = (content as { assetNameMap?: Record<string, string> }).assetNameMap;
+    return rawMap && typeof rawMap === 'object' ? rawMap : {};
+  }, [assetLibraryFile]);
   const linkableFiles = React.useMemo(
     () => projectFiles.filter(f => f.id !== activeFileId).sort((a, b) => a.name.localeCompare(b.name, undefined, { sensitivity: 'base' })),
     [projectFiles, activeFileId]
@@ -252,6 +270,29 @@ const DocEditor: React.FC<EditorProps> = ({ initialContent, onSave, fileName, as
     () => new Map(linkableTasks.map(task => [getTaskLookupKey(task.fileId, task.taskId), task])),
     [linkableTasks]
   );
+  const linkableAssets = React.useMemo<AssetLinkRecord[]>(() => {
+    return Object.entries(assets)
+      .map(([id, data]) => {
+        const mime = getAssetMimeType(data);
+        return {
+          id,
+          name: assetNameMap[id] || id,
+          mime,
+          kind: getAssetKindFromMime(mime)
+        };
+      })
+      .sort((a, b) =>
+        a.name.localeCompare(b.name, undefined, { sensitivity: 'base' }) ||
+        a.id.localeCompare(b.id)
+      );
+  }, [assetNameMap, assets]);
+  const filteredLinkableAssets = React.useMemo(() => {
+    const query = assetQuery.trim().toLowerCase();
+    if (!query) return linkableAssets;
+    return linkableAssets.filter(asset =>
+      [asset.name, asset.id, asset.kind, asset.mime].join(' ').toLowerCase().includes(query)
+    );
+  }, [assetQuery, linkableAssets]);
 
   // Sync initial content
   useEffect(() => {
@@ -285,6 +326,12 @@ const DocEditor: React.FC<EditorProps> = ({ initialContent, onSave, fileName, as
     setTaskLinkQuery('');
   }, [linkableTasks]);
 
+  useEffect(() => {
+    if (linkableAssets.length > 0) return;
+    setShowAssetPicker(false);
+    setAssetQuery('');
+  }, [linkableAssets]);
+
   // Autosave
   useEffect(() => {
     if (content === lastSavedContent.current) return;
@@ -308,11 +355,15 @@ const DocEditor: React.FC<EditorProps> = ({ initialContent, onSave, fileName, as
         setShowTaskLinkPicker(false);
         setTaskLinkQuery('');
       }
+      if (assetPickerRef.current && !assetPickerRef.current.contains(target)) {
+        setShowAssetPicker(false);
+        setAssetQuery('');
+      }
     };
-    if (!showColorPicker && !showLinkPicker && !showTaskLinkPicker) return;
+    if (!showColorPicker && !showLinkPicker && !showTaskLinkPicker && !showAssetPicker) return;
     document.addEventListener('mousedown', handleClickOutside);
     return () => document.removeEventListener('mousedown', handleClickOutside);
-  }, [showColorPicker, showLinkPicker, showTaskLinkPicker]);
+  }, [showAssetPicker, showColorPicker, showLinkPicker, showTaskLinkPicker]);
 
   // Shortcuts
   useEffect(() => {
@@ -396,10 +447,19 @@ const DocEditor: React.FC<EditorProps> = ({ initialContent, onSave, fileName, as
       setTaskLinkQuery('');
   };
 
+  const insertAssetReference = (assetId: string) => {
+      const selected = linkableAssets.find(asset => asset.id === assetId);
+      if (!selected) return;
+      insertText(`\n![${sanitizeAssetLabel(selected.name, 'Project Asset')}](asset://${selected.id})\n`);
+      setShowAssetPicker(false);
+      setAssetQuery('');
+  };
+
   const toggleLinkPicker = () => {
       if (linkableFiles.length === 0) return;
       setShowColorPicker(false);
       setShowTaskLinkPicker(false);
+      setShowAssetPicker(false);
       setShowLinkPicker(prev => !prev);
       setLinkPickerQuery('');
   };
@@ -408,8 +468,18 @@ const DocEditor: React.FC<EditorProps> = ({ initialContent, onSave, fileName, as
       if (linkableTasks.length === 0) return;
       setShowColorPicker(false);
       setShowLinkPicker(false);
+      setShowAssetPicker(false);
       setShowTaskLinkPicker(prev => !prev);
       setTaskLinkQuery('');
+  };
+
+  const toggleAssetPicker = () => {
+      if (linkableAssets.length === 0) return;
+      setShowColorPicker(false);
+      setShowLinkPicker(false);
+      setShowTaskLinkPicker(false);
+      setShowAssetPicker(prev => !prev);
+      setAssetQuery('');
   };
 
   const getDraggedTask = (e: React.DragEvent): { fileId: string; taskId: string; label: string } | null => {
@@ -438,6 +508,42 @@ const DocEditor: React.FC<EditorProps> = ({ initialContent, onSave, fileName, as
       const markdownMatch = text.match(/\[([^\]]+)\]\(task:\/\/([^/]+)\/([^)]+)\)/);
       if (markdownMatch) {
         return { fileId: markdownMatch[2], taskId: markdownMatch[3], label: markdownMatch[1] };
+      }
+
+      return null;
+  };
+
+  const getDraggedAsset = (e: React.DragEvent): AssetLinkRecord | null => {
+      const raw = e.dataTransfer.getData(ASSET_LINK_DRAG_MIME);
+      if (raw) {
+        try {
+          const parsed = JSON.parse(raw) as { id?: string; name?: string; mime?: string; kind?: AssetKind };
+          if (parsed?.id && assets[parsed.id]) {
+            return {
+              id: parsed.id,
+              name: parsed.name || assetNameMap[parsed.id] || parsed.id,
+              mime: parsed.mime || getAssetMimeType(assets[parsed.id]),
+              kind: parsed.kind || getAssetKindFromMime(parsed.mime || getAssetMimeType(assets[parsed.id]))
+            };
+          }
+        } catch {
+          // Ignore malformed asset payloads and try the URI format.
+        }
+      }
+
+      const uri = e.dataTransfer.getData('text/uri-list');
+      if (uri?.startsWith('asset://')) {
+        const assetId = uri.replace('asset://', '').trim();
+        const assetData = assets[assetId];
+        if (assetData) {
+          const mime = getAssetMimeType(assetData);
+          return {
+            id: assetId,
+            name: assetNameMap[assetId] || assetId,
+            mime,
+            kind: getAssetKindFromMime(mime)
+          };
+        }
       }
 
       return null;
@@ -478,7 +584,7 @@ const DocEditor: React.FC<EditorProps> = ({ initialContent, onSave, fileName, as
   };
 
   const handleEditorDragOver = (e: React.DragEvent<HTMLTextAreaElement>) => {
-      if (!getDraggedTask(e) && !getDraggedFile(e)) return;
+      if (!getDraggedTask(e) && !getDraggedAsset(e) && !getDraggedFile(e)) return;
       e.preventDefault();
       e.dataTransfer.dropEffect = 'copy';
   };
@@ -488,6 +594,13 @@ const DocEditor: React.FC<EditorProps> = ({ initialContent, onSave, fileName, as
       if (draggedTask) {
         e.preventDefault();
         insertText(`[${draggedTask.label}](task://${draggedTask.fileId}/${draggedTask.taskId})`);
+        return;
+      }
+
+      const draggedAsset = getDraggedAsset(e);
+      if (draggedAsset) {
+        e.preventDefault();
+        insertText(`\n![${sanitizeAssetLabel(draggedAsset.name, 'Project Asset')}](asset://${draggedAsset.id})\n`);
         return;
       }
 
@@ -657,9 +770,9 @@ const DocEditor: React.FC<EditorProps> = ({ initialContent, onSave, fileName, as
                    </div>
                  )}
                </div>
-               <div className="relative" ref={fileLinkPickerRef}>
-                 <ToolbarButton
-                   icon={LinkIcon}
+                <div className="relative" ref={fileLinkPickerRef}>
+                  <ToolbarButton
+                    icon={LinkIcon}
                    onClick={toggleLinkPicker}
                   title={linkableFiles.length === 0 ? 'No files available to link' : 'Insert File Link'}
                   color="text-cyan-400"
@@ -697,15 +810,58 @@ const DocEditor: React.FC<EditorProps> = ({ initialContent, onSave, fileName, as
                       )}
                     </div>
                   </div>
-                )}
-              </div>
-              
-              <div className="w-px h-4 bg-zinc-800 mx-1"></div>
+                  )}
+                </div>
+               
+               <div className="w-px h-4 bg-zinc-800 mx-1"></div>
 
-              {/* Media Upload */}
-              <input 
-                type="file" 
-                ref={fileInputRef} 
+               {/* Media Upload */}
+               <div className="relative" ref={assetPickerRef}>
+                 <ToolbarButton
+                   icon={FolderOpen}
+                   onClick={toggleAssetPicker}
+                   title={linkableAssets.length === 0 ? 'No library assets available' : 'Insert Media from Asset Library'}
+                   color="text-violet-400"
+                   disabled={linkableAssets.length === 0}
+                   active={showAssetPicker}
+                 />
+                 {showAssetPicker && (
+                   <div className="absolute left-0 top-full mt-2 z-50 w-80 rounded-lg border border-zinc-700 bg-zinc-900 p-2 shadow-xl">
+                     <input
+                       type="text"
+                       value={assetQuery}
+                       onChange={(e) => setAssetQuery(e.target.value)}
+                       placeholder="Search assets..."
+                       className="mb-2 w-full rounded border border-zinc-700 bg-zinc-950 px-2 py-1.5 text-xs text-zinc-200 focus:border-zinc-500 focus:outline-none"
+                       autoFocus
+                     />
+                     <div className="max-h-56 space-y-1 overflow-y-auto custom-scrollbar">
+                       {filteredLinkableAssets.length === 0 ? (
+                         <p className="px-2 py-2 text-xs text-zinc-500">No matching assets.</p>
+                       ) : (
+                         filteredLinkableAssets.map(asset => (
+                           <button
+                             key={asset.id}
+                             type="button"
+                             onClick={() => insertAssetReference(asset.id)}
+                             className="w-full rounded px-2 py-2 text-left text-xs text-zinc-300 transition hover:bg-zinc-800 hover:text-white"
+                             title={`${asset.mime} • ${asset.id}`}
+                           >
+                             <div className="truncate font-medium text-zinc-200">{asset.name}</div>
+                             <div className="mt-1 flex items-center justify-between gap-2 text-[10px] text-zinc-500">
+                               <span className="uppercase">{asset.kind}</span>
+                               <span className="truncate">{asset.mime}</span>
+                             </div>
+                           </button>
+                         ))
+                       )}
+                     </div>
+                   </div>
+                 )}
+               </div>
+               <input 
+                 type="file" 
+                 ref={fileInputRef} 
                 className="hidden" 
                 accept="image/*,video/*,audio/*" 
                 onChange={handleMediaUpload} 

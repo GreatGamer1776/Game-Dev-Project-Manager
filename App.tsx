@@ -14,6 +14,7 @@ import CommandPalette from './components/CommandPalette';
 import HelpModal from './components/HelpModal';
 import { Project, ViewState, ProjectFile, FileType, EditorProps, ProjectFolder, TaskNavigationTarget } from './types';
 import { useProjectStore } from './stores/useProjectStore';
+import { getAssetExtensionFromMime, getAssetMimeType } from './services/assetUtils';
 
 // --- UTILS ---
 
@@ -431,7 +432,7 @@ const App: React.FC = () => {
         if (project.assets && Object.keys(project.assets).length > 0) {
             const assetsDir = await handle.getDirectoryHandle('assets', { create: true });
             for (const [id, base64] of Object.entries(project.assets)) {
-                const ext = base64.startsWith('data:image/png') ? 'png' : 'jpg';
+                const ext = getAssetExtensionFromMime(getAssetMimeType(base64));
                 const filename = `${id}.${ext}`;
                 const assetFile = await assetsDir.getFileHandle(filename, { create: true });
                 const assetWriter = await assetFile.createWritable();

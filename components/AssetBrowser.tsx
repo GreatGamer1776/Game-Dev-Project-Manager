@@ -1,6 +1,7 @@
 import React, { useEffect, useMemo, useState } from 'react';
-import { Upload, Trash2, Image as ImageIcon, Copy, Search, Grid, Check, Download, FolderOpen, FolderPlus, Folder, ChevronRight, ChevronDown } from 'lucide-react';
+import { Upload, Trash2, Image as ImageIcon, Copy, Search, Grid, Check, Download, FolderOpen, FolderPlus, Folder, ChevronRight, ChevronDown, Music, File as FileIcon } from 'lucide-react';
 import { EditorProps } from '../types';
+import { ASSET_LINK_DRAG_MIME, AssetKind, getAssetExtensionFromMime, getAssetKindFromMime, getAssetMimeType } from '../services/assetUtils';
 
 interface AssetFolderItem {
   id: string;
@@ -70,7 +71,16 @@ const AssetBrowser: React.FC<EditorProps> = ({ initialContent, assets = {}, onAd
   };
 
   const assetList = useMemo(
-    () => Object.entries(assets).map(([id, data]) => ({ id, data, name: libraryContent.assetNameMap[id] || id })),
+    () => Object.entries(assets).map(([id, data]) => {
+      const mime = getAssetMimeType(data);
+      return {
+        id,
+        data,
+        name: libraryContent.assetNameMap[id] || id,
+        mime,
+        kind: getAssetKindFromMime(mime)
+      };
+    }),
     [assets, libraryContent.assetNameMap]
   );
 
@@ -116,9 +126,31 @@ const AssetBrowser: React.FC<EditorProps> = ({ initialContent, assets = {}, onAd
     }));
   };
 
-  const handleAssetDragStart = (e: React.DragEvent, assetId: string) => {
+  const getDraggedAssetId = (e: React.DragEvent) => {
+    const raw = e.dataTransfer.getData(ASSET_LINK_DRAG_MIME);
+    if (raw) {
+      try {
+        const parsed = JSON.parse(raw) as { id?: string };
+        if (parsed?.id && assets[parsed.id]) return parsed.id;
+      } catch {
+        // Fall through to text/plain.
+      }
+    }
+    const uri = e.dataTransfer.getData('text/uri-list');
+    if (uri?.startsWith('asset://')) {
+      const assetId = uri.replace('asset://', '').trim();
+      if (assets[assetId]) return assetId;
+    }
+    const text = e.dataTransfer.getData('text/plain');
+    if (text && assets[text.trim()]) return text.trim();
+    return draggedAssetId;
+  };
+
+  const handleAssetDragStart = (e: React.DragEvent, assetId: string, name: string, kind: AssetKind, mime: string) => {
     setDraggedAssetId(assetId);
     e.dataTransfer.effectAllowed = 'move';
+    e.dataTransfer.setData(ASSET_LINK_DRAG_MIME, JSON.stringify({ id: assetId, name, kind, mime }));
+    e.dataTransfer.setData('text/uri-list', `asset://${assetId}`);
     e.dataTransfer.setData('text/plain', assetId);
   };
 
@@ -139,7 +171,7 @@ const AssetBrowser: React.FC<EditorProps> = ({ initialContent, assets = {}, onAd
   const handleFolderDrop = (e: React.DragEvent, folderId: string) => {
     e.preventDefault();
     e.stopPropagation();
-    const assetId = e.dataTransfer.getData('text/plain') || draggedAssetId;
+    const assetId = getDraggedAssetId(e);
     setActiveDropFolderId(null);
     setDraggedAssetId(null);
     if (!assetId) return;
@@ -157,7 +189,7 @@ const AssetBrowser: React.FC<EditorProps> = ({ initialContent, assets = {}, onAd
 
   const handleRootDrop = (e: React.DragEvent) => {
     e.preventDefault();
-    const assetId = e.dataTransfer.getData('text/plain') || draggedAssetId;
+    const assetId = getDraggedAssetId(e);
     setActiveDropFolderId(null);
     setDraggedAssetId(null);
     if (!assetId) return;
@@ -210,16 +242,16 @@ const AssetBrowser: React.FC<EditorProps> = ({ initialContent, assets = {}, onAd
     );
   };
 
-  const isLikelyImageFile = (file: File) => {
-    if (file.type.startsWith('image/')) return true;
-    return /\.(png|jpe?g|gif|webp|bmp|svg|avif|ico)$/i.test(file.name);
+  const isLikelyMediaFile = (file: File) => {
+    if (file.type.startsWith('image/') || file.type.startsWith('video/') || file.type.startsWith('audio/')) return true;
+    return /\.(png|jpe?g|gif|webp|bmp|svg|avif|ico|mp4|webm|mov|mp3|wav|ogg|m4a|aac|flac)$/i.test(file.name);
   };
 
   const uploadSelectedAssets = async (selected: FileList | File[] | null, source: 'files' | 'folder') => {
     if (!selected || !onAddAsset) return;
-    const imageFiles = Array.from(selected).filter(isLikelyImageFile);
-    if (imageFiles.length === 0) {
-      alert(`No image files found in selected ${source}.`);
+    const mediaFiles = Array.from(selected).filter(isLikelyMediaFile);
+    if (mediaFiles.length === 0) {
+      alert(`No media files found in selected ${source}.`);
       return;
     }
 
@@ -227,19 +259,19 @@ const AssetBrowser: React.FC<EditorProps> = ({ initialContent, assets = {}, onAd
     try {
       const newAssets: Array<{ id: string; name: string }> = [];
       const failedFiles: string[] = [];
-      for (let i = 0; i < imageFiles.length; i++) {
-        setUploadStatus(`Uploading ${i + 1}/${imageFiles.length}...`);
+      for (let i = 0; i < mediaFiles.length; i++) {
+        setUploadStatus(`Uploading ${i + 1}/${mediaFiles.length}...`);
         try {
-          const uri = await onAddAsset(imageFiles[i]);
+          const uri = await onAddAsset(mediaFiles[i]);
           const assetId = typeof uri === 'string' && uri.startsWith('asset://') ? uri.slice('asset://'.length) : '';
           if (assetId) {
-            newAssets.push({ id: assetId, name: imageFiles[i].name || assetId });
+            newAssets.push({ id: assetId, name: mediaFiles[i].name || assetId });
           } else {
-            failedFiles.push(imageFiles[i].name || `file-${i + 1}`);
+            failedFiles.push(mediaFiles[i].name || `file-${i + 1}`);
           }
         } catch (error) {
-          console.error('Asset upload failed for file', imageFiles[i]?.name, error);
-          failedFiles.push(imageFiles[i].name || `file-${i + 1}`);
+          console.error('Asset upload failed for file', mediaFiles[i]?.name, error);
+          failedFiles.push(mediaFiles[i].name || `file-${i + 1}`);
         }
       }
       if (newAssets.length > 0) {
@@ -255,12 +287,12 @@ const AssetBrowser: React.FC<EditorProps> = ({ initialContent, assets = {}, onAd
       }
 
       const successCount = newAssets.length;
-      if (successCount === imageFiles.length) {
-        setUploadStatus(`Uploaded ${successCount} image${successCount === 1 ? '' : 's'}.`);
+      if (successCount === mediaFiles.length) {
+        setUploadStatus(`Uploaded ${successCount} asset${successCount === 1 ? '' : 's'}.`);
       } else if (successCount === 0) {
         setUploadStatus(`Upload failed for ${failedFiles.length} file${failedFiles.length === 1 ? '' : 's'}.`);
       } else {
-        setUploadStatus(`Uploaded ${successCount}/${imageFiles.length}. Failed ${failedFiles.length}.`);
+        setUploadStatus(`Uploaded ${successCount}/${mediaFiles.length}. Failed ${failedFiles.length}.`);
       }
       setTimeout(() => setUploadStatus(''), 3500);
     } finally {
@@ -272,7 +304,7 @@ const AssetBrowser: React.FC<EditorProps> = ({ initialContent, assets = {}, onAd
     const input = document.createElement('input');
     input.type = 'file';
     input.multiple = true;
-    input.accept = 'image/*';
+    input.accept = 'image/*,video/*,audio/*';
     if (source === 'folder') {
       const folderInput = input as HTMLInputElement & { webkitdirectory?: boolean; directory?: boolean };
       folderInput.webkitdirectory = true;
@@ -332,7 +364,8 @@ const AssetBrowser: React.FC<EditorProps> = ({ initialContent, assets = {}, onAd
       const a = document.createElement('a');
       a.href = data;
       const safeName = (name || '').trim().replace(/[\\/:*?"<>|]/g, '_');
-      a.download = safeName || `asset-${id.substring(0,8)}.png`;
+      const fallbackExt = getAssetExtensionFromMime(getAssetMimeType(data));
+      a.download = safeName || `asset-${id.substring(0,8)}.${fallbackExt}`;
       a.click();
   };
 
@@ -413,30 +446,47 @@ const AssetBrowser: React.FC<EditorProps> = ({ initialContent, assets = {}, onAd
               <div className="h-full flex flex-col items-center justify-center text-zinc-500 opacity-50">
                   <Grid className="w-16 h-16 mb-4" />
                   <p>No assets in this project yet.</p>
-                  <p className="text-sm mt-2">Upload images or paste them into Documents.</p>
-              </div>
+                  <p className="text-sm mt-2">Upload media or reuse what your documents already imported.</p>
+               </div>
           ) : filteredAssets.length === 0 ? (
               <div className="h-full flex flex-col items-center justify-center text-zinc-500 opacity-60">
                   <Grid className="w-12 h-12 mb-3" />
                   <p>No assets in this folder.</p>
-                  <p className="text-xs mt-2">Drag assets onto folders to reorganize.</p>
-              </div>
-          ) : (
-              <div className="grid grid-cols-2 md:grid-cols-3 lg:grid-cols-4 xl:grid-cols-5 gap-6">
-                  {filteredAssets.map(({ id, data, name }) => (
-                      <div
-                        key={id}
-                        draggable
-                        onDragStart={(e) => handleAssetDragStart(e, id)}
-                        onDragEnd={handleAssetDragEnd}
-                        className={`group bg-zinc-950 border border-zinc-800 rounded-xl overflow-hidden hover:border-zinc-600 transition-all shadow-sm hover:shadow-xl cursor-grab active:cursor-grabbing ${draggedAssetId === id ? 'opacity-45 grayscale' : ''}`}
-                      >
-                          {/* Image Preview */}
-                          <div className="aspect-square bg-[#101012] relative flex items-center justify-center overflow-hidden bg-[url('data:image/svg+xml;base64,PHN2ZyB3aWR0aD0iMjAiIGhlaWdodD0iMjAiIHhtbG5zPSJodHRwOi8vd3d3LnczLm9yZy8yMDAwL3N2ZyI+PHBhdGggZD0iTTAgMGgyMHYyMEgwem0xMCAxMGgxMHYxMEgxMHoiIGZpbGw9IiMxODE4MWIiIGZpbGwtb3BhY2l0eT0iMC40Ii8+PC9zdmc+')]">
-                              <img src={data} alt={name} className="max-w-full max-h-full object-contain" />
-                              
-                              {/* Overlay Actions */}
-                              <div className="absolute inset-0 bg-black/60 opacity-0 group-hover:opacity-100 transition-opacity flex items-center justify-center gap-2 backdrop-blur-sm">
+                  <p className="text-xs mt-2">Drag assets onto folders to reorganize or into documents to reuse them.</p>
+               </div>
+           ) : (
+               <div className="grid grid-cols-2 md:grid-cols-3 lg:grid-cols-4 xl:grid-cols-5 gap-6">
+                   {filteredAssets.map(({ id, data, name, kind, mime }) => (
+                       <div
+                         key={id}
+                         draggable
+                         onDragStart={(e) => handleAssetDragStart(e, id, name, kind, mime)}
+                         onDragEnd={handleAssetDragEnd}
+                         className={`group bg-zinc-950 border border-zinc-800 rounded-xl overflow-hidden hover:border-zinc-600 transition-all shadow-sm hover:shadow-xl cursor-grab active:cursor-grabbing ${draggedAssetId === id ? 'opacity-45 grayscale' : ''}`}
+                       >
+                           {/* Image Preview */}
+                           <div className="aspect-square bg-[#101012] relative flex items-center justify-center overflow-hidden bg-[url('data:image/svg+xml;base64,PHN2ZyB3aWR0aD0iMjAiIGhlaWdodD0iMjAiIHhtbG5zPSJodHRwOi8vd3d3LnczLm9yZy8yMDAwL3N2ZyI+PHBhdGggZD0iTTAgMGgyMHYyMEgwem0xMCAxMGgxMHYxMEgxMHoiIGZpbGw9IiMxODE4MWIiIGZpbGwtb3BhY2l0eT0iMC40Ii8+PC9zdmc+')]">
+                               {kind === 'image' ? (
+                                 <img src={data} alt={name} className="max-w-full max-h-full object-contain" />
+                               ) : kind === 'video' ? (
+                                 <video src={data} className="h-full w-full object-cover" muted preload="metadata" playsInline />
+                               ) : kind === 'audio' ? (
+                                 <div className="flex flex-col items-center gap-2 text-zinc-300">
+                                   <Music className="w-12 h-12 text-purple-400" />
+                                   <span className="text-xs uppercase tracking-wide text-zinc-400">Audio</span>
+                                 </div>
+                               ) : (
+                                 <div className="flex flex-col items-center gap-2 text-zinc-300">
+                                   <FileIcon className="w-12 h-12 text-zinc-500" />
+                                   <span className="text-xs uppercase tracking-wide text-zinc-400">Asset</span>
+                                 </div>
+                               )}
+                               <div className="absolute left-2 top-2 rounded-full border border-zinc-700/80 bg-black/70 px-2 py-0.5 text-[10px] uppercase tracking-wide text-zinc-200">
+                                 {kind}
+                               </div>
+                               
+                               {/* Overlay Actions */}
+                               <div className="absolute inset-0 bg-black/60 opacity-0 group-hover:opacity-100 transition-opacity flex items-center justify-center gap-2 backdrop-blur-sm">
                                   <button 
                                       onClick={() => handleCopy(id)}
                                       className="p-2 bg-white text-black rounded-full hover:scale-110 transition-transform" 
@@ -463,17 +513,17 @@ const AssetBrowser: React.FC<EditorProps> = ({ initialContent, assets = {}, onAd
 
                           {/* Footer info */}
                           <div className="p-3 border-t border-zinc-800 bg-zinc-900/50">
-                              <div className="text-[11px] text-zinc-200 truncate" title={name}>
-                                  {name}
-                              </div>
-                              <div className="text-[10px] font-mono text-zinc-500 truncate" title={id}>
-                                  {id}
-                              </div>
-                              <div className="text-[10px] text-zinc-600 mt-1">
-                                  {(data.length / 1024).toFixed(1)} KB • {data.split(';')[0].split(':')[1]}
-                              </div>
-                          </div>
-                      </div>
+                               <div className="text-[11px] text-zinc-200 truncate" title={name}>
+                                   {name}
+                               </div>
+                               <div className="text-[10px] font-mono text-zinc-500 truncate" title={id}>
+                                   {id}
+                               </div>
+                               <div className="text-[10px] text-zinc-600 mt-1">
+                                   {(data.length / 1024).toFixed(1)} KB • {mime}
+                               </div>
+                           </div>
+                       </div>
                   ))}
               </div>
           )}

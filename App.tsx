@@ -12,7 +12,7 @@ import WhiteboardEditor from './components/WhiteboardEditor';
 import AssetBrowser from './components/AssetBrowser';
 import CommandPalette from './components/CommandPalette';
 import HelpModal from './components/HelpModal';
-import { Project, ViewState, ProjectFile, FileType, EditorProps, ProjectFolder } from './types';
+import { Project, ViewState, ProjectFile, FileType, EditorProps, ProjectFolder, TaskNavigationTarget } from './types';
 import { useProjectStore } from './stores/useProjectStore';
 
 // --- UTILS ---
@@ -197,6 +197,54 @@ const createDefaultProjectFile = (type: FileType, name: string): ProjectFile => 
   };
 };
 
+const TODO_STATUS_VALUES = new Set(['Backlog', 'To Do', 'In Progress', 'Review', 'Done']);
+const BUG_STATUS_VALUES = new Set(['Open', 'In Progress', 'Resolved', 'Closed']);
+
+const migrateTodoContent = (content: any) => {
+  const baseContent = content && typeof content === 'object' ? content : {};
+  const rawItems = Array.isArray(content?.items) ? content.items : [];
+  return {
+    ...baseContent,
+    items: rawItems.map((item: any) => {
+      const { category: _legacyCategory, ...rest } = item || {};
+      const normalizedStatus = TODO_STATUS_VALUES.has(rest.status) ? rest.status : (rest.completed ? 'Done' : 'To Do');
+      return {
+        ...rest,
+        status: normalizedStatus,
+        completed: normalizedStatus === 'Done'
+      };
+    })
+  };
+};
+
+const migrateKanbanContent = (content: any) => {
+  const baseContent = content && typeof content === 'object' ? content : {};
+  const rawTasks = Array.isArray(content?.tasks) ? content.tasks : [];
+  return {
+    ...baseContent,
+    tasks: rawTasks.map((task: any) => {
+      const { category: _legacyCategory, ...rest } = task || {};
+      return {
+        ...rest,
+        status: BUG_STATUS_VALUES.has(rest.status) ? rest.status : 'Open',
+        description: typeof rest.description === 'string' ? rest.description : '',
+        createdAt: typeof rest.createdAt === 'number' ? rest.createdAt : Date.now()
+      };
+    })
+  };
+};
+
+const migrateProjectFile = (file: ProjectFile): ProjectFile => {
+  switch (file.type) {
+    case 'todo':
+      return { ...file, content: migrateTodoContent(file.content) };
+    case 'kanban':
+      return { ...file, content: migrateKanbanContent(file.content) };
+    default:
+      return file;
+  }
+};
+
 const normalizeProjectFiles = (project: Project): Project => {
   const baseFiles = project.files || [];
   const assetFiles = baseFiles.filter(f => f.type === ASSET_LIBRARY_TYPE);
@@ -204,13 +252,14 @@ const normalizeProjectFiles = (project: Project): Project => {
   const files: ProjectFile[] = [];
 
   for (const file of baseFiles.filter(f => f.type !== ASSET_LIBRARY_TYPE)) {
+    const migratedFile = migrateProjectFile(file);
     if (SINGLE_INSTANCE_FILE_TYPES.has(file.type)) {
       if (!singletonByType.has(file.type)) {
-        singletonByType.set(file.type, { ...file, folderId: null });
+        singletonByType.set(file.type, { ...migratedFile, folderId: null });
       }
       continue;
     }
-    files.push(file);
+    files.push(migratedFile);
   }
 
   let assetFile = assetFiles[0] || createAssetLibraryFile();
@@ -270,11 +319,13 @@ const App: React.FC = () => {
   const [renameFileModal, setRenameFileModal] = useState<{ open: boolean; fileId: string | null; name: string }>({ open: false, fileId: null, name: '' });
   const [draggedFileId, setDraggedFileId] = useState<string | null>(null);
   const [activeDropFolderId, setActiveDropFolderId] = useState<string | 'root' | null>(null);
+  const [taskNavigationTarget, setTaskNavigationTarget] = useState<TaskNavigationTarget | null>(null);
 
   const isSavingRef = React.useRef(false);
   const saveQueueRef = React.useRef<Project | null>(null);
   const projectHandlesRef = React.useRef<Map<string, any>>(new Map());
   const projectsRef = React.useRef<Project[]>([]);
+  const taskNavigationRequestRef = React.useRef(0);
   projectsRef.current = projects;
 
   useEffect(() => {
@@ -357,6 +408,10 @@ const App: React.FC = () => {
     window.addEventListener('keydown', handleKeyDown);
     return () => window.removeEventListener('keydown', handleKeyDown);
   }, []);
+
+  useEffect(() => {
+    setTaskNavigationTarget(null);
+  }, [activeProjectId]);
 
   // --- DISK OPS ---
 
@@ -859,6 +914,32 @@ const App: React.FC = () => {
       alert("Linked file was not found in this project.");
       return;
     }
+    setTaskNavigationTarget(null);
+    setActiveFileId(fileId);
+  };
+
+  const handleOpenTaskFromLink = (fileId: string, taskId: string) => {
+    if (!activeProject) return;
+
+    const file = activeProject.files.find(projectFile => projectFile.id === fileId);
+    if (!file || file.type !== 'todo') {
+      alert("Linked task was not found in this project.");
+      return;
+    }
+
+    const todoContent = file.content as { items?: Array<{ id?: string }> };
+    const hasTask = Array.isArray(todoContent?.items) && todoContent.items.some(item => item?.id === taskId);
+    if (!hasTask) {
+      alert("Linked task was not found in this project.");
+      return;
+    }
+
+    taskNavigationRequestRef.current += 1;
+    setTaskNavigationTarget({
+      fileId,
+      taskId,
+      requestKey: taskNavigationRequestRef.current
+    });
     setActiveFileId(fileId);
   };
 
@@ -1195,7 +1276,10 @@ const App: React.FC = () => {
                     onDeleteAsset: handleDeleteAsset,
                     projectFiles: activeProject.files,
                     activeFileId,
-                    onOpenFile: handleOpenFileFromLink
+                    onOpenFile: handleOpenFileFromLink,
+                    onOpenTask: handleOpenTaskFromLink,
+                    taskNavigationTarget: taskNavigationTarget?.fileId === activeFile.id ? taskNavigationTarget : null,
+                    onTaskNavigationHandled: () => setTaskNavigationTarget(null)
                 })
             ) : (
               <div className="h-full flex items-center justify-center p-6">

@@ -28,7 +28,7 @@ export interface SubTask {
   completed: boolean;
 }
 
-export type TodoStatus = 'To Do' | 'In Progress' | 'Done';
+export type TodoStatus = 'Backlog' | 'To Do' | 'In Progress' | 'Review' | 'Done';
 
 export interface TodoItem {
   id: string;
@@ -39,7 +39,6 @@ export interface TodoItem {
   dueDate?: string;
   description?: string;
   subTasks?: SubTask[];
-  category?: string;
   tags?: string[];
   estimateHours?: number;
 }
@@ -60,7 +59,6 @@ export interface Bug {
   createdAt: number;
   dueDate?: string;
   tags?: string[];
-  category?: string;
   reproducible?: boolean;
 }
 
@@ -147,6 +145,12 @@ export enum ViewState {
   PROJECT = 'PROJECT',
 }
 
+export interface TaskNavigationTarget {
+  fileId: string;
+  taskId: string;
+  requestKey: number;
+}
+
 export interface EditorProps {
   initialContent: any;
   onSave: (content: any) => void;
@@ -157,4 +161,7 @@ export interface EditorProps {
   projectFiles?: ProjectFile[];
   activeFileId?: string | null;
   onOpenFile?: (fileId: string) => void;
+  onOpenTask?: (fileId: string, taskId: string) => void;
+  taskNavigationTarget?: TaskNavigationTarget | null;
+  onTaskNavigationHandled?: () => void;
 }

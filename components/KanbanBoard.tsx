@@ -1,16 +1,25 @@
 import React, { useState, useEffect, useRef } from 'react';
-import { Save, Plus, AlertCircle, ChevronLeft, ChevronRight, X, Trash2, Bug as BugIcon, Search, Filter, Pencil, Loader2, Check, Link as LinkIcon, ArrowUpDown, Calendar, Tags } from 'lucide-react';
+import { Save, Plus, AlertCircle, ChevronLeft, ChevronRight, X, Trash2, Bug as BugIcon, Search, Filter, Pencil, Loader2, Check, Link as LinkIcon, ArrowUpDown, Calendar } from 'lucide-react';
 import { Bug, BugSeverity, BugStatus, EditorProps } from '../types';
 
 const FILE_LINK_DRAG_MIME = 'application/x-gdpm-file-id';
-const BUG_CATEGORIES = ['General', 'Gameplay', 'UI/UX', 'Audio', 'Performance', 'Networking', 'Build/CI'] as const;
 type BugSort = 'Newest' | 'Oldest' | 'Severity' | 'Due Date';
 const BUG_COLUMNS: BugStatus[] = ['Open', 'In Progress', 'Resolved', 'Closed'];
 const COLUMN_CARD_ESTIMATE = 250;
 const COLUMN_OVERSCAN = 3;
 
+const migrateBug = (bug: any): Bug => {
+  const { category: _legacyCategory, ...rest } = bug || {};
+  return {
+    ...rest,
+    status: BUG_COLUMNS.includes(rest.status as BugStatus) ? rest.status as BugStatus : 'Open',
+    description: typeof rest.description === 'string' ? rest.description : '',
+    createdAt: typeof rest.createdAt === 'number' ? rest.createdAt : Date.now()
+  };
+};
+
 const KanbanBoard: React.FC<EditorProps> = ({ initialContent, onSave, fileName, projectFiles = [], onOpenFile, activeFileId }) => {
-  const [bugs, setBugs] = useState<Bug[]>(initialContent?.tasks || []);
+  const [bugs, setBugs] = useState<Bug[]>(() => (initialContent?.tasks || []).map(migrateBug));
   
   // Save Status
   const [saveStatus, setSaveStatus] = useState<'saved' | 'saving' | 'unsaved'>('saved');
@@ -22,14 +31,12 @@ const KanbanBoard: React.FC<EditorProps> = ({ initialContent, onSave, fileName, 
   const [searchQuery, setSearchQuery] = useState('');
   const [filterSeverity, setFilterSeverity] = useState<'All' | BugSeverity>('All');
   const [filterStatus, setFilterStatus] = useState<'All' | BugStatus>('All');
-  const [filterCategory, setFilterCategory] = useState<'All' | string>('All');
   const [sortBy, setSortBy] = useState<BugSort>('Newest');
   
   const [newTitle, setNewTitle] = useState('');
   const [newSeverity, setNewSeverity] = useState<BugSeverity>('Medium');
   const [newStatus, setNewStatus] = useState<BugStatus>('Open');
   const [newDueDate, setNewDueDate] = useState('');
-  const [newCategory, setNewCategory] = useState<string>('General');
   const [newTags, setNewTags] = useState('');
   const [newReproducible, setNewReproducible] = useState(true);
   const [newDesc, setNewDesc] = useState('');
@@ -71,8 +78,9 @@ const KanbanBoard: React.FC<EditorProps> = ({ initialContent, onSave, fileName, 
   }, [linkableFiles, linkPickerQuery]);
 
   useEffect(() => {
-    setBugs(initialContent?.tasks || []);
-    lastSavedData.current = JSON.stringify(initialContent?.tasks || []);
+    const migratedBugs = (initialContent?.tasks || []).map(migrateBug);
+    setBugs(migratedBugs);
+    lastSavedData.current = JSON.stringify(migratedBugs);
   }, [initialContent]);
 
   useEffect(() => {
@@ -131,7 +139,6 @@ const KanbanBoard: React.FC<EditorProps> = ({ initialContent, onSave, fileName, 
     setNewSeverity('Medium');
     setNewStatus('Open');
     setNewDueDate('');
-    setNewCategory('General');
     setNewTags('');
     setNewReproducible(true);
     setLinkPickerOpen(false);
@@ -147,7 +154,6 @@ const KanbanBoard: React.FC<EditorProps> = ({ initialContent, onSave, fileName, 
     setNewSeverity('Medium');
     setNewStatus('Open');
     setNewDueDate('');
-    setNewCategory('General');
     setNewTags('');
     setNewReproducible(true);
     setLinkPickerOpen(false);
@@ -164,7 +170,6 @@ const KanbanBoard: React.FC<EditorProps> = ({ initialContent, onSave, fileName, 
     setNewSeverity(bug.severity);
     setNewStatus(bug.status);
     setNewDueDate(bug.dueDate || '');
-    setNewCategory(bug.category || 'General');
     setNewTags((bug.tags || []).join(', '));
     setNewReproducible(bug.reproducible ?? true);
     setLinkPickerOpen(false);
@@ -188,7 +193,6 @@ const KanbanBoard: React.FC<EditorProps> = ({ initialContent, onSave, fileName, 
         severity: newSeverity,
         status: newStatus,
         dueDate: newDueDate || undefined,
-        category: newCategory,
         tags: parsedTags.length ? parsedTags : undefined,
         reproducible: newReproducible
       } : b));
@@ -201,7 +205,6 @@ const KanbanBoard: React.FC<EditorProps> = ({ initialContent, onSave, fileName, 
         status: newStatus,
         createdAt: Date.now(),
         dueDate: newDueDate || undefined,
-        category: newCategory,
         tags: parsedTags.length ? parsedTags : undefined,
         reproducible: newReproducible
       };
@@ -357,7 +360,6 @@ const KanbanBoard: React.FC<EditorProps> = ({ initialContent, onSave, fileName, 
     setSearchQuery('');
     setFilterSeverity('All');
     setFilterStatus('All');
-    setFilterCategory('All');
     setSortBy('Newest');
   };
 
@@ -372,14 +374,12 @@ const KanbanBoard: React.FC<EditorProps> = ({ initialContent, onSave, fileName, 
     .filter(bug => {
       if (filterSeverity !== 'All' && bug.severity !== filterSeverity) return false;
       if (filterStatus !== 'All' && bug.status !== filterStatus) return false;
-      if (filterCategory !== 'All' && (bug.category || 'General') !== filterCategory) return false;
 
       if (searchQuery) {
         const q = searchQuery.toLowerCase();
         const searchable = [
           bug.title,
           bug.description,
-          bug.category || '',
           ...(bug.tags || [])
         ].join(' ').toLowerCase();
         if (!searchable.includes(q)) return false;
@@ -502,35 +502,22 @@ const KanbanBoard: React.FC<EditorProps> = ({ initialContent, onSave, fileName, 
                ))}
             </div>
          </div>
-         <div className="flex items-center gap-2 bg-zinc-950 border border-zinc-800 rounded-md px-2 py-1.5 text-xs text-zinc-300">
-            <span>Status</span>
-            <select
-              value={filterStatus}
+          <div className="flex items-center gap-2 bg-zinc-950 border border-zinc-800 rounded-md px-2 py-1.5 text-xs text-zinc-300">
+             <span>Status</span>
+             <select
+               value={filterStatus}
               onChange={(e) => setFilterStatus(e.target.value as 'All' | BugStatus)}
               className="bg-transparent focus:outline-none text-xs text-zinc-200"
             >
               <option value="All">All</option>
               {BUG_COLUMNS.map(status => (
                 <option key={status} value={status}>{status}</option>
-              ))}
-            </select>
-         </div>
-         <div className="flex items-center gap-2 bg-zinc-950 border border-zinc-800 rounded-md px-2 py-1.5 text-xs text-zinc-300">
-            <span>Category</span>
-            <select
-              value={filterCategory}
-              onChange={(e) => setFilterCategory(e.target.value)}
-              className="bg-transparent focus:outline-none text-xs text-zinc-200"
-            >
-              <option value="All">All</option>
-              {BUG_CATEGORIES.map(category => (
-                <option key={category} value={category}>{category}</option>
-              ))}
-            </select>
-         </div>
-         <div className="flex items-center gap-2 bg-zinc-950 border border-zinc-800 rounded-md px-2 py-1.5 text-xs text-zinc-300">
-            <ArrowUpDown className="w-3.5 h-3.5 text-zinc-500" />
-            <select
+               ))}
+             </select>
+          </div>
+          <div className="flex items-center gap-2 bg-zinc-950 border border-zinc-800 rounded-md px-2 py-1.5 text-xs text-zinc-300">
+             <ArrowUpDown className="w-3.5 h-3.5 text-zinc-500" />
+             <select
               value={sortBy}
               onChange={(e) => setSortBy(e.target.value as BugSort)}
               className="bg-transparent focus:outline-none text-xs text-zinc-200"
@@ -625,15 +612,10 @@ const KanbanBoard: React.FC<EditorProps> = ({ initialContent, onSave, fileName, 
                             </div>
                          </div>
                          <h5 className="text-sm font-medium text-zinc-200 mb-1 pointer-events-none">{bug.title}</h5>
-                         <div className="mb-2 flex flex-wrap items-center gap-1.5 text-[10px] text-zinc-500">
-                           {bug.category && (
-                             <span className="inline-flex items-center gap-1 rounded border border-zinc-700 bg-zinc-950 px-1.5 py-0.5">
-                               <Tags className="h-3 w-3" /> {bug.category}
-                             </span>
-                           )}
-                           {bug.dueDate && (
-                             <span className="inline-flex items-center gap-1 rounded border border-zinc-700 bg-zinc-950 px-1.5 py-0.5">
-                               <Calendar className="h-3 w-3" /> {new Date(bug.dueDate).toLocaleDateString()}
+                          <div className="mb-2 flex flex-wrap items-center gap-1.5 text-[10px] text-zinc-500">
+                            {bug.dueDate && (
+                              <span className="inline-flex items-center gap-1 rounded border border-zinc-700 bg-zinc-950 px-1.5 py-0.5">
+                                <Calendar className="h-3 w-3" /> {new Date(bug.dueDate).toLocaleDateString()}
                              </span>
                            )}
                            {bug.reproducible === false && (
@@ -728,7 +710,7 @@ const KanbanBoard: React.FC<EditorProps> = ({ initialContent, onSave, fileName, 
                   ))}
                 </div>
               </div>
-              <div className="grid grid-cols-1 sm:grid-cols-3 gap-4">
+              <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
                 <div>
                   <label className="block text-sm font-medium text-zinc-400 mb-1">Status</label>
                   <select
@@ -736,22 +718,10 @@ const KanbanBoard: React.FC<EditorProps> = ({ initialContent, onSave, fileName, 
                     onChange={(e) => setNewStatus(e.target.value as BugStatus)}
                     className="w-full bg-zinc-950 border border-zinc-800 rounded-lg p-2.5 text-white focus:ring-2 focus:ring-red-600 focus:border-transparent outline-none transition-all"
                   >
-                    {BUG_COLUMNS.map(status => (
-                      <option key={status} value={status}>{status}</option>
-                    ))}
-                  </select>
-                </div>
-                <div>
-                  <label className="block text-sm font-medium text-zinc-400 mb-1">Category</label>
-                  <select
-                    value={newCategory}
-                    onChange={(e) => setNewCategory(e.target.value)}
-                    className="w-full bg-zinc-950 border border-zinc-800 rounded-lg p-2.5 text-white focus:ring-2 focus:ring-red-600 focus:border-transparent outline-none transition-all"
-                  >
-                    {BUG_CATEGORIES.map(category => (
-                      <option key={category} value={category}>{category}</option>
-                    ))}
-                  </select>
+                      {BUG_COLUMNS.map(status => (
+                        <option key={status} value={status}>{status}</option>
+                      ))}
+                    </select>
                 </div>
                 <div>
                   <label className="block text-sm font-medium text-zinc-400 mb-1">Target Date</label>

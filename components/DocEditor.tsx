@@ -3,14 +3,32 @@ import {
   Save, Trash2, Bold, Italic, List, ListOrdered, 
   Heading1, Heading2, Quote, Code, Image as ImageIcon, 
   Eye, Columns, PenTool, Link as LinkIcon, Check, Loader2, AlertCircle,
-  Underline, Strikethrough, Palette, Video, Music, X
+  Underline, Strikethrough, Palette, Video, Music, X, CheckSquare
 } from 'lucide-react';
-import { EditorProps } from '../types';
+import { EditorProps, TodoItem, TodoStatus } from '../types';
 
 // --- CUSTOM PARSER LOGIC ---
 const FILE_LINK_DRAG_MIME = 'application/x-gdpm-file-id';
+const TASK_LINK_DRAG_MIME = 'application/x-gdpm-task-link';
 
-const parseDoc = (text: string, assets: Record<string, string>, fileLookup: Map<string, string>) => {
+type TaskLinkRecord = {
+    fileId: string;
+    taskId: string;
+    fileName: string;
+    taskName: string;
+    tags: string[];
+    status: TodoStatus;
+};
+
+const getTaskLookupKey = (fileId: string, taskId: string) => `${fileId}::${taskId}`;
+
+const parseTaskHref = (href: string): { fileId: string; taskId: string } | null => {
+    const match = href.match(/^task:\/\/([^/]+)\/(.+)$/);
+    if (!match) return null;
+    return { fileId: match[1], taskId: match[2] };
+};
+
+const parseDoc = (text: string, assets: Record<string, string>, fileLookup: Map<string, string>, taskLookup: Map<string, TaskLinkRecord>) => {
     
     const resolveSrc = (src: string) => {
         if (!src) return '';
@@ -44,32 +62,32 @@ const parseDoc = (text: string, assets: Record<string, string>, fileLookup: Map<
 
         // 2. Headers
         if (line.startsWith('# ')) {
-            html += `<h1 class="text-3xl font-bold text-zinc-100 mb-4 pb-2 border-b border-zinc-800 mt-6">${parseInline(line.slice(2), assets, fileLookup)}</h1>`;
+            html += `<h1 class="text-3xl font-bold text-zinc-100 mb-4 pb-2 border-b border-zinc-800 mt-6">${parseInline(line.slice(2), assets, fileLookup, taskLookup)}</h1>`;
             continue;
         }
         if (line.startsWith('## ')) {
-            html += `<h2 class="text-2xl font-semibold text-zinc-100 mb-3 mt-8">${parseInline(line.slice(3), assets, fileLookup)}</h2>`;
+            html += `<h2 class="text-2xl font-semibold text-zinc-100 mb-3 mt-8">${parseInline(line.slice(3), assets, fileLookup, taskLookup)}</h2>`;
             continue;
         }
         if (line.startsWith('### ')) {
-            html += `<h3 class="text-xl font-medium text-zinc-200 mb-2 mt-6">${parseInline(line.slice(4), assets, fileLookup)}</h3>`;
+            html += `<h3 class="text-xl font-medium text-zinc-200 mb-2 mt-6">${parseInline(line.slice(4), assets, fileLookup, taskLookup)}</h3>`;
             continue;
         }
 
         // 3. Blockquotes
         if (line.startsWith('> ')) {
-            html += `<blockquote class="border-l-4 border-blue-500 pl-4 py-2 my-4 text-zinc-400 italic bg-zinc-800/30 rounded-r">${parseInline(line.slice(2), assets, fileLookup)}</blockquote>`;
+            html += `<blockquote class="border-l-4 border-blue-500 pl-4 py-2 my-4 text-zinc-400 italic bg-zinc-800/30 rounded-r">${parseInline(line.slice(2), assets, fileLookup, taskLookup)}</blockquote>`;
             continue;
         }
 
         // 4. Lists
         if (line.match(/^\s*-\s/)) {
-            html += `<div class="flex gap-2 ml-4 mb-1 text-zinc-300"><span class="text-zinc-500">•</span><span>${parseInline(line.replace(/^\s*-\s/, ''), assets, fileLookup)}</span></div>`;
+            html += `<div class="flex gap-2 ml-4 mb-1 text-zinc-300"><span class="text-zinc-500">•</span><span>${parseInline(line.replace(/^\s*-\s/, ''), assets, fileLookup, taskLookup)}</span></div>`;
             continue;
         }
         if (line.match(/^\s*\d+\.\s/)) {
             const num = line.match(/^\s*(\d+)\./)?.[1] || '1';
-            html += `<div class="flex gap-2 ml-4 mb-1 text-zinc-300"><span class="text-zinc-500 font-mono">${num}.</span><span>${parseInline(line.replace(/^\s*\d+\.\s/, ''), assets, fileLookup)}</span></div>`;
+            html += `<div class="flex gap-2 ml-4 mb-1 text-zinc-300"><span class="text-zinc-500 font-mono">${num}.</span><span>${parseInline(line.replace(/^\s*\d+\.\s/, ''), assets, fileLookup, taskLookup)}</span></div>`;
             continue;
         }
 
@@ -105,12 +123,12 @@ const parseDoc = (text: string, assets: Record<string, string>, fileLookup: Map<
         }
 
         // 8. Paragraphs
-        html += `<p class="mb-2 leading-relaxed text-zinc-300">${parseInline(line, assets, fileLookup)}</p>`;
+        html += `<p class="mb-2 leading-relaxed text-zinc-300">${parseInline(line, assets, fileLookup, taskLookup)}</p>`;
     }
     return html;
 };
 
-const parseInline = (text: string, assets: Record<string, string>, fileLookup: Map<string, string>) => {
+const parseInline = (text: string, assets: Record<string, string>, fileLookup: Map<string, string>, taskLookup: Map<string, TaskLinkRecord>) => {
     let out = text;
 
     // Bold (**text**)
@@ -140,6 +158,15 @@ const parseInline = (text: string, assets: Record<string, string>, fileLookup: M
             const existsClass = linkedName ? 'text-cyan-400 hover:text-cyan-300' : 'text-zinc-500 line-through';
             return `<a href="${href}" data-file-id="${fileId}" class="${existsClass} hover:underline cursor-pointer transition-colors">${display}</a>`;
         }
+        if (href.startsWith('task://')) {
+            const taskTarget = parseTaskHref(href);
+            const linkedTask = taskTarget ? taskLookup.get(getTaskLookupKey(taskTarget.fileId, taskTarget.taskId)) : undefined;
+            const display = label || linkedTask?.taskName || 'Open task';
+            const existsClass = linkedTask ? 'text-emerald-400 hover:text-emerald-300' : 'text-zinc-500 line-through';
+            return taskTarget
+                ? `<a href="${href}" data-task-file-id="${taskTarget.fileId}" data-task-id="${taskTarget.taskId}" class="${existsClass} hover:underline cursor-pointer transition-colors">${display}</a>`
+                : `<span class="text-zinc-500 line-through">${display}</span>`;
+        }
         return `<a href="${href}" target="_blank" rel="noopener noreferrer" class="text-blue-400 hover:text-blue-300 hover:underline cursor-pointer transition-colors">${label}</a>`;
     });
 
@@ -149,7 +176,7 @@ const parseInline = (text: string, assets: Record<string, string>, fileLookup: M
 
 // --- COMPONENT ---
 
-const DocEditor: React.FC<EditorProps> = ({ initialContent, onSave, fileName, assets = {}, onAddAsset, projectFiles = [], activeFileId, onOpenFile }) => {
+const DocEditor: React.FC<EditorProps> = ({ initialContent, onSave, fileName, assets = {}, onAddAsset, projectFiles = [], activeFileId, onOpenFile, onOpenTask }) => {
   const [content, setContent] = useState(initialContent);
   // OPTIMIZATION: Default to 'edit' mode to prevent initial render lag
   const [viewMode, setViewMode] = useState<'edit' | 'preview' | 'split'>('edit');
@@ -161,6 +188,8 @@ const DocEditor: React.FC<EditorProps> = ({ initialContent, onSave, fileName, as
   const [customColor, setCustomColor] = useState('#ef4444');
   const [showLinkPicker, setShowLinkPicker] = useState(false);
   const [linkPickerQuery, setLinkPickerQuery] = useState('');
+  const [showTaskLinkPicker, setShowTaskLinkPicker] = useState(false);
+  const [taskLinkQuery, setTaskLinkQuery] = useState('');
 
   const [saveStatus, setSaveStatus] = useState<'saved' | 'saving' | 'unsaved'>('saved');
   const lastSavedContent = useRef(initialContent);
@@ -168,7 +197,9 @@ const DocEditor: React.FC<EditorProps> = ({ initialContent, onSave, fileName, as
   const textareaRef = useRef<HTMLTextAreaElement>(null);
   const fileInputRef = useRef<HTMLInputElement>(null);
   const popoverRef = useRef<HTMLDivElement>(null);
-  const linkPickerRef = useRef<HTMLDivElement>(null);
+  const colorPickerRef = useRef<HTMLDivElement>(null);
+  const fileLinkPickerRef = useRef<HTMLDivElement>(null);
+  const taskLinkPickerRef = useRef<HTMLDivElement>(null);
   const previewPaneRef = useRef<HTMLDivElement>(null);
   const fileLookup = React.useMemo(() => new Map(projectFiles.map(f => [f.id, f.name])), [projectFiles]);
   const linkableFiles = React.useMemo(
@@ -182,6 +213,45 @@ const DocEditor: React.FC<EditorProps> = ({ initialContent, onSave, fileName, as
       file.name.toLowerCase().includes(query) || file.id.toLowerCase().includes(query)
     );
   }, [linkableFiles, linkPickerQuery]);
+  const linkableTasks = React.useMemo<TaskLinkRecord[]>(() => {
+    return projectFiles
+      .filter(file => file.type === 'todo')
+      .flatMap(file => {
+        const todoContent = file.content as { items?: TodoItem[] };
+        const items = Array.isArray(todoContent?.items) ? todoContent.items : [];
+        return items
+          .filter(item => typeof item?.id === 'string' && typeof item?.text === 'string')
+          .map(item => ({
+            fileId: file.id,
+            taskId: item.id,
+            fileName: file.name,
+            taskName: item.text,
+            tags: item.tags || [],
+            status: item.status
+          }));
+      })
+      .sort((a, b) =>
+        a.taskName.localeCompare(b.taskName, undefined, { sensitivity: 'base' }) ||
+        a.fileName.localeCompare(b.fileName, undefined, { sensitivity: 'base' })
+      );
+  }, [projectFiles]);
+  const filteredLinkableTasks = React.useMemo(() => {
+    const query = taskLinkQuery.trim().toLowerCase();
+    if (!query) return linkableTasks;
+    return linkableTasks.filter(task =>
+      [
+        task.taskName,
+        task.fileName,
+        task.taskId,
+        task.status,
+        ...task.tags
+      ].join(' ').toLowerCase().includes(query)
+    );
+  }, [linkableTasks, taskLinkQuery]);
+  const taskLookup = React.useMemo(
+    () => new Map(linkableTasks.map(task => [getTaskLookupKey(task.fileId, task.taskId), task])),
+    [linkableTasks]
+  );
 
   // Sync initial content
   useEffect(() => {
@@ -197,17 +267,23 @@ const DocEditor: React.FC<EditorProps> = ({ initialContent, onSave, fileName, as
       if (viewMode === 'edit') return;
 
       const timer = setTimeout(() => {
-        setPreviewHtml(parseDoc(content, assets, fileLookup));
+        setPreviewHtml(parseDoc(content, assets, fileLookup, taskLookup));
       }, 500); // 500ms debounce to prevent lag while typing fast in split view
 
       return () => clearTimeout(timer);
-  }, [content, assets, fileLookup, viewMode]);
+  }, [content, assets, fileLookup, taskLookup, viewMode]);
 
   useEffect(() => {
     if (linkableFiles.length > 0) return;
     setShowLinkPicker(false);
     setLinkPickerQuery('');
   }, [linkableFiles]);
+
+  useEffect(() => {
+    if (linkableTasks.length > 0) return;
+    setShowTaskLinkPicker(false);
+    setTaskLinkQuery('');
+  }, [linkableTasks]);
 
   // Autosave
   useEffect(() => {
@@ -224,15 +300,19 @@ const DocEditor: React.FC<EditorProps> = ({ initialContent, onSave, fileName, as
       if (popoverRef.current && !popoverRef.current.contains(target)) {
         setShowColorPicker(false);
       }
-      if (linkPickerRef.current && !linkPickerRef.current.contains(target)) {
+      if (fileLinkPickerRef.current && !fileLinkPickerRef.current.contains(target)) {
         setShowLinkPicker(false);
         setLinkPickerQuery('');
       }
+      if (taskLinkPickerRef.current && !taskLinkPickerRef.current.contains(target)) {
+        setShowTaskLinkPicker(false);
+        setTaskLinkQuery('');
+      }
     };
-    if (!showColorPicker && !showLinkPicker) return;
+    if (!showColorPicker && !showLinkPicker && !showTaskLinkPicker) return;
     document.addEventListener('mousedown', handleClickOutside);
     return () => document.removeEventListener('mousedown', handleClickOutside);
-  }, [showColorPicker, showLinkPicker]);
+  }, [showColorPicker, showLinkPicker, showTaskLinkPicker]);
 
   // Shortcuts
   useEffect(() => {
@@ -308,11 +388,59 @@ const DocEditor: React.FC<EditorProps> = ({ initialContent, onSave, fileName, as
       setLinkPickerQuery('');
   };
 
+  const insertTaskLink = (fileId: string, taskId: string) => {
+      const selected = linkableTasks.find(task => task.fileId === fileId && task.taskId === taskId);
+      if (!selected) return;
+      insertText(`[${selected.taskName}](task://${selected.fileId}/${selected.taskId})`);
+      setShowTaskLinkPicker(false);
+      setTaskLinkQuery('');
+  };
+
   const toggleLinkPicker = () => {
       if (linkableFiles.length === 0) return;
       setShowColorPicker(false);
+      setShowTaskLinkPicker(false);
       setShowLinkPicker(prev => !prev);
       setLinkPickerQuery('');
+  };
+
+  const toggleTaskLinkPicker = () => {
+      if (linkableTasks.length === 0) return;
+      setShowColorPicker(false);
+      setShowLinkPicker(false);
+      setShowTaskLinkPicker(prev => !prev);
+      setTaskLinkQuery('');
+  };
+
+  const getDraggedTask = (e: React.DragEvent): { fileId: string; taskId: string; label: string } | null => {
+      const raw = e.dataTransfer.getData(TASK_LINK_DRAG_MIME);
+      if (raw) {
+        try {
+          const parsed = JSON.parse(raw) as { fileId?: string; taskId?: string; label?: string };
+          if (parsed?.fileId && parsed?.taskId) {
+            return { fileId: parsed.fileId, taskId: parsed.taskId, label: parsed.label || 'Linked Task' };
+          }
+        } catch {
+          // Ignore malformed task payloads and fall back to other formats.
+        }
+      }
+
+      const uri = e.dataTransfer.getData('text/uri-list');
+      if (uri?.startsWith('task://')) {
+        const target = parseTaskHref(uri.trim());
+        if (target) {
+          const linkedTask = taskLookup.get(getTaskLookupKey(target.fileId, target.taskId));
+          return { fileId: target.fileId, taskId: target.taskId, label: linkedTask?.taskName || 'Linked Task' };
+        }
+      }
+
+      const text = e.dataTransfer.getData('text/plain');
+      const markdownMatch = text.match(/\[([^\]]+)\]\(task:\/\/([^/]+)\/([^)]+)\)/);
+      if (markdownMatch) {
+        return { fileId: markdownMatch[2], taskId: markdownMatch[3], label: markdownMatch[1] };
+      }
+
+      return null;
   };
 
   const getDraggedFile = (e: React.DragEvent): { id: string; name: string } | null => {
@@ -350,12 +478,19 @@ const DocEditor: React.FC<EditorProps> = ({ initialContent, onSave, fileName, as
   };
 
   const handleEditorDragOver = (e: React.DragEvent<HTMLTextAreaElement>) => {
-      if (!getDraggedFile(e)) return;
+      if (!getDraggedTask(e) && !getDraggedFile(e)) return;
       e.preventDefault();
       e.dataTransfer.dropEffect = 'copy';
   };
 
   const handleEditorDrop = (e: React.DragEvent<HTMLTextAreaElement>) => {
+      const draggedTask = getDraggedTask(e);
+      if (draggedTask) {
+        e.preventDefault();
+        insertText(`[${draggedTask.label}](task://${draggedTask.fileId}/${draggedTask.taskId})`);
+        return;
+      }
+
       const draggedFile = getDraggedFile(e);
       if (!draggedFile) return;
       e.preventDefault();
@@ -364,6 +499,15 @@ const DocEditor: React.FC<EditorProps> = ({ initialContent, onSave, fileName, as
 
   const handlePreviewClick = (e: React.MouseEvent<HTMLDivElement>) => {
       const target = e.target as HTMLElement;
+      const taskLink = target.closest('a[data-task-file-id][data-task-id]') as HTMLAnchorElement | null;
+      if (taskLink) {
+        e.preventDefault();
+        const fileId = taskLink.dataset.taskFileId;
+        const taskId = taskLink.dataset.taskId;
+        if (!fileId || !taskId || !onOpenTask) return;
+        onOpenTask(fileId, taskId);
+        return;
+      }
       const link = target.closest('a[data-file-id]') as HTMLAnchorElement | null;
       if (!link) return;
       e.preventDefault();
@@ -413,10 +557,10 @@ const DocEditor: React.FC<EditorProps> = ({ initialContent, onSave, fileName, as
               <ToolbarButton icon={Strikethrough} onClick={() => insertText('~~', '~~')} title="Strikethrough" />
               
               {/* Color Picker Toggle */}
-              <div className="relative" ref={linkPickerRef}>
-                  <ToolbarButton 
-                    icon={Palette} 
-                    onClick={() => setShowColorPicker(!showColorPicker)} 
+               <div className="relative" ref={colorPickerRef}>
+                   <ToolbarButton 
+                     icon={Palette} 
+                     onClick={() => setShowColorPicker(!showColorPicker)} 
                     title="Text Color" 
                     color="text-pink-400" 
                     active={showColorPicker}
@@ -459,22 +603,72 @@ const DocEditor: React.FC<EditorProps> = ({ initialContent, onSave, fileName, as
 
               {/* Structure */}
               <ToolbarButton icon={Heading1} onClick={() => insertText('# ')} title="Heading 1" />
-              <ToolbarButton icon={Heading2} onClick={() => insertText('## ')} title="Heading 2" />
-              <ToolbarButton icon={List} onClick={() => insertText('- ')} title="Bullet List" />
-              <ToolbarButton icon={Quote} onClick={() => insertText('> ')} title="Quote" />
-              <ToolbarButton icon={Code} onClick={() => insertText('```\n', '\n```')} title="Code Block" />
-              <div className="relative">
-                <ToolbarButton
-                  icon={LinkIcon}
-                  onClick={toggleLinkPicker}
+               <ToolbarButton icon={Heading2} onClick={() => insertText('## ')} title="Heading 2" />
+               <ToolbarButton icon={List} onClick={() => insertText('- ')} title="Bullet List" />
+               <ToolbarButton icon={Quote} onClick={() => insertText('> ')} title="Quote" />
+               <ToolbarButton icon={Code} onClick={() => insertText('```\n', '\n```')} title="Code Block" />
+               <div className="relative" ref={taskLinkPickerRef}>
+                 <ToolbarButton
+                   icon={CheckSquare}
+                   onClick={toggleTaskLinkPicker}
+                   title={linkableTasks.length === 0 ? 'No tasks available to link' : 'Insert Task Link'}
+                   color="text-emerald-400"
+                   disabled={linkableTasks.length === 0}
+                   active={showTaskLinkPicker}
+                 />
+                 {showTaskLinkPicker && (
+                   <div
+                     className="absolute left-0 top-full mt-2 z-50 w-80 rounded-lg border border-zinc-700 bg-zinc-900 p-2 shadow-xl"
+                   >
+                     <input
+                       type="text"
+                       value={taskLinkQuery}
+                       onChange={(e) => setTaskLinkQuery(e.target.value)}
+                       placeholder="Search tasks..."
+                       className="mb-2 w-full rounded border border-zinc-700 bg-zinc-950 px-2 py-1.5 text-xs text-zinc-200 focus:border-zinc-500 focus:outline-none"
+                       autoFocus
+                     />
+                     <div className="max-h-56 space-y-1 overflow-y-auto custom-scrollbar">
+                       {filteredLinkableTasks.length === 0 ? (
+                         <p className="px-2 py-2 text-xs text-zinc-500">No matching tasks.</p>
+                       ) : (
+                         filteredLinkableTasks.map(task => (
+                           <button
+                             key={`${task.fileId}-${task.taskId}`}
+                             type="button"
+                             onClick={() => insertTaskLink(task.fileId, task.taskId)}
+                             className="w-full rounded px-2 py-2 text-left text-xs text-zinc-300 transition hover:bg-zinc-800 hover:text-white"
+                             title={`${task.fileName} • ${task.taskId}`}
+                           >
+                             <div className="truncate font-medium text-zinc-200">{task.taskName}</div>
+                             <div className="mt-1 flex items-center justify-between gap-2 text-[10px] text-zinc-500">
+                               <span className="truncate">{task.fileName}</span>
+                               <span>{task.status}</span>
+                             </div>
+                             {task.tags.length > 0 && (
+                               <div className="mt-1 truncate text-[10px] text-zinc-400">
+                                 {task.tags.map(tag => `#${tag}`).join(' ')}
+                               </div>
+                             )}
+                           </button>
+                         ))
+                       )}
+                     </div>
+                   </div>
+                 )}
+               </div>
+               <div className="relative" ref={fileLinkPickerRef}>
+                 <ToolbarButton
+                   icon={LinkIcon}
+                   onClick={toggleLinkPicker}
                   title={linkableFiles.length === 0 ? 'No files available to link' : 'Insert File Link'}
                   color="text-cyan-400"
                   disabled={linkableFiles.length === 0}
                   active={showLinkPicker}
-                />
-                {showLinkPicker && (
-                  <div
-                    className="absolute left-0 top-full mt-2 z-50 w-72 rounded-lg border border-zinc-700 bg-zinc-900 p-2 shadow-xl"
+                 />
+                 {showLinkPicker && (
+                   <div
+                     className="absolute left-0 top-full mt-2 z-50 w-72 rounded-lg border border-zinc-700 bg-zinc-900 p-2 shadow-xl"
                   >
                     <input
                       type="text"

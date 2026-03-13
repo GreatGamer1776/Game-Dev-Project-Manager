@@ -1,9 +1,29 @@
 import React, { useState, useEffect, useRef } from 'react';
-import { Save, Plus, Trash2, CheckSquare, Square, Calendar, ChevronDown, ChevronUp, ListChecks, Loader2, Check, AlertCircle, MoreHorizontal, Link as LinkIcon, Tags, X } from 'lucide-react';
+import { Save, Plus, Trash2, CheckSquare, Square, Calendar, ChevronDown, ChevronUp, ListChecks, Loader2, Check, AlertCircle, MoreHorizontal, Link as LinkIcon, Tags, X, Search, Filter, ArrowUpDown } from 'lucide-react';
 import { TodoItem, Priority, SubTask, EditorProps, TodoStatus } from '../types';
 
 const FILE_LINK_DRAG_MIME = 'application/x-gdpm-file-id';
-const TASK_CATEGORIES = ['General', 'Design', 'Programming', 'Art', 'Audio', 'QA', 'Production'] as const;
+const TASK_LINK_DRAG_MIME = 'application/x-gdpm-task-link';
+const TASK_MOVE_DRAG_MIME = 'application/x-gdpm-task-id';
+const TODO_COLUMNS: TodoStatus[] = ['Backlog', 'To Do', 'In Progress', 'Review', 'Done'];
+const TODO_STATUS_OPTIONS = TODO_COLUMNS.map(status => ({ value: status, label: status }));
+
+const normalizeTodoStatus = (status?: string, completed?: boolean): TodoStatus => {
+  if (status && TODO_COLUMNS.includes(status as TodoStatus)) {
+    return status as TodoStatus;
+  }
+  return completed ? 'Done' : 'To Do';
+};
+
+const migrateTodoItem = (item: any): TodoItem => {
+  const { category: _legacyCategory, ...rest } = item || {};
+  const status = normalizeTodoStatus(rest.status, rest.completed);
+  return {
+    ...rest,
+    status,
+    completed: status === 'Done'
+  };
+};
 
 type SelectOption = {
   value: string;
@@ -37,14 +57,11 @@ const StyledSelect: React.FC<{
   );
 };
 
-const TodoEditor: React.FC<EditorProps> = ({ initialContent, onSave, fileName, projectFiles = [], onOpenFile, activeFileId }) => {
+const TodoEditor: React.FC<EditorProps> = ({ initialContent, onSave, fileName, projectFiles = [], onOpenFile, activeFileId, taskNavigationTarget, onTaskNavigationHandled }) => {
   // Initialize items with migration logic for existing data (missing status)
   const [items, setItems] = useState<TodoItem[]>(() => {
     const rawItems = initialContent?.items || [];
-    return rawItems.map((item: any) => ({
-      ...item,
-      status: item.status || (item.completed ? 'Done' : 'To Do')
-    }));
+    return rawItems.map(migrateTodoItem);
   });
   
   // Save Status
@@ -59,8 +76,7 @@ const TodoEditor: React.FC<EditorProps> = ({ initialContent, onSave, fileName, p
   const [newItemText, setNewItemText] = useState('');
   const [newItemPriority, setNewItemPriority] = useState<Priority>('Medium');
   const [newItemDate, setNewItemDate] = useState('');
-  const [newItemCategory, setNewItemCategory] = useState<string>('General');
-  const [newItemStatus, setNewItemStatus] = useState<TodoStatus>('To Do');
+  const [newItemStatus, setNewItemStatus] = useState<TodoStatus>('Backlog');
   const [newItemEstimate, setNewItemEstimate] = useState('');
   const [newItemTags, setNewItemTags] = useState('');
   const [newItemDescription, setNewItemDescription] = useState('');
@@ -71,16 +87,18 @@ const TodoEditor: React.FC<EditorProps> = ({ initialContent, onSave, fileName, p
   const [searchQuery, setSearchQuery] = useState('');
   const [filterPriority, setFilterPriority] = useState<'All' | Priority>('All');
   const [filterStatus, setFilterStatus] = useState<'All' | TodoStatus>('All');
-  const [filterCategory, setFilterCategory] = useState<'All' | string>('All');
+  const [filterTags, setFilterTags] = useState<string[]>([]);
   const [sortBy, setSortBy] = useState<'Newest' | 'Oldest' | 'Priority' | 'Due Date' | 'Alphabetical' | 'Effort'>('Newest');
   
   const [expandedId, setExpandedId] = useState<string | null>(null);
+  const [highlightedTaskId, setHighlightedTaskId] = useState<string | null>(null);
   const [newSubTaskText, setNewSubTaskText] = useState('');
   const [editingTaskId, setEditingTaskId] = useState<string | null>(null);
   const [editingTaskText, setEditingTaskText] = useState('');
   const [linkPickerTaskId, setLinkPickerTaskId] = useState<string | null>(null);
   const [linkPickerQuery, setLinkPickerQuery] = useState('');
   const linkPickerRef = useRef<HTMLDivElement | null>(null);
+  const taskCardRefs = useRef<Record<string, HTMLDivElement | null>>({});
   const fileLookup = React.useMemo(() => new Map(projectFiles.map(f => [f.id, f.name])), [projectFiles]);
   const linkableFiles = React.useMemo(
     () => projectFiles.filter(f => f.id !== activeFileId).sort((a, b) => a.name.localeCompare(b.name, undefined, { sensitivity: 'base' })),
@@ -93,20 +111,15 @@ const TodoEditor: React.FC<EditorProps> = ({ initialContent, onSave, fileName, p
       f.name.toLowerCase().includes(query) || f.id.toLowerCase().includes(query)
     );
   }, [linkableFiles, linkPickerQuery]);
-  const categoryOptions = React.useMemo(
-    () => Array.from(new Set([...TASK_CATEGORIES, ...items.map(item => item.category || 'General')])).sort((a, b) => a.localeCompare(b, undefined, { sensitivity: 'base' })),
+  const allTags = React.useMemo(
+    () => Array.from(new Set(items.flatMap(item => item.tags || []))).sort((a, b) => a.localeCompare(b, undefined, { sensitivity: 'base' })),
     [items]
   );
-
-  const COLUMNS: TodoStatus[] = ['To Do', 'In Progress', 'Done'];
 
   // Sync with prop changes
   useEffect(() => {
     const rawItems = initialContent?.items || [];
-    const migratedItems = rawItems.map((item: any) => ({
-      ...item,
-      status: item.status || (item.completed ? 'Done' : 'To Do')
-    }));
+    const migratedItems = rawItems.map(migrateTodoItem);
     setItems(migratedItems);
     lastSavedData.current = JSON.stringify(migratedItems);
   }, [initialContent]);
@@ -131,6 +144,29 @@ const TodoEditor: React.FC<EditorProps> = ({ initialContent, onSave, fileName, p
     setLinkPickerTaskId(null);
     setLinkPickerQuery('');
   }, [expandedId, linkPickerTaskId]);
+
+  useEffect(() => {
+    if (!taskNavigationTarget || taskNavigationTarget.fileId !== activeFileId) return;
+
+    const targetItem = items.find(item => item.id === taskNavigationTarget.taskId);
+    onTaskNavigationHandled?.();
+    if (!targetItem) return;
+
+    setExpandedId(targetItem.id);
+    setHighlightedTaskId(targetItem.id);
+
+    const frameId = window.requestAnimationFrame(() => {
+      taskCardRefs.current[targetItem.id]?.scrollIntoView({ behavior: 'smooth', block: 'center' });
+    });
+    const timeoutId = window.setTimeout(() => {
+      setHighlightedTaskId(current => current === targetItem.id ? null : current);
+    }, 2500);
+
+    return () => {
+      window.cancelAnimationFrame(frameId);
+      window.clearTimeout(timeoutId);
+    };
+  }, [activeFileId, items, onTaskNavigationHandled, taskNavigationTarget]);
 
   // Autosave
   useEffect(() => {
@@ -176,7 +212,6 @@ const TodoEditor: React.FC<EditorProps> = ({ initialContent, onSave, fileName, p
       status: newItemStatus,
       priority: newItemPriority,
       dueDate: newItemDate || undefined,
-      category: newItemCategory,
       estimateHours: typeof parsedEstimate === 'number' && !Number.isNaN(parsedEstimate) ? parsedEstimate : undefined,
       tags: parsedTags.length ? parsedTags : undefined,
       description: newItemDescription,
@@ -185,10 +220,9 @@ const TodoEditor: React.FC<EditorProps> = ({ initialContent, onSave, fileName, p
 
     setItems([newItem, ...items]); 
     setNewItemText('');
-    setNewItemStatus('To Do');
+    setNewItemStatus('Backlog');
     setNewItemPriority('Medium');
     setNewItemDate('');
-    setNewItemCategory('General');
     setNewItemEstimate('');
     setNewItemTags('');
     setNewItemDescription('');
@@ -204,10 +238,9 @@ const TodoEditor: React.FC<EditorProps> = ({ initialContent, onSave, fileName, p
   const handleCloseCreateModal = () => {
     setIsCreateModalOpen(false);
     setNewItemText('');
-    setNewItemStatus('To Do');
+    setNewItemStatus('Backlog');
     setNewItemPriority('Medium');
     setNewItemDate('');
-    setNewItemCategory('General');
     setNewItemEstimate('');
     setNewItemTags('');
     setNewItemDescription('');
@@ -417,14 +450,31 @@ const TodoEditor: React.FC<EditorProps> = ({ initialContent, onSave, fileName, p
     setSearchQuery('');
     setFilterPriority('All');
     setFilterStatus('All');
-    setFilterCategory('All');
+    setFilterTags([]);
     setSortBy('Newest');
+  };
+
+  const toggleFilterTag = (tag: string) => {
+    setFilterTags(current =>
+      current.includes(tag) ? current.filter(selectedTag => selectedTag !== tag) : [...current, tag]
+    );
   };
 
   // --- Drag & Drop ---
   const handleDragStart = (e: React.DragEvent, id: string) => {
     setDraggedItemId(id);
     e.dataTransfer.effectAllowed = 'move';
+    e.dataTransfer.setData(TASK_MOVE_DRAG_MIME, id);
+
+    const task = items.find(item => item.id === id);
+    if (task && activeFileId) {
+      const taskLink = `[${task.text}](task://${activeFileId}/${task.id})`;
+      e.dataTransfer.setData(TASK_LINK_DRAG_MIME, JSON.stringify({ fileId: activeFileId, taskId: task.id, label: task.text }));
+      e.dataTransfer.setData('text/uri-list', `task://${activeFileId}/${task.id}`);
+      e.dataTransfer.setData('text/plain', taskLink);
+      return;
+    }
+
     e.dataTransfer.setData('text/plain', id);
   };
 
@@ -436,11 +486,16 @@ const TodoEditor: React.FC<EditorProps> = ({ initialContent, onSave, fileName, p
   const handleDrop = (e: React.DragEvent, status: TodoStatus) => {
     e.preventDefault();
     setActiveDropZone(null);
-    const id = e.dataTransfer.getData('text/plain');
+    const id = e.dataTransfer.getData(TASK_MOVE_DRAG_MIME) || e.dataTransfer.getData('text/plain');
     if (id && id === draggedItemId) {
       updateItemStatus(id, status);
     }
     setDraggedItemId(null);
+  };
+
+  const handleDragEnd = () => {
+    setDraggedItemId(null);
+    setActiveDropZone(null);
   };
 
   // --- Helpers ---
@@ -454,8 +509,10 @@ const TodoEditor: React.FC<EditorProps> = ({ initialContent, onSave, fileName, p
 
   const getStatusColor = (s: TodoStatus) => {
       switch(s) {
+          case 'Backlog': return 'border-t-violet-500';
           case 'To Do': return 'border-t-zinc-600';
           case 'In Progress': return 'border-t-blue-500';
+          case 'Review': return 'border-t-amber-500';
           case 'Done': return 'border-t-emerald-500';
       }
   };
@@ -470,14 +527,17 @@ const TodoEditor: React.FC<EditorProps> = ({ initialContent, onSave, fileName, p
         const searchable = [
           item.text,
           item.description || '',
-          item.category || '',
           ...(item.tags || [])
         ].join(' ').toLowerCase();
         if (!searchable.includes(q)) return false;
       }
       if (filterPriority !== 'All' && item.priority !== filterPriority) return false;
       if (filterStatus !== 'All' && item.status !== filterStatus) return false;
-      if (filterCategory !== 'All' && (item.category || 'General') !== filterCategory) return false;
+      if (filterTags.length > 0) {
+        const itemTags = (item.tags || []).map(tag => tag.toLowerCase());
+        const matchesTag = filterTags.some(tag => itemTags.includes(tag.toLowerCase()));
+        if (!matchesTag) return false;
+      }
       return true;
     })
     .sort((a, b) => {
@@ -506,7 +566,8 @@ const TodoEditor: React.FC<EditorProps> = ({ initialContent, onSave, fileName, p
       }
     });
 
-  const visibleColumns: TodoStatus[] = filterStatus === 'All' ? COLUMNS : [filterStatus];
+  const visibleColumns: TodoStatus[] = filterStatus === 'All' ? TODO_COLUMNS : [filterStatus];
+  const boardMinWidth = visibleColumns.length === 1 ? 320 : visibleColumns.length * 300 + (visibleColumns.length - 1) * 24;
 
   return (
     <div className="h-full flex flex-col bg-zinc-900">
@@ -531,9 +592,107 @@ const TodoEditor: React.FC<EditorProps> = ({ initialContent, onSave, fileName, p
         </div>
       </div>
 
+      <div className="border-b border-zinc-800 bg-zinc-900 px-6 py-4">
+        <div className="flex flex-wrap items-center gap-3">
+          <div className="relative w-full max-w-xs">
+            <Search className="pointer-events-none absolute left-3 top-1/2 h-4 w-4 -translate-y-1/2 text-zinc-500" />
+            <input
+              type="text"
+              value={searchQuery}
+              onChange={(e) => setSearchQuery(e.target.value)}
+              placeholder="Search name, notes, or tags..."
+              className="w-full rounded-md border border-zinc-800 bg-zinc-950 py-1.5 pl-9 pr-3 text-sm text-zinc-200 focus:border-zinc-600 focus:outline-none"
+            />
+          </div>
+
+          <div className="hidden h-6 w-px bg-zinc-800 lg:block"></div>
+
+          <div className="flex items-center gap-2 bg-zinc-950 border border-zinc-800 rounded-md px-2 py-1.5 text-xs text-zinc-300">
+            <Filter className="h-3.5 w-3.5 text-zinc-500" />
+            <span>Priority</span>
+            <select
+              value={filterPriority}
+              onChange={(e) => setFilterPriority(e.target.value as 'All' | Priority)}
+              className="bg-transparent text-xs text-zinc-200 focus:outline-none"
+            >
+              <option value="All">All</option>
+              <option value="High">High</option>
+              <option value="Medium">Medium</option>
+              <option value="Low">Low</option>
+            </select>
+          </div>
+
+          <div className="flex items-center gap-2 bg-zinc-950 border border-zinc-800 rounded-md px-2 py-1.5 text-xs text-zinc-300">
+            <span>Bucket</span>
+            <select
+              value={filterStatus}
+              onChange={(e) => setFilterStatus(e.target.value as 'All' | TodoStatus)}
+              className="bg-transparent text-xs text-zinc-200 focus:outline-none"
+            >
+              <option value="All">All</option>
+              {TODO_COLUMNS.map(status => (
+                <option key={status} value={status}>{status}</option>
+              ))}
+            </select>
+          </div>
+
+          <div className="flex items-center gap-2 bg-zinc-950 border border-zinc-800 rounded-md px-2 py-1.5 text-xs text-zinc-300">
+            <ArrowUpDown className="h-3.5 w-3.5 text-zinc-500" />
+            <select
+              value={sortBy}
+              onChange={(e) => setSortBy(e.target.value as 'Newest' | 'Oldest' | 'Priority' | 'Due Date' | 'Alphabetical' | 'Effort')}
+              className="bg-transparent text-xs text-zinc-200 focus:outline-none"
+            >
+              <option value="Newest">Newest</option>
+              <option value="Oldest">Oldest</option>
+              <option value="Priority">Priority</option>
+              <option value="Due Date">Due Date</option>
+              <option value="Alphabetical">Alphabetical</option>
+              <option value="Effort">Effort</option>
+            </select>
+          </div>
+
+          <button
+            onClick={resetTaskFilters}
+            className="rounded-md border border-zinc-800 bg-zinc-950 px-2.5 py-1.5 text-xs text-zinc-300 hover:text-white"
+          >
+            Reset Filters
+          </button>
+
+          <div className="ml-auto text-xs text-zinc-500">
+            Showing {filteredItems.length} of {items.length} tasks
+          </div>
+        </div>
+
+        {allTags.length > 0 && (
+          <div className="mt-3 flex flex-wrap items-center gap-2">
+            <div className="mr-1 flex items-center gap-1.5 text-xs text-zinc-500">
+              <Tags className="h-3.5 w-3.5" />
+              <span>Tags</span>
+            </div>
+            {allTags.map(tag => {
+              const isSelected = filterTags.includes(tag);
+              return (
+                <button
+                  key={tag}
+                  onClick={() => toggleFilterTag(tag)}
+                  className={`rounded-full border px-2 py-1 text-[11px] transition-colors ${
+                    isSelected
+                      ? 'border-blue-500/50 bg-blue-500/10 text-blue-300'
+                      : 'border-zinc-800 bg-zinc-950 text-zinc-400 hover:text-white'
+                  }`}
+                >
+                  #{tag}
+                </button>
+              );
+            })}
+          </div>
+        )}
+      </div>
+
       {/* Kanban Board */}
       <div className="flex-1 overflow-x-auto p-6 bg-zinc-900">
-        <div className={`flex gap-6 h-full ${visibleColumns.length === 1 ? 'min-w-[320px]' : 'min-w-[900px]'}`}>
+        <div className="flex h-full gap-6" style={{ minWidth: `${boardMinWidth}px` }}>
           {visibleColumns.map(column => {
              const colItems = filteredItems.filter(i => i.status === column);
              const isDropActive = activeDropZone === column;
@@ -553,19 +712,25 @@ const TodoEditor: React.FC<EditorProps> = ({ initialContent, onSave, fileName, p
 
                  {/* Drop Area */}
                  <div className="flex-1 overflow-y-auto p-3 space-y-3 custom-scrollbar">
-                    {colItems.map(item => {
-                        const subTasks = item.subTasks || [];
-                        const completedSub = subTasks.filter(s => s.completed).length;
-                        const progress = subTasks.length > 0 ? (completedSub / subTasks.length) * 100 : 0;
-                        const isExpanded = expandedId === item.id;
+                     {colItems.map(item => {
+                         const subTasks = item.subTasks || [];
+                         const completedSub = subTasks.filter(s => s.completed).length;
+                         const progress = subTasks.length > 0 ? (completedSub / subTasks.length) * 100 : 0;
+                         const isExpanded = expandedId === item.id;
+                         const isHighlighted = highlightedTaskId === item.id;
 
-                        return (
-                           <div
-                             key={item.id}
-                             draggable
-                             onDragStart={(e) => handleDragStart(e, item.id)}
-                             className={`group bg-zinc-900 border border-zinc-800 rounded-lg p-3 shadow-sm hover:border-zinc-700 hover:shadow-md transition-all cursor-grab active:cursor-grabbing ${draggedItemId === item.id ? 'opacity-50 grayscale' : 'opacity-100'}`}
-                           >
+                         return (
+                            <div
+                              key={item.id}
+                              draggable
+                              ref={(node) => {
+                                taskCardRefs.current[item.id] = node;
+                              }}
+                              onDragStart={(e) => handleDragStart(e, item.id)}
+                              onDragEnd={handleDragEnd}
+                              data-task-id={item.id}
+                              className={`group rounded-lg border bg-zinc-900 p-3 shadow-sm transition-all cursor-grab active:cursor-grabbing ${draggedItemId === item.id ? 'opacity-50 grayscale' : 'opacity-100'} ${isHighlighted ? 'border-cyan-400/60 ring-2 ring-cyan-400/30 shadow-[0_0_0_1px_rgba(34,211,238,0.2)]' : 'border-zinc-800 hover:border-zinc-700 hover:shadow-md'}`}
+                            >
                               {/* Card Header */}
                               <div className="flex items-start gap-3 mb-2">
                                   <button 
@@ -602,15 +767,12 @@ const TodoEditor: React.FC<EditorProps> = ({ initialContent, onSave, fileName, p
                                   </button>
                               </div>
 
-                              {/* Card Tags */}
-                              <div className="flex flex-wrap items-center gap-2 mt-2">
-                                  <span className={`text-[10px] uppercase font-bold px-1.5 py-0.5 rounded border ${getPriorityColor(item.priority)}`}>{item.priority}</span>
-                                  <span className="text-[10px] text-zinc-400 bg-zinc-950 border border-zinc-800 px-1.5 py-0.5 rounded">
-                                    {item.category || 'General'}
-                                  </span>
-                                  {item.dueDate && (
-                                     <span className="flex items-center gap-1 text-[10px] text-zinc-500 bg-zinc-950 border border-zinc-800 px-1.5 py-0.5 rounded">
-                                        <Calendar className="w-3 h-3" /> {new Date(item.dueDate).toLocaleDateString(undefined, { month: 'short', day: 'numeric' })}
+                               {/* Card Tags */}
+                               <div className="flex flex-wrap items-center gap-2 mt-2">
+                                   <span className={`text-[10px] uppercase font-bold px-1.5 py-0.5 rounded border ${getPriorityColor(item.priority)}`}>{item.priority}</span>
+                                   {item.dueDate && (
+                                      <span className="flex items-center gap-1 text-[10px] text-zinc-500 bg-zinc-950 border border-zinc-800 px-1.5 py-0.5 rounded">
+                                         <Calendar className="w-3 h-3" /> {new Date(item.dueDate).toLocaleDateString(undefined, { month: 'short', day: 'numeric' })}
                                      </span>
                                   )}
                                   {typeof item.estimateHours === 'number' && (
@@ -645,17 +807,13 @@ const TodoEditor: React.FC<EditorProps> = ({ initialContent, onSave, fileName, p
                                       <div className="grid grid-cols-1 sm:grid-cols-3 gap-2">
                                           <div className="bg-zinc-950 border border-zinc-800 rounded p-2">
                                               <label className="text-[10px] uppercase tracking-wide text-zinc-500">Status</label>
-                                              <StyledSelect
-                                                value={item.status}
-                                                onChange={(value) => updateItemStatus(item.id, value as TodoStatus)}
-                                                options={[
-                                                  { value: 'To Do', label: 'To Do' },
-                                                  { value: 'In Progress', label: 'In Progress' },
-                                                  { value: 'Done', label: 'Done' }
-                                                ]}
-                                                className="mt-1"
-                                                selectClassName="w-full border-zinc-800 bg-zinc-900"
-                                              />
+                                               <StyledSelect
+                                                 value={item.status}
+                                                 onChange={(value) => updateItemStatus(item.id, value as TodoStatus)}
+                                                 options={TODO_STATUS_OPTIONS}
+                                                 className="mt-1"
+                                                 selectClassName="w-full border-zinc-800 bg-zinc-900"
+                                               />
                                           </div>
                                           <div className="bg-zinc-950 border border-zinc-800 rounded p-2">
                                               <label className="text-[10px] uppercase tracking-wide text-zinc-500">Priority</label>
@@ -681,32 +839,20 @@ const TodoEditor: React.FC<EditorProps> = ({ initialContent, onSave, fileName, p
                                               />
                                           </div>
                                       </div>
-                                      <div className="grid grid-cols-1 sm:grid-cols-2 gap-2">
-                                          <div className="bg-zinc-950 border border-zinc-800 rounded p-2">
-                                              <label className="text-[10px] uppercase tracking-wide text-zinc-500">Category</label>
-                                              <StyledSelect
-                                                value={item.category || 'General'}
-                                                onChange={(value) => updateItemField(item.id, { category: value })}
-                                                options={categoryOptions.map(category => ({ value: category, label: category }))}
-                                                className="mt-1"
-                                                selectClassName="w-full border-zinc-800 bg-zinc-900"
-                                              />
-                                          </div>
-                                          <div className="bg-zinc-950 border border-zinc-800 rounded p-2">
-                                              <label className="text-[10px] uppercase tracking-wide text-zinc-500">Effort (Hours)</label>
-                                              <input
-                                                type="number"
-                                                min="0.5"
-                                                step="0.5"
-                                                value={item.estimateHours ?? ''}
-                                                onChange={(e) => {
-                                                  const value = e.target.value.trim();
-                                                  updateItemField(item.id, { estimateHours: value ? Number(value) : undefined });
-                                                }}
-                                                placeholder="e.g. 2"
-                                                className="mt-1 w-full bg-transparent text-xs text-zinc-200 focus:outline-none"
-                                              />
-                                          </div>
+                                      <div className="bg-zinc-950 border border-zinc-800 rounded p-2">
+                                          <label className="text-[10px] uppercase tracking-wide text-zinc-500">Effort (Hours)</label>
+                                          <input
+                                            type="number"
+                                            min="0.5"
+                                            step="0.5"
+                                            value={item.estimateHours ?? ''}
+                                            onChange={(e) => {
+                                              const value = e.target.value.trim();
+                                              updateItemField(item.id, { estimateHours: value ? Number(value) : undefined });
+                                            }}
+                                            placeholder="e.g. 2"
+                                            className="mt-1 w-full bg-transparent text-xs text-zinc-200 focus:outline-none"
+                                          />
                                       </div>
                                       <div className="bg-zinc-950 border border-zinc-800 rounded p-2">
                                           <label className="text-[10px] uppercase tracking-wide text-zinc-500">Tags</label>
@@ -855,17 +1001,13 @@ const TodoEditor: React.FC<EditorProps> = ({ initialContent, onSave, fileName, p
                   placeholder="What needs to be done?"
                 />
               </div>
-              <div className="grid grid-cols-1 sm:grid-cols-3 gap-4">
+              <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
                 <div>
                   <label className="block text-sm font-medium text-zinc-400 mb-1">Status</label>
                   <StyledSelect
                     value={newItemStatus}
                     onChange={(value) => setNewItemStatus(value as TodoStatus)}
-                    options={[
-                      { value: 'To Do', label: 'To Do' },
-                      { value: 'In Progress', label: 'In Progress' },
-                      { value: 'Done', label: 'Done' }
-                    ]}
+                    options={TODO_STATUS_OPTIONS}
                     selectClassName="w-full bg-zinc-950 border-zinc-800 p-2.5 text-sm"
                   />
                 </div>
@@ -879,15 +1021,6 @@ const TodoEditor: React.FC<EditorProps> = ({ initialContent, onSave, fileName, p
                       { value: 'Medium', label: 'Medium' },
                       { value: 'High', label: 'High' }
                     ]}
-                    selectClassName="w-full bg-zinc-950 border-zinc-800 p-2.5 text-sm"
-                  />
-                </div>
-                <div>
-                  <label className="block text-sm font-medium text-zinc-400 mb-1">Category</label>
-                  <StyledSelect
-                    value={newItemCategory}
-                    onChange={setNewItemCategory}
-                    options={categoryOptions.map(category => ({ value: category, label: category }))}
                     selectClassName="w-full bg-zinc-950 border-zinc-800 p-2.5 text-sm"
                   />
                 </div>

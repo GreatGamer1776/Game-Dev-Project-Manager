@@ -1,5 +1,5 @@
 import React, { useEffect, useMemo, useState } from 'react';
-import { Upload, Trash2, Image as ImageIcon, Copy, Search, Grid, Check, Download, FolderOpen, FolderPlus, Folder, ChevronRight, ChevronDown, Music, File as FileIcon } from 'lucide-react';
+import { Upload, Trash2, Image as ImageIcon, Copy, Search, Grid, Check, Download, FolderOpen, FolderPlus, Folder, ChevronRight, ChevronDown, Music, File as FileIcon, Pencil } from 'lucide-react';
 import { EditorProps } from '../types';
 import { ASSET_LINK_DRAG_MIME, AssetKind, getAssetExtensionFromMime, getAssetKindFromMime, getAssetMimeType } from '../services/assetUtils';
 
@@ -360,6 +360,25 @@ const AssetBrowser: React.FC<EditorProps> = ({ initialContent, assets = {}, onAd
       }
   };
 
+  const handleRename = (id: string) => {
+      const currentName = libraryContent.assetNameMap[id] || id;
+      const nextName = prompt('Asset name:', currentName);
+      if (nextName === null) return;
+      const trimmedName = nextName.trim();
+      if (!trimmedName) {
+        alert('Asset name cannot be empty.');
+        return;
+      }
+      if (trimmedName === currentName) return;
+      commitLibraryContent(prev => ({
+        ...prev,
+        assetNameMap: {
+          ...prev.assetNameMap,
+          [id]: trimmedName
+        }
+      }));
+  };
+
   const downloadAsset = (data: string, id: string, name: string) => {
       const a = document.createElement('a');
       a.href = data;
@@ -494,31 +513,49 @@ const AssetBrowser: React.FC<EditorProps> = ({ initialContent, assets = {}, onAd
                                   >
                                       {copiedId === id ? <Check className="w-4 h-4" /> : <Copy className="w-4 h-4" />}
                                   </button>
-                                  <button 
-                                      onClick={() => downloadAsset(data, id, name)}
-                                      className="p-2 bg-zinc-800 text-white rounded-full hover:scale-110 transition-transform"
-                                      title="Download"
-                                  >
-                                      <Download className="w-4 h-4" />
-                                  </button>
-                                  <button 
-                                      onClick={() => handleDelete(id)}
-                                      className="p-2 bg-red-600 text-white rounded-full hover:scale-110 transition-transform"
-                                      title="Delete Asset"
+                                   <button 
+                                       onClick={() => downloadAsset(data, id, name)}
+                                       className="p-2 bg-zinc-800 text-white rounded-full hover:scale-110 transition-transform"
+                                       title="Download"
+                                   >
+                                       <Download className="w-4 h-4" />
+                                   </button>
+                                   <button
+                                       onClick={() => handleRename(id)}
+                                       className="p-2 bg-zinc-800 text-white rounded-full hover:scale-110 transition-transform"
+                                       title="Rename Asset"
+                                   >
+                                       <Pencil className="w-4 h-4" />
+                                   </button>
+                                   <button 
+                                       onClick={() => handleDelete(id)}
+                                       className="p-2 bg-red-600 text-white rounded-full hover:scale-110 transition-transform"
+                                       title="Delete Asset"
                                   >
                                       <Trash2 className="w-4 h-4" />
                                   </button>
                               </div>
                           </div>
 
-                          {/* Footer info */}
-                          <div className="p-3 border-t border-zinc-800 bg-zinc-900/50">
-                               <div className="text-[11px] text-zinc-200 truncate" title={name}>
-                                   {name}
-                               </div>
-                               <div className="text-[10px] font-mono text-zinc-500 truncate" title={id}>
-                                   {id}
-                               </div>
+                           {/* Footer info */}
+                           <div className="p-3 border-t border-zinc-800 bg-zinc-900/50">
+                                <div className="flex items-start gap-2">
+                                    <div className="min-w-0 flex-1">
+                                        <div className="text-[11px] text-zinc-200 truncate" title={name}>
+                                            {name}
+                                        </div>
+                                    </div>
+                                    <button
+                                        onClick={() => handleRename(id)}
+                                        className="shrink-0 rounded p-1 text-zinc-500 transition-colors hover:bg-zinc-800 hover:text-white"
+                                        title="Rename Asset"
+                                    >
+                                        <Pencil className="w-3.5 h-3.5" />
+                                    </button>
+                                </div>
+                                <div className="text-[10px] font-mono text-zinc-500 truncate" title={id}>
+                                    {id}
+                                </div>
                                <div className="text-[10px] text-zinc-600 mt-1">
                                    {(data.length / 1024).toFixed(1)} KB • {mime}
                                </div>

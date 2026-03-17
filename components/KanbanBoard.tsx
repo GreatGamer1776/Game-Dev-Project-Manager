@@ -1,6 +1,7 @@
 import React, { useState, useEffect, useRef } from 'react';
-import { Save, Plus, AlertCircle, ChevronLeft, ChevronRight, X, Trash2, Bug as BugIcon, Search, Filter, Pencil, Loader2, Check, Link as LinkIcon, ArrowUpDown, Calendar } from 'lucide-react';
+import { Save, Plus, AlertCircle, ChevronLeft, ChevronRight, X, Trash2, Bug as BugIcon, Search, Filter, Pencil, Loader2, Check, Link as LinkIcon, ArrowUpDown, Calendar, Undo2, Redo2 } from 'lucide-react';
 import { Bug, BugSeverity, BugStatus, EditorProps } from '../types';
+import { useUndoRedo } from '../hooks/useUndoRedo';
 
 const FILE_LINK_DRAG_MIME = 'application/x-gdpm-file-id';
 type BugSort = 'Newest' | 'Oldest' | 'Severity' | 'Due Date';
@@ -20,6 +21,7 @@ const migrateBug = (bug: any): Bug => {
 
 const KanbanBoard: React.FC<EditorProps> = ({ initialContent, onSave, fileName, projectFiles = [], onOpenFile, activeFileId }) => {
   const [bugs, setBugs] = useState<Bug[]>(() => (initialContent?.tasks || []).map(migrateBug));
+  const undoRedo = useUndoRedo<Bug[]>((initialContent?.tasks || []).map(migrateBug));
   
   // Save Status
   const [saveStatus, setSaveStatus] = useState<'saved' | 'saving' | 'unsaved'>('saved');
@@ -81,6 +83,7 @@ const KanbanBoard: React.FC<EditorProps> = ({ initialContent, onSave, fileName, 
   useEffect(() => {
     const migratedBugs = (initialContent?.tasks || []).map(migrateBug);
     setBugs(migratedBugs);
+    undoRedo.reset(migratedBugs);
     lastSavedData.current = JSON.stringify(migratedBugs);
   }, [initialContent]);
 
@@ -126,10 +129,29 @@ const KanbanBoard: React.FC<EditorProps> = ({ initialContent, onSave, fileName, 
         e.preventDefault();
         handleManualSave();
       }
+      if ((e.ctrlKey || e.metaKey) && e.key === 'z' && !e.shiftKey) {
+        e.preventDefault();
+        const prev = undoRedo.undo();
+        if (prev !== undefined) setBugs(prev);
+      }
+      if ((e.ctrlKey || e.metaKey) && (e.key === 'y' || (e.key === 'z' && e.shiftKey))) {
+        e.preventDefault();
+        const next = undoRedo.redo();
+        if (next !== undefined) setBugs(next);
+      }
     };
     window.addEventListener('keydown', handleKeyDown);
     return () => window.removeEventListener('keydown', handleKeyDown);
-  }, [bugs]);
+  }, [bugs, undoRedo]);
+
+  // Push to undo stack when bugs change
+  const lastUndoPushRef = useRef(JSON.stringify(bugs));
+  useEffect(() => {
+    const serialized = JSON.stringify(bugs);
+    if (serialized === lastUndoPushRef.current) return;
+    lastUndoPushRef.current = serialized;
+    undoRedo.pushState(bugs);
+  }, [bugs, undoRedo]);
 
   const handleManualSave = () => {
     setSaveStatus('saving');
@@ -491,6 +513,10 @@ const KanbanBoard: React.FC<EditorProps> = ({ initialContent, onSave, fileName, 
         </div>
         <div className="flex gap-3">
           <div className="flex items-center gap-3">
+            <div className="flex items-center gap-0.5 mr-1">
+              <button onClick={() => { const prev = undoRedo.undo(); if (prev !== undefined) setBugs(prev); }} disabled={!undoRedo.canUndo} className="p-1.5 rounded text-zinc-500 hover:text-white hover:bg-zinc-800 disabled:opacity-30 disabled:pointer-events-none transition-colors" title="Undo (Ctrl+Z)"><Undo2 className="w-4 h-4" /></button>
+              <button onClick={() => { const next = undoRedo.redo(); if (next !== undefined) setBugs(next); }} disabled={!undoRedo.canRedo} className="p-1.5 rounded text-zinc-500 hover:text-white hover:bg-zinc-800 disabled:opacity-30 disabled:pointer-events-none transition-colors" title="Redo (Ctrl+Y)"><Redo2 className="w-4 h-4" /></button>
+            </div>
             <div className="flex items-center mr-2">
                 {saveStatus === 'saving' && <span className="text-xs text-zinc-500 flex items-center gap-1"><Loader2 className="w-3 h-3 animate-spin" /> Saving...</span>}
                 {saveStatus === 'saved' && <span className="text-xs text-zinc-500 flex items-center gap-1 opacity-50"><Check className="w-3 h-3" /> Saved</span>}

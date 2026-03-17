@@ -21,9 +21,11 @@ import ReactFlow, {
 import { 
   Save, Trash2, Check, Loader2, AlertCircle, 
   Square, Diamond, Database, 
-  ArrowRightLeft, Hexagon, StickyNote, PlayCircle, StopCircle
+  ArrowRightLeft, Hexagon, StickyNote, PlayCircle, StopCircle,
+  Undo2, Redo2
 } from 'lucide-react';
 import { EditorProps } from '../types';
+import { useUndoRedo } from '../hooks/useUndoRedo';
 
 // --- CUSTOM NODE COMPONENTS ---
 
@@ -130,6 +132,7 @@ const FlowchartEditorContent: React.FC<EditorProps> = ({ initialContent, onSave,
   const [nodes, setNodes, onNodesChange] = useNodesState(initialNodes);
   const [edges, setEdges, onEdgesChange] = useEdgesState(initialEdges);
   const { deleteElements } = useReactFlow();
+  const undoRedo = useUndoRedo<{ nodes: Node[]; edges: Edge[] }>({ nodes: initialNodes, edges: initialEdges });
 
   // Save State
   const [saveStatus, setSaveStatus] = useState<'saved' | 'saving' | 'unsaved'>('saved');
@@ -145,6 +148,15 @@ const FlowchartEditorContent: React.FC<EditorProps> = ({ initialContent, onSave,
     return () => clearTimeout(timer);
   }, [nodes, edges]);
 
+  // Push to undo stack when graph changes
+  const lastUndoPushRef = useRef(JSON.stringify({ nodes: initialNodes, edges: initialEdges }));
+  useEffect(() => {
+    const serialized = JSON.stringify({ nodes, edges });
+    if (serialized === lastUndoPushRef.current) return;
+    lastUndoPushRef.current = serialized;
+    undoRedo.pushState({ nodes, edges });
+  }, [nodes, edges, undoRedo]);
+
   // Keyboard Shortcuts
   useEffect(() => {
     const handleKeyDown = (e: KeyboardEvent) => {
@@ -152,10 +164,20 @@ const FlowchartEditorContent: React.FC<EditorProps> = ({ initialContent, onSave,
         e.preventDefault();
         handleManualSave();
       }
+      if ((e.ctrlKey || e.metaKey) && e.key === 'z' && !e.shiftKey) {
+        e.preventDefault();
+        const prev = undoRedo.undo();
+        if (prev !== undefined) { setNodes(prev.nodes); setEdges(prev.edges); lastUndoPushRef.current = JSON.stringify(prev); }
+      }
+      if ((e.ctrlKey || e.metaKey) && (e.key === 'y' || (e.key === 'z' && e.shiftKey))) {
+        e.preventDefault();
+        const next = undoRedo.redo();
+        if (next !== undefined) { setNodes(next.nodes); setEdges(next.edges); lastUndoPushRef.current = JSON.stringify(next); }
+      }
     };
     window.addEventListener('keydown', handleKeyDown);
     return () => window.removeEventListener('keydown', handleKeyDown);
-  }, [nodes, edges]);
+  }, [nodes, edges, undoRedo]);
 
   const handleManualSave = () => {
     setSaveStatus('saving');
@@ -283,6 +305,10 @@ const FlowchartEditorContent: React.FC<EditorProps> = ({ initialContent, onSave,
         </div>
 
         <div className="flex items-center gap-3">
+            <div className="flex items-center gap-0.5 mr-1">
+              <button onClick={() => { const prev = undoRedo.undo(); if (prev !== undefined) { setNodes(prev.nodes); setEdges(prev.edges); lastUndoPushRef.current = JSON.stringify(prev); } }} disabled={!undoRedo.canUndo} className="p-1.5 rounded text-zinc-500 hover:text-white hover:bg-zinc-800 disabled:opacity-30 disabled:pointer-events-none transition-colors" title="Undo (Ctrl+Z)"><Undo2 className="w-4 h-4" /></button>
+              <button onClick={() => { const next = undoRedo.redo(); if (next !== undefined) { setNodes(next.nodes); setEdges(next.edges); lastUndoPushRef.current = JSON.stringify(next); } }} disabled={!undoRedo.canRedo} className="p-1.5 rounded text-zinc-500 hover:text-white hover:bg-zinc-800 disabled:opacity-30 disabled:pointer-events-none transition-colors" title="Redo (Ctrl+Y)"><Redo2 className="w-4 h-4" /></button>
+            </div>
              <div className="flex items-center mr-2">
                 {saveStatus === 'saving' && <span className="text-xs text-zinc-500 flex items-center gap-1"><Loader2 className="w-3 h-3 animate-spin" /> Saving...</span>}
                 {saveStatus === 'saved' && <span className="text-xs text-zinc-500 flex items-center gap-1 opacity-50"><Check className="w-3 h-3" /> Saved</span>}

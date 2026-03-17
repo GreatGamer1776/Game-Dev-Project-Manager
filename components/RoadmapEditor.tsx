@@ -1,6 +1,7 @@
 import React, { useEffect, useMemo, useRef, useState } from 'react';
-import { AlertCircle, Calendar, Check, ChevronLeft, ChevronRight, Filter, Flag, Loader2, Pencil, Plus, RotateCcw, Save, Search, Trash2 } from 'lucide-react';
+import { AlertCircle, Calendar, Check, ChevronLeft, ChevronRight, Filter, Flag, Loader2, Pencil, Plus, RotateCcw, Save, Search, Trash2, Undo2, Redo2 } from 'lucide-react';
 import { EditorProps, RoadmapItem, RoadmapItemType, RoadmapStatus } from '../types';
+import { useUndoRedo } from '../hooks/useUndoRedo';
 
 const ROADMAP_STATUS_OPTIONS: RoadmapStatus[] = ['planned', 'in-progress', 'completed', 'delayed', 'dropped'];
 const ROADMAP_TYPE_OPTIONS: RoadmapItemType[] = ['phase', 'milestone'];
@@ -145,6 +146,7 @@ const getDurationDays = (item: RoadmapItem) => {
 const RoadmapEditor: React.FC<EditorProps> = ({ initialContent, onSave, fileName }) => {
   const initialItemsRef = useRef(normalizeItems(initialContent));
   const [items, setItems] = useState<RoadmapItem[]>(initialItemsRef.current);
+  const undoRedo = useUndoRedo<RoadmapItem[]>(initialItemsRef.current);
   const [saveStatus, setSaveStatus] = useState<SaveStatus>('saved');
   const lastSavedRef = useRef(JSON.stringify(initialItemsRef.current));
 
@@ -161,6 +163,7 @@ const RoadmapEditor: React.FC<EditorProps> = ({ initialContent, onSave, fileName
   useEffect(() => {
     const normalized = normalizeItems(initialContent);
     setItems(normalized);
+    undoRedo.reset(normalized);
     lastSavedRef.current = JSON.stringify(normalized);
     setSaveStatus('saved');
     setSelectedId(prev => (prev && normalized.some(item => item.id === prev) ? prev : normalized[0]?.id || null));
@@ -180,10 +183,29 @@ const RoadmapEditor: React.FC<EditorProps> = ({ initialContent, onSave, fileName
         event.preventDefault();
         saveNow();
       }
+      if ((event.ctrlKey || event.metaKey) && event.key === 'z' && !event.shiftKey) {
+        event.preventDefault();
+        const prev = undoRedo.undo();
+        if (prev !== undefined) setItems(prev);
+      }
+      if ((event.ctrlKey || event.metaKey) && (event.key === 'y' || (event.key === 'z' && event.shiftKey))) {
+        event.preventDefault();
+        const next = undoRedo.redo();
+        if (next !== undefined) setItems(next);
+      }
     };
     window.addEventListener('keydown', onKeyDown);
     return () => window.removeEventListener('keydown', onKeyDown);
-  }, [items]);
+  }, [items, undoRedo]);
+
+  // Push to undo stack when items change
+  const lastUndoPushRef = useRef(JSON.stringify(items));
+  useEffect(() => {
+    const serialized = JSON.stringify(items);
+    if (serialized === lastUndoPushRef.current) return;
+    lastUndoPushRef.current = serialized;
+    undoRedo.pushState(items);
+  }, [items, undoRedo]);
 
   const saveNow = () => {
     setSaveStatus('saving');
@@ -387,6 +409,10 @@ const RoadmapEditor: React.FC<EditorProps> = ({ initialContent, onSave, fileName
             <h3 className="text-zinc-100 font-semibold">{fileName}</h3>
           </div>
           <div className="flex items-center gap-2">
+            <div className="flex items-center gap-0.5 mr-1">
+              <button onClick={() => { const prev = undoRedo.undo(); if (prev !== undefined) setItems(prev); }} disabled={!undoRedo.canUndo} className="p-1.5 rounded text-zinc-500 hover:text-white hover:bg-zinc-800 disabled:opacity-30 disabled:pointer-events-none transition-colors" title="Undo (Ctrl+Z)"><Undo2 className="w-4 h-4" /></button>
+              <button onClick={() => { const next = undoRedo.redo(); if (next !== undefined) setItems(next); }} disabled={!undoRedo.canRedo} className="p-1.5 rounded text-zinc-500 hover:text-white hover:bg-zinc-800 disabled:opacity-30 disabled:pointer-events-none transition-colors" title="Redo (Ctrl+Y)"><Redo2 className="w-4 h-4" /></button>
+            </div>
             <div className="text-xs">
               {saveStatus === 'saving' && (
                 <span className="text-zinc-400 flex items-center gap-1">

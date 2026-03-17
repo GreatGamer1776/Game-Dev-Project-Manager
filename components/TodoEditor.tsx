@@ -1,6 +1,7 @@
 import React, { useState, useEffect, useRef } from 'react';
-import { Save, Plus, Trash2, CheckSquare, Square, Calendar, ChevronDown, ChevronUp, ListChecks, Loader2, Check, AlertCircle, MoreHorizontal, Link as LinkIcon, Tags, X, Search, Filter, ArrowUpDown } from 'lucide-react';
+import { Save, Plus, Trash2, CheckSquare, Square, Calendar, ChevronDown, ChevronUp, ListChecks, Loader2, Check, AlertCircle, MoreHorizontal, Link as LinkIcon, Tags, X, Search, Filter, ArrowUpDown, Undo2, Redo2 } from 'lucide-react';
 import { TodoItem, Priority, SubTask, EditorProps, TodoStatus } from '../types';
+import { useUndoRedo } from '../hooks/useUndoRedo';
 
 const FILE_LINK_DRAG_MIME = 'application/x-gdpm-file-id';
 const TASK_LINK_DRAG_MIME = 'application/x-gdpm-task-link';
@@ -63,6 +64,7 @@ const TodoEditor: React.FC<EditorProps> = ({ initialContent, onSave, fileName, p
     const rawItems = initialContent?.items || [];
     return rawItems.map(migrateTodoItem);
   });
+  const undoRedo = useUndoRedo<TodoItem[]>(initialContent?.items?.map(migrateTodoItem) || []);
   
   // Save Status
   const [saveStatus, setSaveStatus] = useState<'saved' | 'saving' | 'unsaved'>('saved');
@@ -122,6 +124,7 @@ const TodoEditor: React.FC<EditorProps> = ({ initialContent, onSave, fileName, p
     const rawItems = initialContent?.items || [];
     const migratedItems = rawItems.map(migrateTodoItem);
     setItems(migratedItems);
+    undoRedo.reset(migratedItems);
     lastSavedData.current = JSON.stringify(migratedItems);
   }, [initialContent]);
 
@@ -190,10 +193,29 @@ const TodoEditor: React.FC<EditorProps> = ({ initialContent, onSave, fileName, p
         e.preventDefault();
         handleManualSave();
       }
+      if ((e.ctrlKey || e.metaKey) && e.key === 'z' && !e.shiftKey) {
+        e.preventDefault();
+        const prev = undoRedo.undo();
+        if (prev !== undefined) setItems(prev);
+      }
+      if ((e.ctrlKey || e.metaKey) && (e.key === 'y' || (e.key === 'z' && e.shiftKey))) {
+        e.preventDefault();
+        const next = undoRedo.redo();
+        if (next !== undefined) setItems(next);
+      }
     };
     window.addEventListener('keydown', handleKeyDown);
     return () => window.removeEventListener('keydown', handleKeyDown);
-  }, [items]);
+  }, [items, undoRedo]);
+
+  // Push to undo stack when items change
+  const lastUndoPushRef = useRef(JSON.stringify(items));
+  useEffect(() => {
+    const serialized = JSON.stringify(items);
+    if (serialized === lastUndoPushRef.current) return;
+    lastUndoPushRef.current = serialized;
+    undoRedo.pushState(items);
+  }, [items, undoRedo]);
 
   const handleManualSave = () => {
     setSaveStatus('saving');
@@ -625,6 +647,10 @@ const TodoEditor: React.FC<EditorProps> = ({ initialContent, onSave, fileName, p
       <div className="h-16 border-b border-zinc-800 flex items-center justify-between px-6 bg-zinc-900/50 backdrop-blur-sm sticky top-0 z-10 shrink-0">
         <h3 className="text-zinc-200 font-medium">{fileName}</h3>
         <div className="flex items-center gap-3">
+            <div className="flex items-center gap-0.5 mr-1">
+              <button onClick={() => { const prev = undoRedo.undo(); if (prev !== undefined) setItems(prev); }} disabled={!undoRedo.canUndo} className="p-1.5 rounded text-zinc-500 hover:text-white hover:bg-zinc-800 disabled:opacity-30 disabled:pointer-events-none transition-colors" title="Undo (Ctrl+Z)"><Undo2 className="w-4 h-4" /></button>
+              <button onClick={() => { const next = undoRedo.redo(); if (next !== undefined) setItems(next); }} disabled={!undoRedo.canRedo} className="p-1.5 rounded text-zinc-500 hover:text-white hover:bg-zinc-800 disabled:opacity-30 disabled:pointer-events-none transition-colors" title="Redo (Ctrl+Y)"><Redo2 className="w-4 h-4" /></button>
+            </div>
             <div className="flex items-center mr-2">
                 {saveStatus === 'saving' && <span className="text-xs text-zinc-500 flex items-center gap-1"><Loader2 className="w-3 h-3 animate-spin" /> Saving...</span>}
                 {saveStatus === 'saved' && <span className="text-xs text-zinc-500 flex items-center gap-1 opacity-50"><Check className="w-3 h-3" /> Saved</span>}

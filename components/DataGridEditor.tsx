@@ -12,9 +12,12 @@ import {
   Save,
   Search,
   Trash2,
-  Upload
+  Upload,
+  Undo2,
+  Redo2
 } from 'lucide-react';
 import { EditorProps } from '../types';
+import { useUndoRedo } from '../hooks/useUndoRedo';
 
 interface GridColumn {
   id: string;
@@ -190,6 +193,7 @@ const DataGridEditor: React.FC<EditorProps> = ({ initialContent, onSave, fileNam
   const initialDataRef = useRef<GridData>(normalizeInitialData(initialContent));
   const [columns, setColumns] = useState<GridColumn[]>(initialDataRef.current.columns);
   const [rows, setRows] = useState<GridRow[]>(initialDataRef.current.rows);
+  const undoRedo = useUndoRedo<GridData>(initialDataRef.current);
   const [searchQuery, setSearchQuery] = useState('');
   const [selectedRowIds, setSelectedRowIds] = useState<Set<string>>(new Set());
   const [sortColumnId, setSortColumnId] = useState<string | null>(null);
@@ -207,6 +211,7 @@ const DataGridEditor: React.FC<EditorProps> = ({ initialContent, onSave, fileNam
     const normalized = normalizeInitialData(initialContent);
     setColumns(normalized.columns);
     setRows(normalized.rows);
+    undoRedo.reset(normalized);
     setSearchQuery('');
     setSelectedRowIds(new Set());
     setSortColumnId(null);
@@ -250,10 +255,29 @@ const DataGridEditor: React.FC<EditorProps> = ({ initialContent, onSave, fileNam
         e.preventDefault();
         handleManualSave();
       }
+      if ((e.ctrlKey || e.metaKey) && e.key === 'z' && !e.shiftKey) {
+        e.preventDefault();
+        const prev = undoRedo.undo();
+        if (prev !== undefined) { setColumns(prev.columns); setRows(prev.rows); }
+      }
+      if ((e.ctrlKey || e.metaKey) && (e.key === 'y' || (e.key === 'z' && e.shiftKey))) {
+        e.preventDefault();
+        const next = undoRedo.redo();
+        if (next !== undefined) { setColumns(next.columns); setRows(next.rows); }
+      }
     };
     window.addEventListener('keydown', handleKeyDown);
     return () => window.removeEventListener('keydown', handleKeyDown);
-  }, [columns, rows]);
+  }, [columns, rows, undoRedo]);
+
+  // Push to undo stack when data changes
+  const lastUndoPushRef = useRef(JSON.stringify({ columns, rows }));
+  useEffect(() => {
+    const serialized = JSON.stringify({ columns, rows });
+    if (serialized === lastUndoPushRef.current) return;
+    lastUndoPushRef.current = serialized;
+    undoRedo.pushState({ columns, rows });
+  }, [columns, rows, undoRedo]);
 
   const filteredRows = useMemo(() => {
     const query = searchQuery.trim().toLowerCase();
@@ -475,6 +499,10 @@ const DataGridEditor: React.FC<EditorProps> = ({ initialContent, onSave, fileNam
             {fileName}
           </h3>
           <div className="flex items-center gap-2">
+            <div className="flex items-center gap-0.5 mr-1">
+              <button onClick={() => { const prev = undoRedo.undo(); if (prev !== undefined) { setColumns(prev.columns); setRows(prev.rows); } }} disabled={!undoRedo.canUndo} className="p-1.5 rounded text-zinc-500 hover:text-white hover:bg-zinc-800 disabled:opacity-30 disabled:pointer-events-none transition-colors" title="Undo (Ctrl+Z)"><Undo2 className="w-4 h-4" /></button>
+              <button onClick={() => { const next = undoRedo.redo(); if (next !== undefined) { setColumns(next.columns); setRows(next.rows); } }} disabled={!undoRedo.canRedo} className="p-1.5 rounded text-zinc-500 hover:text-white hover:bg-zinc-800 disabled:opacity-30 disabled:pointer-events-none transition-colors" title="Redo (Ctrl+Y)"><Redo2 className="w-4 h-4" /></button>
+            </div>
             <div className="text-xs">
               {saveStatus === 'saving' && (
                 <span className="text-zinc-400 flex items-center gap-1">

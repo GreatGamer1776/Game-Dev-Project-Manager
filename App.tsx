@@ -1,5 +1,5 @@
 import React, { useState, useEffect } from 'react';
-import { LayoutDashboard, FileText, Network, ArrowLeft, Plus, Folder, File, CheckSquare, Bug as BugIcon, Trash2, HardDrive, Download, Upload, Map as MapIcon, Table, PenTool, Image as ImageIcon, HelpCircle, ChevronRight, ChevronDown, FolderPlus, FilePlus, X, Copy as CopyIcon, Pencil } from 'lucide-react';
+import { LayoutDashboard, FileText, Network, ArrowLeft, Plus, Folder, File, CheckSquare, Bug as BugIcon, Trash2, HardDrive, Download, Upload, Map as MapIcon, Table, PenTool, Image as ImageIcon, HelpCircle, ChevronRight, ChevronDown, FolderPlus, FilePlus, X, Copy as CopyIcon, Pencil, PanelLeftClose, PanelLeftOpen } from 'lucide-react';
 import JSZip from 'jszip';
 import Dashboard from './components/Dashboard';
 import FlowchartEditor from './components/FlowchartEditor';
@@ -41,6 +41,7 @@ type PersistedAppState = {
   currentView: ViewState;
   activeProjectId: string | null;
   activeFileId: string | null;
+  sidebarCollapsed?: boolean;
 };
 
 const IDB = {
@@ -311,6 +312,7 @@ const App: React.FC = () => {
   
   const [isPaletteOpen, setIsPaletteOpen] = useState(false);
   const [isHelpOpen, setIsHelpOpen] = useState(false);
+  const [isSidebarCollapsed, setIsSidebarCollapsed] = useState(false);
   
   // Folder & File Creation UI
   const [expandedFolders, setExpandedFolders] = useState<Set<string>>(new Set());
@@ -371,6 +373,9 @@ const App: React.FC = () => {
               setActiveProjectId(null);
               setActiveFileId(null);
             }
+            if (savedAppState?.sidebarCollapsed) {
+              setIsSidebarCollapsed(true);
+            }
         } catch (e) {
             console.error("Init error", e);
             setProjects(MOCK_PROJECTS.map(normalizeProjectFiles));
@@ -395,20 +400,32 @@ const App: React.FC = () => {
     IDB.saveAppState({
       currentView,
       activeProjectId,
-      activeFileId
+      activeFileId,
+      sidebarCollapsed: isSidebarCollapsed
     });
-  }, [isLoaded, currentView, activeProjectId, activeFileId]);
+  }, [isLoaded, currentView, activeProjectId, activeFileId, isSidebarCollapsed]);
 
   useEffect(() => {
     const handleKeyDown = (e: KeyboardEvent) => {
-      if ((e.ctrlKey || e.metaKey) && e.key === 'k') {
+      const mod = e.ctrlKey || e.metaKey;
+      if (mod && e.key === 'k') {
         e.preventDefault();
         setIsPaletteOpen(prev => !prev);
+      }
+      if (mod && e.key === '\\') {
+        e.preventDefault();
+        setIsSidebarCollapsed(prev => !prev);
+      }
+      if (mod && e.key === 'n' && !e.shiftKey) {
+        e.preventDefault();
+        if (currentView === ViewState.PROJECT && activeProjectId) {
+          openCreateFileModal(null);
+        }
       }
     };
     window.addEventListener('keydown', handleKeyDown);
     return () => window.removeEventListener('keydown', handleKeyDown);
-  }, []);
+  }, [currentView, activeProjectId]);
 
   useEffect(() => {
     setTaskNavigationTarget(null);
@@ -1165,11 +1182,53 @@ const App: React.FC = () => {
         </aside>
       );
     }
+    if (isSidebarCollapsed) {
+      return (
+        <aside className="w-14 bg-zinc-950 border-r border-zinc-800 flex flex-col items-center z-20 transition-all duration-200">
+          <div className="h-16 flex items-center justify-center border-b border-zinc-800 shrink-0 w-full">
+            <button onClick={() => setIsSidebarCollapsed(false)} className="p-2 hover:bg-zinc-900 rounded-lg text-zinc-400 hover:text-white transition-colors" title="Expand Sidebar (Ctrl+\\)">
+              <PanelLeftOpen className="w-4 h-4" />
+            </button>
+          </div>
+          <div className="py-3 flex flex-col items-center gap-1 w-full border-b border-zinc-900">
+            <button onClick={() => { setActiveProjectId(null); setCurrentView(ViewState.DASHBOARD); }} className="p-2 hover:bg-zinc-900 rounded-lg text-zinc-400 hover:text-white transition-colors" title="Back to Dashboard">
+              <ArrowLeft className="w-4 h-4" />
+            </button>
+          </div>
+          {systemFiles.length > 0 && (
+            <div className="py-2 flex flex-col items-center gap-1 w-full">
+              {systemFiles.map(file => {
+                const plugin = EDITOR_PLUGINS.find(p => p.type === file.type);
+                const Icon = plugin?.icon || File;
+                return (
+                  <button
+                    key={file.id}
+                    onClick={() => setActiveFileId(file.id)}
+                    className={`p-2 rounded-lg transition-colors ${activeFileId === file.id ? 'bg-zinc-800 text-blue-400' : 'text-zinc-500 hover:text-white hover:bg-zinc-900'}`}
+                    title={file.name}
+                  >
+                    <Icon className="w-4 h-4" />
+                  </button>
+                );
+              })}
+            </div>
+          )}
+          <div className="mt-auto pb-4 flex flex-col items-center gap-1">
+            <button onClick={() => setIsHelpOpen(true)} className="p-2 rounded-lg text-zinc-500 hover:bg-zinc-800 hover:text-white transition-colors" title="Help">
+              <HelpCircle className="w-4 h-4" />
+            </button>
+          </div>
+        </aside>
+      );
+    }
     return (
-      <aside className="w-80 bg-zinc-950 border-r border-zinc-800 flex flex-col z-20">
+      <aside className="w-80 bg-zinc-950 border-r border-zinc-800 flex flex-col z-20 transition-all duration-200">
         <div className="h-16 flex items-center px-4 border-b border-zinc-800 shrink-0 gap-2">
           <button onClick={() => { setActiveProjectId(null); setCurrentView(ViewState.DASHBOARD); }} className="p-2 hover:bg-zinc-900 rounded-lg text-zinc-400 hover:text-white"><ArrowLeft className="w-4 h-4" /></button>
           <span className="font-semibold text-zinc-200 truncate flex-1">{activeProject.name}</span>
+          <button onClick={() => setIsSidebarCollapsed(true)} className="p-2 hover:bg-zinc-900 rounded-lg text-zinc-400 hover:text-white transition-colors" title="Collapse Sidebar (Ctrl+\\)">
+            <PanelLeftClose className="w-4 h-4" />
+          </button>
         </div>
         
         {/* Actions Bar */}

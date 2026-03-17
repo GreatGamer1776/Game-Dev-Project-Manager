@@ -3,9 +3,11 @@ import {
   Save, Trash2, Bold, Italic, List, ListOrdered, 
   Heading1, Heading2, Quote, Code, Image as ImageIcon, 
   Eye, Columns, PenTool, Link as LinkIcon, Check, Loader2, AlertCircle,
-  Underline, Strikethrough, Palette, Video, Music, X, CheckSquare, FolderOpen
+  Underline, Strikethrough, Palette, Video, Music, X, CheckSquare, FolderOpen,
+  Undo2, Redo2
 } from 'lucide-react';
 import { EditorProps, TodoItem, TodoStatus } from '../types';
+import { useUndoRedo } from '../hooks/useUndoRedo';
 import { ASSET_LINK_DRAG_MIME, AssetKind, getAssetDisplayName, getAssetKindFromMime, getAssetMimeType, sanitizeAssetLabel } from '../services/assetUtils';
 
 // --- CUSTOM PARSER LOGIC ---
@@ -188,6 +190,7 @@ const parseInline = (text: string, assets: Record<string, string>, fileLookup: M
 
 const DocEditor: React.FC<EditorProps> = ({ initialContent, onSave, fileName, assets = {}, onAddAsset, projectFiles = [], activeFileId, onOpenFile, onOpenTask }) => {
   const [content, setContent] = useState(initialContent);
+  const undoRedo = useUndoRedo<string>(initialContent);
   // OPTIMIZATION: Default to 'edit' mode to prevent initial render lag
   const [viewMode, setViewMode] = useState<'edit' | 'preview' | 'split'>('edit');
   const [isUploading, setIsUploading] = useState(false);
@@ -304,6 +307,7 @@ const DocEditor: React.FC<EditorProps> = ({ initialContent, onSave, fileName, as
   useEffect(() => {
     if (initialContent !== content && initialContent !== lastSavedContent.current) {
         setContent(initialContent);
+        undoRedo.reset(initialContent);
         lastSavedContent.current = initialContent;
     }
   }, [initialContent]);
@@ -378,10 +382,20 @@ const DocEditor: React.FC<EditorProps> = ({ initialContent, onSave, fileName, as
         e.preventDefault();
         handleManualSave();
       }
+      if ((e.ctrlKey || e.metaKey) && e.key === 'z' && !e.shiftKey) {
+        e.preventDefault();
+        const prev = undoRedo.undo();
+        if (prev !== undefined) setContent(prev);
+      }
+      if ((e.ctrlKey || e.metaKey) && (e.key === 'y' || (e.key === 'z' && e.shiftKey))) {
+        e.preventDefault();
+        const next = undoRedo.redo();
+        if (next !== undefined) setContent(next);
+      }
     };
     window.addEventListener('keydown', handleKeyDown);
     return () => window.removeEventListener('keydown', handleKeyDown);
-  }, [content]);
+  }, [content, undoRedo]);
 
   const handleManualSave = () => {
     setSaveStatus('saving');
@@ -389,6 +403,19 @@ const DocEditor: React.FC<EditorProps> = ({ initialContent, onSave, fileName, as
     lastSavedContent.current = content;
     setTimeout(() => setSaveStatus('saved'), 500); 
   };
+
+  // Push to undo stack on content changes (debounced to batch rapid typing)
+  const undoDebounceRef = useRef<ReturnType<typeof setTimeout> | null>(null);
+  const lastUndoPushRef = useRef(initialContent);
+  useEffect(() => {
+    if (content === lastUndoPushRef.current) return;
+    if (undoDebounceRef.current) clearTimeout(undoDebounceRef.current);
+    undoDebounceRef.current = setTimeout(() => {
+      undoRedo.pushState(content);
+      lastUndoPushRef.current = content;
+    }, 400);
+    return () => { if (undoDebounceRef.current) clearTimeout(undoDebounceRef.current); };
+  }, [content, undoRedo]);
 
   const handleClear = () => {
     if (confirm('Are you sure you want to clear the entire document?')) setContent('');
@@ -926,6 +953,10 @@ const DocEditor: React.FC<EditorProps> = ({ initialContent, onSave, fileName, as
         </div>
 
         <div className="flex items-center gap-3 shrink-0 ml-auto">
+          <div className="flex items-center gap-0.5 mr-1">
+            <button onClick={() => { const prev = undoRedo.undo(); if (prev !== undefined) { setContent(prev); lastUndoPushRef.current = prev; } }} disabled={!undoRedo.canUndo} className="p-1.5 rounded text-zinc-500 hover:text-white hover:bg-zinc-800 disabled:opacity-30 disabled:pointer-events-none transition-colors" title="Undo (Ctrl+Z)"><Undo2 className="w-4 h-4" /></button>
+            <button onClick={() => { const next = undoRedo.redo(); if (next !== undefined) { setContent(next); lastUndoPushRef.current = next; } }} disabled={!undoRedo.canRedo} className="p-1.5 rounded text-zinc-500 hover:text-white hover:bg-zinc-800 disabled:opacity-30 disabled:pointer-events-none transition-colors" title="Redo (Ctrl+Y)"><Redo2 className="w-4 h-4" /></button>
+          </div>
           <div className="flex items-center mr-2 hidden sm:flex">
             {saveStatus === 'saving' && <span className="text-xs text-zinc-500 flex items-center gap-1"><Loader2 className="w-3 h-3 animate-spin" /></span>}
             {saveStatus === 'saved' && <span className="text-xs text-zinc-500 flex items-center gap-1 opacity-50"><Check className="w-3 h-3" /></span>}

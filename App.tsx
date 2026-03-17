@@ -1,5 +1,5 @@
 import React, { useState, useEffect } from 'react';
-import { LayoutDashboard, FileText, Network, ArrowLeft, Plus, Folder, File, CheckSquare, Bug as BugIcon, Trash2, HardDrive, Download, Upload, Map as MapIcon, Table, PenTool, Image as ImageIcon, HelpCircle, ChevronRight, ChevronDown, FolderPlus, FilePlus, X, Copy as CopyIcon, Pencil, PanelLeftClose, PanelLeftOpen } from 'lucide-react';
+import { LayoutDashboard, FileText, Network, ArrowLeft, Plus, Folder, File, CheckSquare, Bug as BugIcon, Trash2, HardDrive, Download, Upload, Map as MapIcon, Table, PenTool, Image as ImageIcon, HelpCircle, ChevronRight, ChevronDown, FolderPlus, FilePlus, X, Copy as CopyIcon, Pencil, PanelLeftClose, PanelLeftOpen, BookOpen } from 'lucide-react';
 import JSZip from 'jszip';
 import Dashboard from './components/Dashboard';
 import FlowchartEditor from './components/FlowchartEditor';
@@ -12,6 +12,7 @@ import WhiteboardEditor from './components/WhiteboardEditor';
 import AssetBrowser from './components/AssetBrowser';
 import CommandPalette from './components/CommandPalette';
 import HelpModal from './components/HelpModal';
+import GuideView from './components/GuideView';
 import { Project, ViewState, ProjectFile, FileType, EditorProps, ProjectFolder, TaskNavigationTarget } from './types';
 import { useProjectStore } from './stores/useProjectStore';
 import { getAssetExtensionFromMime, getAssetMimeType } from './services/assetUtils';
@@ -313,6 +314,7 @@ const App: React.FC = () => {
   const [isPaletteOpen, setIsPaletteOpen] = useState(false);
   const [isHelpOpen, setIsHelpOpen] = useState(false);
   const [isSidebarCollapsed, setIsSidebarCollapsed] = useState(false);
+  const [showGuide, setShowGuide] = useState(false);
   
   // Folder & File Creation UI
   const [expandedFolders, setExpandedFolders] = useState<Set<string>>(new Set());
@@ -571,6 +573,7 @@ const App: React.FC = () => {
       setActiveProjectId(id);
       setActiveFileId(firstFile?.id || null);
       setCurrentView(ViewState.PROJECT);
+      setShowGuide(false);
   };
 
   const handleCreateProject = async (name: string, type: Project['type'], description: string = '') => {
@@ -1172,13 +1175,8 @@ const App: React.FC = () => {
       return (
         <aside className="w-16 md:w-20 bg-zinc-950 border-r border-zinc-800 flex flex-col items-center py-6 gap-6 z-20">
           <div className="w-10 h-10 bg-gradient-to-br from-blue-500 to-purple-600 rounded-xl flex items-center justify-center shadow-lg shadow-blue-900/20 mb-4"><Folder className="w-6 h-6 text-white" /></div>
-          <button className="p-3 rounded-xl bg-zinc-800 text-white shadow-md" title="Dashboard"><LayoutDashboard className="w-5 h-5" /></button>
-          
-          <div className="mt-auto">
-             <button onClick={() => setIsHelpOpen(true)} className="p-3 rounded-xl text-zinc-500 hover:bg-zinc-800 hover:text-white transition-colors" title="Help">
-                <HelpCircle className="w-5 h-5" />
-             </button>
-          </div>
+          <button onClick={() => setShowGuide(false)} className={`p-3 rounded-xl transition-colors ${!showGuide ? 'bg-zinc-800 text-white shadow-md' : 'text-zinc-500 hover:bg-zinc-800 hover:text-white'}`} title="Dashboard"><LayoutDashboard className="w-5 h-5" /></button>
+          <button onClick={() => setShowGuide(true)} className={`p-3 rounded-xl transition-colors ${showGuide ? 'bg-zinc-800 text-white shadow-md' : 'text-zinc-500 hover:bg-zinc-800 hover:text-white'}`} title="Guide & Documentation"><BookOpen className="w-5 h-5" /></button>
         </aside>
       );
     }
@@ -1315,6 +1313,9 @@ const App: React.FC = () => {
       <main className="flex-1 flex flex-col min-w-0 bg-zinc-950">
         <div className="flex-1 overflow-hidden relative">
           {currentView === ViewState.DASHBOARD ? (
+            showGuide ? (
+              <GuideView />
+            ) : (
             <Dashboard
               projects={projects}
               onSelectProject={handleSelectProject}
@@ -1324,6 +1325,7 @@ const App: React.FC = () => {
               onDeleteProject={handleDeleteProject}
               onImportFolder={handleImportLocalFolder}
             />
+            )
           ) : (
             activeProject && activeFile ? (
                 React.createElement(EDITOR_PLUGINS.find(p => p.type === activeFile.type)!.component, {

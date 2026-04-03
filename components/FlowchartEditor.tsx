@@ -258,7 +258,8 @@ const FlowchartEditorContent: React.FC<EditorProps> = ({ initialContent, onSave,
 
   // NEW: Double-click edge to add label (Yes/No/True/False)
   const handleEdgeDoubleClick = (event: React.MouseEvent, edge: Edge) => {
-      const newLabel = prompt("Enter label for this connection (e.g., 'Yes', 'No', 'True'):", edge.label || "");
+      const existingLabel = typeof edge.label === 'string' ? edge.label : edge.label != null ? String(edge.label) : '';
+      const newLabel = prompt("Enter label for this connection (e.g., 'Yes', 'No', 'True'):", existingLabel);
       if (newLabel !== null) {
           setEdges((eds) => eds.map((e) => {
               if (e.id === edge.id) {

@@ -424,7 +424,7 @@ const DocEditor: React.FC<EditorProps> = ({ initialContent, onSave, fileName, as
   const insertText = (before: string, after: string = '') => {
     const textarea = textareaRef.current;
     if (!textarea) {
-      setContent(prev => `${prev}${prev && !prev.endsWith('\n') ? '\n' : ''}${before}${after}`);
+      setContent((prev: string) => `${prev}${prev && !prev.endsWith('\n') ? '\n' : ''}${before}${after}`);
       if (viewMode === 'preview') {
         setViewMode('edit');
       }

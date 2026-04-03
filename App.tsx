@@ -289,6 +289,106 @@ const normalizeProjectFiles = (project: Project): Project => {
   };
 };
 
+const ensureDirectoryPermission = async (handle: any, mode: 'read' | 'readwrite' = 'readwrite') => {
+  if (!handle?.queryPermission || !handle?.requestPermission) {
+    return true;
+  }
+
+  const options = { mode };
+  if (await handle.queryPermission(options) === 'granted') {
+    return true;
+  }
+
+  return (await handle.requestPermission(options)) === 'granted';
+};
+
+const writeProjectToHandle = async (handle: any, project: Project) => {
+  const hasPermission = await ensureDirectoryPermission(handle, 'readwrite');
+  if (!hasPermission) {
+    throw new Error('Write permission denied for local project folder.');
+  }
+
+  const leanProject = { ...project, assets: {} };
+  const fileHandle = await handle.getFileHandle('project.json', { create: true });
+  const writable = await fileHandle.createWritable();
+  await writable.write(JSON.stringify(leanProject, null, 2));
+  await writable.close();
+
+  const trackedAssetFiles = new Set<string>();
+
+  if (project.assets && Object.keys(project.assets).length > 0) {
+    const assetsDir = await handle.getDirectoryHandle('assets', { create: true });
+    for (const [id, base64] of Object.entries(project.assets)) {
+      const ext = getAssetExtensionFromMime(getAssetMimeType(base64));
+      const filename = `${id}.${ext}`;
+      trackedAssetFiles.add(filename);
+
+      const assetFile = await assetsDir.getFileHandle(filename, { create: true });
+      const assetWriter = await assetFile.createWritable();
+      await assetWriter.write(base64ToBlob(base64));
+      await assetWriter.close();
+    }
+  }
+
+  try {
+    const assetsDir = await handle.getDirectoryHandle('assets');
+    // Remove orphaned files so deleted assets do not reappear after a reload.
+    // @ts-ignore
+    for await (const assetEntry of assetsDir.values()) {
+      if (assetEntry.kind === 'file' && !trackedAssetFiles.has(assetEntry.name)) {
+        await assetsDir.removeEntry(assetEntry.name);
+      }
+    }
+  } catch {
+    // Ignore missing assets directory.
+  }
+};
+
+const loadProjectFromHandle = async (folderHandle: any): Promise<Project | null> => {
+  try {
+    const hasPermission = await ensureDirectoryPermission(folderHandle, 'read');
+    if (!hasPermission) {
+      return null;
+    }
+
+    const jsonHandle = await folderHandle.getFileHandle('project.json');
+    const jsonFile = await jsonHandle.getFile();
+    const jsonText = await jsonFile.text();
+    const projectData = JSON.parse(jsonText);
+
+    if (!projectData.folders) projectData.folders = [];
+    if (projectData.files) {
+      projectData.files = projectData.files.map((f: any) => ({ ...f, folderId: f.folderId || null }));
+    }
+
+    const assetsMap: Record<string, string> = {};
+    try {
+      const assetsDir = await folderHandle.getDirectoryHandle('assets');
+      // @ts-ignore
+      for await (const assetEntry of assetsDir.values()) {
+        if (assetEntry.kind === 'file') {
+          const assetFile = await assetEntry.getFile();
+          const reader = new FileReader();
+          const base64 = await new Promise<string>((resolve) => {
+            reader.onload = (e) => resolve(e.target?.result as string);
+            reader.readAsDataURL(assetFile);
+          });
+          const id = assetEntry.name.split('.')[0];
+          assetsMap[id] = base64;
+        }
+      }
+    } catch {
+      // Ignore missing assets directory.
+    }
+
+    projectData.assets = assetsMap;
+    projectData.isLocal = true;
+    return normalizeProjectFiles(projectData);
+  } catch {
+    return null;
+  }
+};
+
 const MOCK_PROJECTS: Project[] = [{
     id: '1', name: 'Cosmic Invaders', type: 'Game', description: 'A retro-style space shooter.', lastModified: Date.now(),
     files: [
@@ -343,13 +443,21 @@ const App: React.FC = () => {
             await IDB.init();
             const loaded = await IDB.loadAllProjects();
             const savedAppState = await IDB.loadAppState();
-            for (const p of loaded) {
-                if (p.isLocal) {
-                    const handle = await IDB.loadHandle(p.id);
-                    if (handle) projectHandlesRef.current.set(p.id, handle);
+            const loadedProjects = await Promise.all(loaded.map(async (project) => {
+                if (!project.isLocal) {
+                    return project;
                 }
-            }
-            const normalizedLoaded = loaded.map(normalizeProjectFiles);
+
+                const handle = await IDB.loadHandle(project.id);
+                if (!handle) {
+                    return project;
+                }
+
+                projectHandlesRef.current.set(project.id, handle);
+                const diskProject = await loadProjectFromHandle(handle);
+                return diskProject || project;
+            }));
+            const normalizedLoaded = loadedProjects.map(normalizeProjectFiles);
             const hydratedProjects = normalizedLoaded.length > 0 ? normalizedLoaded : MOCK_PROJECTS.map(normalizeProjectFiles);
             setProjects(hydratedProjects);
 
@@ -442,23 +550,7 @@ const App: React.FC = () => {
     }
 
     try {
-        const leanProject = { ...project, assets: {} }; 
-        const fileHandle = await handle.getFileHandle('project.json', { create: true });
-        const writable = await fileHandle.createWritable();
-        await writable.write(JSON.stringify(leanProject, null, 2));
-        await writable.close();
-
-        if (project.assets && Object.keys(project.assets).length > 0) {
-            const assetsDir = await handle.getDirectoryHandle('assets', { create: true });
-            for (const [id, base64] of Object.entries(project.assets)) {
-                const ext = getAssetExtensionFromMime(getAssetMimeType(base64));
-                const filename = `${id}.${ext}`;
-                const assetFile = await assetsDir.getFileHandle(filename, { create: true });
-                const assetWriter = await assetFile.createWritable();
-                await assetWriter.write(base64ToBlob(base64));
-                await assetWriter.close();
-            }
-        }
+        await writeProjectToHandle(handle, project);
     } catch (err) {
         console.error("Failed to save to disk:", err);
     }
@@ -486,45 +578,6 @@ const App: React.FC = () => {
   const deleteProjectFromDisk = async (project: Project) => {
       await IDB.delete(project.id);
       projectHandlesRef.current.delete(project.id);
-  };
-
-  const loadProjectFromHandle = async (folderHandle: any): Promise<Project | null> => {
-      try {
-          const jsonHandle = await folderHandle.getFileHandle('project.json');
-          const jsonFile = await jsonHandle.getFile();
-          const jsonText = await jsonFile.text();
-          const projectData = JSON.parse(jsonText);
-
-          // Migration check
-          if (!projectData.folders) projectData.folders = [];
-          if (projectData.files) {
-             projectData.files = projectData.files.map((f: any) => ({ ...f, folderId: f.folderId || null }));
-          }
-
-          const assetsMap: Record<string, string> = {};
-          try {
-            const assetsDir = await folderHandle.getDirectoryHandle('assets');
-            // @ts-ignore
-            for await (const assetEntry of assetsDir.values()) {
-                if (assetEntry.kind === 'file') {
-                    const assetFile = await assetEntry.getFile();
-                    const reader = new FileReader();
-                    const base64 = await new Promise<string>((resolve) => {
-                        reader.onload = (e) => resolve(e.target?.result as string);
-                        reader.readAsDataURL(assetFile);
-                    });
-                    const id = assetEntry.name.split('.')[0];
-                    assetsMap[id] = base64;
-                }
-            }
-          } catch (e) { }
-
-          projectData.assets = assetsMap;
-          projectData.isLocal = true;
-          return normalizeProjectFiles(projectData);
-      } catch (e) {
-          return null;
-      }
   };
 
   // --- ACTIONS ---

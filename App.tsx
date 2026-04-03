@@ -156,6 +156,7 @@ const IDB = {
 
 const EDITOR_PLUGINS = [
   { type: 'doc', label: 'Document', pluralLabel: 'Documents', icon: FileText, component: DocEditor, createDefaultContent: (name: string) => `# ${name}\n\nCreated on ${new Date().toLocaleDateString()}` },
+  { type: 'changelog', label: 'Changelog', pluralLabel: 'Changelogs', icon: BookOpen, component: DocEditor, createDefaultContent: () => `# Changelog\n\nKeep release notes, milestone summaries, and major project updates here.\n\n## Unreleased\n\n### Added\n- \n\n### Changed\n- \n\n### Fixed\n- \n\n## Version History\n\n### ${new Date().toLocaleDateString()}\n- Changelog created.` },
   { type: 'flowchart', label: 'Flowchart', pluralLabel: 'Flowcharts', icon: Network, component: FlowchartEditor as React.FC<EditorProps>, createDefaultContent: () => ({ nodes: [], edges: [] }) },
   { type: 'todo', label: 'Task List', pluralLabel: 'Task Lists', icon: CheckSquare, component: TodoEditor as React.FC<EditorProps>, createDefaultContent: () => ({ items: [] }) },
   { type: 'kanban', label: 'Bug Tracker', pluralLabel: 'Bug Trackers', icon: BugIcon, component: KanbanBoard as React.FC<EditorProps>, createDefaultContent: () => ({ tasks: [] }) },
@@ -170,12 +171,14 @@ const ASSET_LIBRARY_NAME = 'Asset Library';
 const FILE_LINK_DRAG_MIME = 'application/x-gdpm-file-id';
 const SINGLE_INSTANCE_FILE_TYPES = new Set<FileType>([
   ASSET_LIBRARY_TYPE,
+  'changelog',
   'todo',
   'kanban',
   'roadmap'
 ]);
 const MANDATORY_SINGLETON_FILES: Array<{ type: FileType; name: string }> = [
   { type: ASSET_LIBRARY_TYPE, name: ASSET_LIBRARY_NAME },
+  { type: 'changelog', name: 'Changelog' },
   { type: 'todo', name: 'Task List' },
   { type: 'kanban', name: 'Bug Tracker' },
   { type: 'roadmap', name: 'Roadmap' }
@@ -387,6 +390,22 @@ const loadProjectFromHandle = async (folderHandle: any): Promise<Project | null>
   } catch {
     return null;
   }
+};
+
+const folderHasProjectFile = async (folderHandle: any) => {
+  try {
+    await folderHandle.getFileHandle('project.json');
+    return true;
+  } catch {
+    return false;
+  }
+};
+
+const formatProjectTimestamp = (timestamp?: number) => {
+  if (typeof timestamp !== 'number' || Number.isNaN(timestamp)) {
+    return 'Unknown';
+  }
+  return new Date(timestamp).toLocaleString();
 };
 
 const MOCK_PROJECTS: Project[] = [{
@@ -615,6 +634,65 @@ const App: React.FC = () => {
       } catch (err: any) {
           if (err.name === 'AbortError') return;
           console.error("Error opening folder:", err);
+      }
+  };
+
+  const handleLinkProjectToLocalFolder = async (projectId: string) => {
+      // @ts-ignore
+      if (typeof window.showDirectoryPicker !== 'function') {
+        alert("Browser not supported. Please use Chrome, Edge, or Opera on desktop.");
+        return;
+      }
+
+      const project = projectsRef.current.find(p => p.id === projectId);
+      if (!project) {
+        return;
+      }
+
+      try {
+          // @ts-ignore
+          const handle = await window.showDirectoryPicker({
+            id: `devarchitect_link_${project.id}`,
+            mode: 'readwrite'
+          });
+
+          const hasProjectJson = await folderHasProjectFile(handle);
+          const diskProject = hasProjectJson ? await loadProjectFromHandle(handle) : null;
+
+          if (hasProjectJson && !diskProject) {
+            alert("This folder already contains a project.json file that could not be read safely. To avoid overwriting data, choose a different folder or import that project first.");
+            return;
+          }
+
+          if (diskProject && diskProject.id !== project.id) {
+            alert(`This folder already contains another project named "${diskProject.name}". To avoid overwriting it, choose an empty folder or use Import Local Folder instead.`);
+            return;
+          }
+
+          if (diskProject && diskProject.id === project.id) {
+            const confirmed = confirm(
+              `This folder already contains "${diskProject.name}".\n\nCurrent in-app version: ${formatProjectTimestamp(project.lastModified)}\nFolder version: ${formatProjectTimestamp(diskProject.lastModified)}\n\nContinue and overwrite the folder with the current in-app version?`
+            );
+            if (!confirmed) {
+              return;
+            }
+          }
+
+          await writeProjectToHandle(handle, project);
+          await IDB.saveHandle(project.id, handle);
+          projectHandlesRef.current.set(project.id, handle);
+
+          const linkedProject = normalizeProjectFiles({ ...project, isLocal: true });
+          setProjects(prev => {
+              const next = prev.map(p => p.id === project.id ? linkedProject : p);
+              projectsRef.current = next;
+              return next;
+          });
+          IDB.saveProject(linkedProject);
+      } catch (err: any) {
+          if (err.name === 'AbortError') return;
+          console.error("Error linking folder:", err);
+          alert("Failed to link this project to a local folder.");
       }
   };
 
@@ -1374,6 +1452,7 @@ const App: React.FC = () => {
               onSelectProject={handleSelectProject}
               onCreateProject={handleCreateProject}
               onUpdateProject={handleUpdateProject}
+              onLinkProjectToFolder={handleLinkProjectToLocalFolder}
               onExportProject={handleExportProject} 
               onDeleteProject={handleDeleteProject}
               onImportFolder={handleImportLocalFolder}

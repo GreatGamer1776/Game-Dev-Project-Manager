@@ -1,5 +1,5 @@
 import React from 'react';
-import { X, FileText, Network, CheckSquare, Bug, Map, Table, PenTool, Image as ImageIcon, LayoutDashboard, Box } from 'lucide-react';
+import { X, FileText, Network, CheckSquare, Bug, Map, Table, PenTool, Image as ImageIcon, LayoutDashboard, Box, BookOpen } from 'lucide-react';
 
 interface HelpModalProps {
   isOpen: boolean;
@@ -15,6 +15,12 @@ const HelpModal: React.FC<HelpModalProps> = ({ isOpen, onClose }) => {
       color: "text-blue-400",
       title: "Documents",
       desc: "Markdown-based text editor. Use this for Game Design Documents (GDD), technical specifications, story drafts, and general notes. Supports inserting images from the Asset Library."
+    },
+    {
+      icon: BookOpen,
+      color: "text-amber-300",
+      title: "Changelog",
+      desc: "Dedicated release notes and update log for each project. Use it to track milestones, patch notes, weekly summaries, and major changes over time."
     },
     {
       icon: Network,

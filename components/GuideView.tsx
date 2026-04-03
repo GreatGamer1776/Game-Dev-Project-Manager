@@ -1,5 +1,5 @@
 import React, { useState } from 'react';
-import { FileText, Network, CheckSquare, Bug, Map, Table, PenTool, Image as ImageIcon, Box, Keyboard, Lightbulb, FolderOpen, Workflow, HardDrive, ChevronDown, ChevronRight } from 'lucide-react';
+import { FileText, Network, CheckSquare, Bug, Map, Table, PenTool, Image as ImageIcon, Box, Keyboard, Lightbulb, FolderOpen, Workflow, HardDrive, ChevronDown, ChevronRight, BookOpen } from 'lucide-react';
 
 type SectionId = 'overview' | 'tools' | 'shortcuts' | 'workflows' | 'storage' | 'tips';
 
@@ -35,6 +35,29 @@ const tools = [
       'Link to specific tasks using [[task:id]] syntax',
       'Auto-save with manual save (Ctrl+S)',
       'Undo / Redo with debounced history (Ctrl+Z / Ctrl+Y)',
+    ],
+  },
+  {
+    icon: BookOpen,
+    color: 'text-amber-300',
+    bg: 'bg-amber-500/10',
+    title: 'Changelog',
+    type: 'changelog',
+    summary: 'Dedicated release notes and project update log.',
+    description: 'Changelog files give each project a structured place to track milestones, patch notes, release summaries, and notable changes over time. They use the same Markdown-based editor as Documents, but are intended as the canonical running history of the project.',
+    useCases: [
+      'Patch notes for internal playtests and public builds',
+      'Weekly progress recaps for team check-ins',
+      'Milestone summaries before alpha, beta, or launch',
+      'Recording major design, tooling, or content changes',
+      'Keeping a simple version history inside the project itself',
+    ],
+    features: [
+      'Built-in project-level changelog file',
+      'Markdown formatting for release notes and summaries',
+      'Works with file links, task links, and embedded assets',
+      'Ideal for team-facing updates and historical tracking',
+      'Auto-save plus manual save (Ctrl+S)',
     ],
   },
   {
@@ -236,7 +259,7 @@ const GuideView: React.FC = () => {
           DevArchitect keeps everything in a single, portable project file.
         </p>
         <p className="text-zinc-400 leading-relaxed">
-          Each project is a self-contained workspace with typed files (Documents, Flowcharts, Task Lists, Bug Trackers, Roadmaps, Data Grids, Whiteboards, and Asset Libraries) 
+          Each project is a self-contained workspace with typed files (Documents, Changelogs, Flowcharts, Task Lists, Bug Trackers, Roadmaps, Data Grids, Whiteboards, and Asset Libraries) 
           organized in folders. Projects are stored in your browser's IndexedDB, and can be exported as <code className="text-zinc-300 bg-zinc-800 px-1.5 py-0.5 rounded text-xs">.zip</code> archives 
           or linked to a local folder on your disk for automatic persistence.
         </p>
@@ -276,7 +299,7 @@ const GuideView: React.FC = () => {
   const renderTools = () => (
     <div className="space-y-4">
       <p className="text-zinc-400 text-sm mb-2">
-        DevArchitect provides 8 specialized file types. Click any tool below to see its full capabilities and suggested use cases.
+        DevArchitect provides 9 specialized file types. Click any tool below to see its full capabilities and suggested use cases.
       </p>
       {tools.map((tool) => (
         <CollapsibleSection key={tool.type} title={tool.title}>

@@ -8,6 +8,7 @@
 - Organize project files inside nested folders
 - Edit typed project files with purpose-built editors:
   - Documents
+  - Changelogs
   - Flowcharts
   - Task Lists
   - Bug Trackers
@@ -30,7 +31,7 @@ Projects created inside the app are saved to IndexedDB. This is the default expe
 
 ### 2. Local folder linking
 
-Projects can be opened from a folder on disk using `Import Local Folder`. When a valid folder is linked, edits are written back to disk automatically.
+Projects can be opened from a folder on disk using `Import Local Folder`, or an existing browser-stored project can be linked to a folder from the dashboard. When a valid folder is linked, edits are written back to disk automatically.
 
 The expected folder layout is:
 

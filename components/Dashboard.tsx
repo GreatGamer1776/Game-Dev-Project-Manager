@@ -7,6 +7,7 @@ interface DashboardProps {
   onSelectProject: (id: string) => void;
   onCreateProject: (name: string, type: Project['type'], description: string) => void;
   onUpdateProject: (id: string, updates: { name: string; description: string }) => void;
+  onLinkProjectToFolder: (id: string) => void;
   onExportProject: (project: Project) => void;
   onDeleteProject: (id: string) => void;
   onImportFolder: () => void;
@@ -17,6 +18,7 @@ const Dashboard: React.FC<DashboardProps> = ({
     onSelectProject, 
     onCreateProject, 
     onUpdateProject,
+    onLinkProjectToFolder,
     onExportProject, 
     onDeleteProject,
     onImportFolder
@@ -161,6 +163,17 @@ const Dashboard: React.FC<DashboardProps> = ({
                     title="Edit Project"
                     >
                     <Pencil className="w-4 h-4" />
+                    </button>
+                    <button 
+                    onClick={(e) => { 
+                        e.preventDefault();
+                        e.stopPropagation();
+                        onLinkProjectToFolder(project.id);
+                    }}
+                    className="p-2 hover:bg-zinc-800 rounded-lg text-zinc-400 hover:text-emerald-400 transition-colors"
+                    title={project.isLocal ? "Relink Local Folder" : "Link to Local Folder"}
+                    >
+                    <HardDrive className="w-4 h-4" />
                     </button>
                     <button 
                     onClick={(e) => { 

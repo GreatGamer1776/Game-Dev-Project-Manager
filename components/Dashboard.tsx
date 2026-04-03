@@ -1,12 +1,13 @@
 import React, { useState } from 'react';
 import { Project } from '../types';
-import { Plus, Code, Gamepad2, Globe, Clock, FileCode, Download, Trash2, HardDrive, Import, Pencil } from 'lucide-react';
+import { Plus, Code, Gamepad2, Globe, Clock, FileCode, Download, Trash2, HardDrive, Import, Pencil, BookOpen } from 'lucide-react';
 
 interface DashboardProps {
   projects: Project[];
   onSelectProject: (id: string) => void;
   onCreateProject: (name: string, type: Project['type'], description: string) => void;
   onUpdateProject: (id: string, updates: { name: string; description: string }) => void;
+  onOpenWhatsNew: () => void;
   onLinkProjectToFolder: (id: string) => void;
   onExportProject: (project: Project) => void;
   onDeleteProject: (id: string) => void;
@@ -18,6 +19,7 @@ const Dashboard: React.FC<DashboardProps> = ({
     onSelectProject, 
     onCreateProject, 
     onUpdateProject,
+    onOpenWhatsNew,
     onLinkProjectToFolder,
     onExportProject, 
     onDeleteProject,
@@ -89,6 +91,13 @@ const Dashboard: React.FC<DashboardProps> = ({
         </div>
         
         <div className="flex gap-3">
+            <button
+            onClick={onOpenWhatsNew}
+            className="flex items-center gap-2 bg-zinc-900 text-zinc-200 px-5 py-2.5 rounded-lg font-semibold hover:bg-zinc-800 transition-colors border border-zinc-700"
+            >
+            <BookOpen className="w-5 h-5" />
+            What's New
+            </button>
             <button
             onClick={onImportFolder}
             className="flex items-center gap-2 bg-zinc-800 text-zinc-200 px-5 py-2.5 rounded-lg font-semibold hover:bg-zinc-700 transition-colors border border-zinc-700"

@@ -1,10 +1,12 @@
-import React, { useState } from 'react';
+import React, { useEffect, useState } from 'react';
 import { FileText, Network, CheckSquare, Bug, Map, Table, PenTool, Image as ImageIcon, Box, Keyboard, Lightbulb, FolderOpen, Workflow, HardDrive, ChevronDown, ChevronRight, BookOpen } from 'lucide-react';
+import { APP_CHANGELOG } from '../services/appChangelog';
 
-type SectionId = 'overview' | 'tools' | 'shortcuts' | 'workflows' | 'storage' | 'tips';
+export type GuideSectionId = 'overview' | 'updates' | 'tools' | 'shortcuts' | 'workflows' | 'storage' | 'tips';
 
-const sections: { id: SectionId; label: string }[] = [
+const sections: { id: GuideSectionId; label: string }[] = [
   { id: 'overview', label: 'Overview' },
+  { id: 'updates', label: "What's New" },
   { id: 'tools', label: 'File Types & Tools' },
   { id: 'shortcuts', label: 'Keyboard Shortcuts' },
   { id: 'workflows', label: 'Workflows' },
@@ -35,29 +37,6 @@ const tools = [
       'Link to specific tasks using [[task:id]] syntax',
       'Auto-save with manual save (Ctrl+S)',
       'Undo / Redo with debounced history (Ctrl+Z / Ctrl+Y)',
-    ],
-  },
-  {
-    icon: BookOpen,
-    color: 'text-amber-300',
-    bg: 'bg-amber-500/10',
-    title: 'Changelog',
-    type: 'changelog',
-    summary: 'Dedicated release notes and project update log.',
-    description: 'Changelog files give each project a structured place to track milestones, patch notes, release summaries, and notable changes over time. They use the same Markdown-based editor as Documents, but are intended as the canonical running history of the project.',
-    useCases: [
-      'Patch notes for internal playtests and public builds',
-      'Weekly progress recaps for team check-ins',
-      'Milestone summaries before alpha, beta, or launch',
-      'Recording major design, tooling, or content changes',
-      'Keeping a simple version history inside the project itself',
-    ],
-    features: [
-      'Built-in project-level changelog file',
-      'Markdown formatting for release notes and summaries',
-      'Works with file links, task links, and embedded assets',
-      'Ideal for team-facing updates and historical tracking',
-      'Auto-save plus manual save (Ctrl+S)',
     ],
   },
   {
@@ -246,8 +225,16 @@ const CollapsibleSection: React.FC<{ title: string; defaultOpen?: boolean; child
   );
 };
 
-const GuideView: React.FC = () => {
-  const [activeSection, setActiveSection] = useState<SectionId>('overview');
+interface GuideViewProps {
+  initialSection?: GuideSectionId;
+}
+
+const GuideView: React.FC<GuideViewProps> = ({ initialSection = 'overview' }) => {
+  const [activeSection, setActiveSection] = useState<GuideSectionId>(initialSection);
+
+  useEffect(() => {
+    setActiveSection(initialSection);
+  }, [initialSection]);
 
   const renderOverview = () => (
     <div className="space-y-6">
@@ -259,7 +246,7 @@ const GuideView: React.FC = () => {
           DevArchitect keeps everything in a single, portable project file.
         </p>
         <p className="text-zinc-400 leading-relaxed">
-          Each project is a self-contained workspace with typed files (Documents, Changelogs, Flowcharts, Task Lists, Bug Trackers, Roadmaps, Data Grids, Whiteboards, and Asset Libraries) 
+          Each project is a self-contained workspace with typed files (Documents, Flowcharts, Task Lists, Bug Trackers, Roadmaps, Data Grids, Whiteboards, and Asset Libraries) 
           organized in folders. Projects are stored in your browser's IndexedDB, and can be exported as <code className="text-zinc-300 bg-zinc-800 px-1.5 py-0.5 rounded text-xs">.zip</code> archives 
           or linked to a local folder on your disk for automatic persistence.
         </p>
@@ -296,10 +283,52 @@ const GuideView: React.FC = () => {
     </div>
   );
 
+  const renderUpdates = () => (
+    <div className="space-y-6">
+      <div className="bg-zinc-800/30 border border-zinc-700/50 rounded-xl p-6">
+        <h3 className="text-xl font-semibold text-zinc-100 mb-2">App Changelog</h3>
+        <p className="text-zinc-400 leading-relaxed">
+          This section tracks updates to DevArchitect itself so users can quickly see what changed between releases.
+        </p>
+      </div>
+
+      {APP_CHANGELOG.map((entry, index) => (
+        <div key={entry.id} className="relative border border-zinc-800 rounded-xl bg-zinc-900 overflow-hidden">
+          <div className="px-5 py-4 border-b border-zinc-800 bg-zinc-950/70">
+            <div className="flex flex-col gap-2 md:flex-row md:items-center md:justify-between">
+              <div>
+                <h4 className="text-lg font-semibold text-zinc-100">{entry.title}</h4>
+                <p className="text-sm text-zinc-400 mt-1">{entry.summary}</p>
+              </div>
+              <span className="shrink-0 text-xs uppercase tracking-wide text-blue-400 bg-blue-500/10 border border-blue-500/20 rounded-full px-3 py-1">
+                {entry.date}
+              </span>
+            </div>
+          </div>
+          <div className="px-5 py-4">
+            <ul className="space-y-2">
+              {entry.changes.map((change, changeIndex) => (
+                <li key={`${entry.id}-${changeIndex}`} className="text-sm text-zinc-400 flex gap-2">
+                  <span className="text-emerald-400 shrink-0 mt-1">•</span>
+                  <span>{change}</span>
+                </li>
+              ))}
+            </ul>
+          </div>
+          {index === 0 && (
+            <div className="absolute top-4 right-4 md:right-28">
+              <span className="text-[10px] uppercase tracking-[0.2em] text-zinc-500">Latest</span>
+            </div>
+          )}
+        </div>
+      ))}
+    </div>
+  );
+
   const renderTools = () => (
     <div className="space-y-4">
       <p className="text-zinc-400 text-sm mb-2">
-        DevArchitect provides 9 specialized file types. Click any tool below to see its full capabilities and suggested use cases.
+        DevArchitect provides 8 specialized file types. Click any tool below to see its full capabilities and suggested use cases.
       </p>
       {tools.map((tool) => (
         <CollapsibleSection key={tool.type} title={tool.title}>
@@ -515,8 +544,9 @@ const GuideView: React.FC = () => {
     </div>
   );
 
-  const contentMap: Record<SectionId, () => React.ReactNode> = {
+  const contentMap: Record<GuideSectionId, () => React.ReactNode> = {
     overview: renderOverview,
+    updates: renderUpdates,
     tools: renderTools,
     shortcuts: renderShortcuts,
     workflows: renderWorkflows,
@@ -524,8 +554,9 @@ const GuideView: React.FC = () => {
     tips: renderTips,
   };
 
-  const sectionIcons: Record<SectionId, React.ReactNode> = {
+  const sectionIcons: Record<GuideSectionId, React.ReactNode> = {
     overview: <Box className="w-4 h-4" />,
+    updates: <BookOpen className="w-4 h-4" />,
     tools: <FolderOpen className="w-4 h-4" />,
     shortcuts: <Keyboard className="w-4 h-4" />,
     workflows: <Workflow className="w-4 h-4" />,

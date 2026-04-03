@@ -8,7 +8,6 @@
 - Organize project files inside nested folders
 - Edit typed project files with purpose-built editors:
   - Documents
-  - Changelogs
   - Flowcharts
   - Task Lists
   - Bug Trackers
@@ -16,6 +15,7 @@
   - Data Grids
   - Whiteboards
   - Asset Library
+- View app release notes in the in-app `What's New` guide section
 - Link files, tasks, and embedded assets from documents
 - Persist projects locally in the browser with IndexedDB
 - Export projects as `.zip` archives

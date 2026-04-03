@@ -12,7 +12,7 @@ import WhiteboardEditor from './components/WhiteboardEditor';
 import AssetBrowser from './components/AssetBrowser';
 import CommandPalette from './components/CommandPalette';
 import HelpModal from './components/HelpModal';
-import GuideView from './components/GuideView';
+import GuideView, { GuideSectionId } from './components/GuideView';
 import { Project, ViewState, ProjectFile, FileType, EditorProps, ProjectFolder, TaskNavigationTarget } from './types';
 import { useProjectStore } from './stores/useProjectStore';
 import { getAssetExtensionFromMime, getAssetMimeType } from './services/assetUtils';
@@ -156,7 +156,6 @@ const IDB = {
 
 const EDITOR_PLUGINS = [
   { type: 'doc', label: 'Document', pluralLabel: 'Documents', icon: FileText, component: DocEditor, createDefaultContent: (name: string) => `# ${name}\n\nCreated on ${new Date().toLocaleDateString()}` },
-  { type: 'changelog', label: 'Changelog', pluralLabel: 'Changelogs', icon: BookOpen, component: DocEditor, createDefaultContent: () => `# Changelog\n\nKeep release notes, milestone summaries, and major project updates here.\n\n## Unreleased\n\n### Added\n- \n\n### Changed\n- \n\n### Fixed\n- \n\n## Version History\n\n### ${new Date().toLocaleDateString()}\n- Changelog created.` },
   { type: 'flowchart', label: 'Flowchart', pluralLabel: 'Flowcharts', icon: Network, component: FlowchartEditor as React.FC<EditorProps>, createDefaultContent: () => ({ nodes: [], edges: [] }) },
   { type: 'todo', label: 'Task List', pluralLabel: 'Task Lists', icon: CheckSquare, component: TodoEditor as React.FC<EditorProps>, createDefaultContent: () => ({ items: [] }) },
   { type: 'kanban', label: 'Bug Tracker', pluralLabel: 'Bug Trackers', icon: BugIcon, component: KanbanBoard as React.FC<EditorProps>, createDefaultContent: () => ({ tasks: [] }) },
@@ -171,14 +170,12 @@ const ASSET_LIBRARY_NAME = 'Asset Library';
 const FILE_LINK_DRAG_MIME = 'application/x-gdpm-file-id';
 const SINGLE_INSTANCE_FILE_TYPES = new Set<FileType>([
   ASSET_LIBRARY_TYPE,
-  'changelog',
   'todo',
   'kanban',
   'roadmap'
 ]);
 const MANDATORY_SINGLETON_FILES: Array<{ type: FileType; name: string }> = [
   { type: ASSET_LIBRARY_TYPE, name: ASSET_LIBRARY_NAME },
-  { type: 'changelog', name: 'Changelog' },
   { type: 'todo', name: 'Task List' },
   { type: 'kanban', name: 'Bug Tracker' },
   { type: 'roadmap', name: 'Roadmap' }
@@ -242,6 +239,8 @@ const migrateKanbanContent = (content: any) => {
 
 const migrateProjectFile = (file: ProjectFile): ProjectFile => {
   switch (file.type) {
+    case 'changelog':
+      return { ...file, type: 'doc' };
     case 'todo':
       return { ...file, content: migrateTodoContent(file.content) };
     case 'kanban':
@@ -434,6 +433,7 @@ const App: React.FC = () => {
   const [isHelpOpen, setIsHelpOpen] = useState(false);
   const [isSidebarCollapsed, setIsSidebarCollapsed] = useState(false);
   const [showGuide, setShowGuide] = useState(false);
+  const [guideSection, setGuideSection] = useState<GuideSectionId>('overview');
   
   // Folder & File Creation UI
   const [expandedFolders, setExpandedFolders] = useState<Set<string>>(new Set());
@@ -559,6 +559,11 @@ const App: React.FC = () => {
   useEffect(() => {
     setTaskNavigationTarget(null);
   }, [activeProjectId]);
+
+  const openGuideSection = (section: GuideSectionId = 'overview') => {
+    setGuideSection(section);
+    setShowGuide(true);
+  };
 
   // --- DISK OPS ---
 
@@ -705,6 +710,7 @@ const App: React.FC = () => {
       setActiveFileId(firstFile?.id || null);
       setCurrentView(ViewState.PROJECT);
       setShowGuide(false);
+      setGuideSection('overview');
   };
 
   const handleCreateProject = async (name: string, type: Project['type'], description: string = '') => {
@@ -1306,8 +1312,8 @@ const App: React.FC = () => {
       return (
         <aside className="w-16 md:w-20 bg-zinc-950 border-r border-zinc-800 flex flex-col items-center py-6 gap-6 z-20">
           <div className="w-10 h-10 bg-gradient-to-br from-blue-500 to-purple-600 rounded-xl flex items-center justify-center shadow-lg shadow-blue-900/20 mb-4"><Folder className="w-6 h-6 text-white" /></div>
-          <button onClick={() => setShowGuide(false)} className={`p-3 rounded-xl transition-colors ${!showGuide ? 'bg-zinc-800 text-white shadow-md' : 'text-zinc-500 hover:bg-zinc-800 hover:text-white'}`} title="Dashboard"><LayoutDashboard className="w-5 h-5" /></button>
-          <button onClick={() => setShowGuide(true)} className={`p-3 rounded-xl transition-colors ${showGuide ? 'bg-zinc-800 text-white shadow-md' : 'text-zinc-500 hover:bg-zinc-800 hover:text-white'}`} title="Guide & Documentation"><BookOpen className="w-5 h-5" /></button>
+          <button onClick={() => { setShowGuide(false); setGuideSection('overview'); }} className={`p-3 rounded-xl transition-colors ${!showGuide ? 'bg-zinc-800 text-white shadow-md' : 'text-zinc-500 hover:bg-zinc-800 hover:text-white'}`} title="Dashboard"><LayoutDashboard className="w-5 h-5" /></button>
+          <button onClick={() => openGuideSection('overview')} className={`p-3 rounded-xl transition-colors ${showGuide ? 'bg-zinc-800 text-white shadow-md' : 'text-zinc-500 hover:bg-zinc-800 hover:text-white'}`} title="Guide & Documentation"><BookOpen className="w-5 h-5" /></button>
         </aside>
       );
     }
@@ -1445,13 +1451,14 @@ const App: React.FC = () => {
         <div className="flex-1 overflow-hidden relative">
           {currentView === ViewState.DASHBOARD ? (
             showGuide ? (
-              <GuideView />
+              <GuideView initialSection={guideSection} />
             ) : (
             <Dashboard
               projects={projects}
               onSelectProject={handleSelectProject}
               onCreateProject={handleCreateProject}
               onUpdateProject={handleUpdateProject}
+              onOpenWhatsNew={() => openGuideSection('updates')}
               onLinkProjectToFolder={handleLinkProjectToLocalFolder}
               onExportProject={handleExportProject} 
               onDeleteProject={handleDeleteProject}

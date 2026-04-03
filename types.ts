@@ -104,7 +104,6 @@ export type FileContent = string | FlowchartData | TodoData | KanbanData | Roadm
 
 export type FileType = 
   | 'doc' 
-  | 'changelog'
   | 'flowchart' 
   | 'todo' 
   | 'kanban' 

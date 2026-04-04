@@ -26,6 +26,8 @@ const KanbanBoard: React.FC<EditorProps> = ({ initialContent, onSave, fileName, 
   // Save Status
   const [saveStatus, setSaveStatus] = useState<'saved' | 'saving' | 'unsaved'>('saved');
   const lastSavedData = useRef(JSON.stringify(initialContent?.tasks || []));
+  const latestBugsRef = useRef<Bug[]>((initialContent?.tasks || []).map(migrateBug));
+  const saveStatusTimerRef = useRef<ReturnType<typeof setTimeout> | null>(null);
 
   const [isModalOpen, setIsModalOpen] = useState(false);
   const [editingBug, setEditingBug] = useState<Bug | null>(null);
@@ -80,12 +82,38 @@ const KanbanBoard: React.FC<EditorProps> = ({ initialContent, onSave, fileName, 
     );
   }, [linkableFiles, linkPickerQuery]);
 
+  const clearSaveStatusTimer = () => {
+    if (saveStatusTimerRef.current) {
+      clearTimeout(saveStatusTimerRef.current);
+      saveStatusTimerRef.current = null;
+    }
+  };
+
+  const persistBugs = (nextBugs: Bug[]) => {
+    onSave({ tasks: nextBugs });
+    lastSavedData.current = JSON.stringify(nextBugs);
+    latestBugsRef.current = nextBugs;
+  };
+
+  const flushPendingSave = () => {
+    const nextBugs = latestBugsRef.current;
+    if (JSON.stringify(nextBugs) === lastSavedData.current) return;
+    persistBugs(nextBugs);
+  };
+
   useEffect(() => {
     const migratedBugs = (initialContent?.tasks || []).map(migrateBug);
     setBugs(migratedBugs);
     undoRedo.reset(migratedBugs);
     lastSavedData.current = JSON.stringify(migratedBugs);
+    latestBugsRef.current = migratedBugs;
+    clearSaveStatusTimer();
+    setSaveStatus('saved');
   }, [initialContent]);
+
+  useEffect(() => {
+    latestBugsRef.current = bugs;
+  }, [bugs]);
 
   useEffect(() => {
     if (linkableFiles.length > 0) return;
@@ -122,6 +150,13 @@ const KanbanBoard: React.FC<EditorProps> = ({ initialContent, onSave, fileName, 
     return () => clearTimeout(timer);
   }, [bugs]);
 
+  useEffect(() => {
+    return () => {
+      clearSaveStatusTimer();
+      flushPendingSave();
+    };
+  }, []);
+
   // Keyboard Shortcuts
   useEffect(() => {
     const handleKeyDown = (e: KeyboardEvent) => {
@@ -154,10 +189,10 @@ const KanbanBoard: React.FC<EditorProps> = ({ initialContent, onSave, fileName, 
   }, [bugs, undoRedo]);
 
   const handleManualSave = () => {
+    clearSaveStatusTimer();
     setSaveStatus('saving');
-    onSave({ tasks: bugs });
-    lastSavedData.current = JSON.stringify(bugs);
-    setTimeout(() => setSaveStatus('saved'), 500);
+    persistBugs(latestBugsRef.current);
+    saveStatusTimerRef.current = setTimeout(() => setSaveStatus('saved'), 500);
   };
 
   const resetForm = () => {

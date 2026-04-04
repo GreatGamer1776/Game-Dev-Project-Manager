@@ -137,6 +137,31 @@ const FlowchartEditorContent: React.FC<EditorProps> = ({ initialContent, onSave,
   // Save State
   const [saveStatus, setSaveStatus] = useState<'saved' | 'saving' | 'unsaved'>('saved');
   const lastSavedData = useRef(JSON.stringify({ nodes: initialNodes, edges: initialEdges }));
+  const latestGraphRef = useRef<{ nodes: Node[]; edges: Edge[] }>({ nodes: initialNodes, edges: initialEdges });
+  const saveStatusTimerRef = useRef<ReturnType<typeof setTimeout> | null>(null);
+
+  const clearSaveStatusTimer = () => {
+    if (saveStatusTimerRef.current) {
+      clearTimeout(saveStatusTimerRef.current);
+      saveStatusTimerRef.current = null;
+    }
+  };
+
+  const persistGraph = (nextGraph: { nodes: Node[]; edges: Edge[] }) => {
+    onSave(nextGraph);
+    lastSavedData.current = JSON.stringify(nextGraph);
+    latestGraphRef.current = nextGraph;
+  };
+
+  const flushPendingSave = () => {
+    const nextGraph = latestGraphRef.current;
+    if (JSON.stringify(nextGraph) === lastSavedData.current) return;
+    persistGraph(nextGraph);
+  };
+
+  useEffect(() => {
+    latestGraphRef.current = { nodes, edges };
+  }, [nodes, edges]);
 
   // Autosave Logic
   useEffect(() => {
@@ -147,6 +172,13 @@ const FlowchartEditorContent: React.FC<EditorProps> = ({ initialContent, onSave,
     const timer = setTimeout(() => handleManualSave(), 2000);
     return () => clearTimeout(timer);
   }, [nodes, edges]);
+
+  useEffect(() => {
+    return () => {
+      clearSaveStatusTimer();
+      flushPendingSave();
+    };
+  }, []);
 
   // Push to undo stack when graph changes
   const lastUndoPushRef = useRef(JSON.stringify({ nodes: initialNodes, edges: initialEdges }));
@@ -180,10 +212,10 @@ const FlowchartEditorContent: React.FC<EditorProps> = ({ initialContent, onSave,
   }, [nodes, edges, undoRedo]);
 
   const handleManualSave = () => {
+    clearSaveStatusTimer();
     setSaveStatus('saving');
-    onSave({ nodes, edges });
-    lastSavedData.current = JSON.stringify({ nodes, edges });
-    setTimeout(() => setSaveStatus('saved'), 500);
+    persistGraph(latestGraphRef.current);
+    saveStatusTimerRef.current = setTimeout(() => setSaveStatus('saved'), 500);
   };
 
   const nodeTypes = useMemo(() => ({
@@ -200,6 +232,9 @@ const FlowchartEditorContent: React.FC<EditorProps> = ({ initialContent, onSave,
     setNodes(initialNodes);
     setEdges(initialEdges);
     lastSavedData.current = JSON.stringify({ nodes: initialNodes, edges: initialEdges });
+    latestGraphRef.current = { nodes: initialNodes, edges: initialEdges };
+    clearSaveStatusTimer();
+    setSaveStatus('saved');
   }, [initialNodes, initialEdges, setNodes, setEdges]);
 
   // Connect Logic - Adds arrows by default

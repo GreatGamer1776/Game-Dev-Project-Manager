@@ -208,6 +208,8 @@ const DocEditor: React.FC<EditorProps> = ({ initialContent, onSave, fileName, as
 
   const [saveStatus, setSaveStatus] = useState<'saved' | 'saving' | 'unsaved'>('saved');
   const lastSavedContent = useRef(initialContent);
+  const latestContentRef = useRef(initialContent);
+  const saveStatusTimerRef = useRef<ReturnType<typeof setTimeout> | null>(null);
 
   const textareaRef = useRef<HTMLTextAreaElement>(null);
   const fileInputRef = useRef<HTMLInputElement>(null);
@@ -303,14 +305,40 @@ const DocEditor: React.FC<EditorProps> = ({ initialContent, onSave, fileName, as
     );
   }, [assetQuery, linkableAssets]);
 
+  const clearSaveStatusTimer = () => {
+    if (saveStatusTimerRef.current) {
+      clearTimeout(saveStatusTimerRef.current);
+      saveStatusTimerRef.current = null;
+    }
+  };
+
+  const persistContent = (nextContent: string) => {
+    onSave(nextContent);
+    lastSavedContent.current = nextContent;
+    latestContentRef.current = nextContent;
+  };
+
+  const flushPendingSave = () => {
+    const nextContent = latestContentRef.current;
+    if (nextContent === lastSavedContent.current) return;
+    persistContent(nextContent);
+  };
+
   // Sync initial content
   useEffect(() => {
     if (initialContent !== content && initialContent !== lastSavedContent.current) {
         setContent(initialContent);
         undoRedo.reset(initialContent);
         lastSavedContent.current = initialContent;
+        latestContentRef.current = initialContent;
+        clearSaveStatusTimer();
+        setSaveStatus('saved');
     }
   }, [initialContent]);
+
+  useEffect(() => {
+    latestContentRef.current = content;
+  }, [content]);
 
   // OPTIMIZATION: Debounce the preview parsing and only run if viewMode requires it
   useEffect(() => {
@@ -349,6 +377,13 @@ const DocEditor: React.FC<EditorProps> = ({ initialContent, onSave, fileName, as
     const timer = setTimeout(handleManualSave, 1500);
     return () => clearTimeout(timer);
   }, [content]);
+
+  useEffect(() => {
+    return () => {
+      clearSaveStatusTimer();
+      flushPendingSave();
+    };
+  }, []);
 
   // Handle outside click for popover
   useEffect(() => {
@@ -398,10 +433,10 @@ const DocEditor: React.FC<EditorProps> = ({ initialContent, onSave, fileName, as
   }, [content, undoRedo]);
 
   const handleManualSave = () => {
+    clearSaveStatusTimer();
     setSaveStatus('saving');
-    onSave(content);
-    lastSavedContent.current = content;
-    setTimeout(() => setSaveStatus('saved'), 500); 
+    persistContent(latestContentRef.current);
+    saveStatusTimerRef.current = setTimeout(() => setSaveStatus('saved'), 500);
   };
 
   // Push to undo stack on content changes (debounced to batch rapid typing)

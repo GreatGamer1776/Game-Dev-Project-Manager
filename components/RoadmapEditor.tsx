@@ -149,6 +149,8 @@ const RoadmapEditor: React.FC<EditorProps> = ({ initialContent, onSave, fileName
   const undoRedo = useUndoRedo<RoadmapItem[]>(initialItemsRef.current);
   const [saveStatus, setSaveStatus] = useState<SaveStatus>('saved');
   const lastSavedRef = useRef(JSON.stringify(initialItemsRef.current));
+  const latestItemsRef = useRef<RoadmapItem[]>(initialItemsRef.current);
+  const saveStatusTimerRef = useRef<ReturnType<typeof setTimeout> | null>(null);
 
   const [searchQuery, setSearchQuery] = useState('');
   const [statusFilter, setStatusFilter] = useState<'All' | RoadmapStatus>('All');
@@ -160,14 +162,39 @@ const RoadmapEditor: React.FC<EditorProps> = ({ initialContent, onSave, fileName
   const [selectedId, setSelectedId] = useState<string | null>(null);
   const [calendarMonthTs, setCalendarMonthTs] = useState(firstOfMonthTs(Date.now()));
 
+  const clearSaveStatusTimer = () => {
+    if (saveStatusTimerRef.current) {
+      clearTimeout(saveStatusTimerRef.current);
+      saveStatusTimerRef.current = null;
+    }
+  };
+
+  const persistItems = (nextItems: RoadmapItem[]) => {
+    onSave({ items: nextItems });
+    lastSavedRef.current = JSON.stringify(nextItems);
+    latestItemsRef.current = nextItems;
+  };
+
+  const flushPendingSave = () => {
+    const nextItems = latestItemsRef.current;
+    if (JSON.stringify(nextItems) === lastSavedRef.current) return;
+    persistItems(nextItems);
+  };
+
   useEffect(() => {
     const normalized = normalizeItems(initialContent);
     setItems(normalized);
     undoRedo.reset(normalized);
     lastSavedRef.current = JSON.stringify(normalized);
+    latestItemsRef.current = normalized;
+    clearSaveStatusTimer();
     setSaveStatus('saved');
     setSelectedId(prev => (prev && normalized.some(item => item.id === prev) ? prev : normalized[0]?.id || null));
   }, [initialContent]);
+
+  useEffect(() => {
+    latestItemsRef.current = items;
+  }, [items]);
 
   useEffect(() => {
     const current = JSON.stringify(items);
@@ -176,6 +203,13 @@ const RoadmapEditor: React.FC<EditorProps> = ({ initialContent, onSave, fileName
     const timer = setTimeout(() => saveNow(), 1200);
     return () => clearTimeout(timer);
   }, [items]);
+
+  useEffect(() => {
+    return () => {
+      clearSaveStatusTimer();
+      flushPendingSave();
+    };
+  }, []);
 
   useEffect(() => {
     const onKeyDown = (event: KeyboardEvent) => {
@@ -208,10 +242,10 @@ const RoadmapEditor: React.FC<EditorProps> = ({ initialContent, onSave, fileName
   }, [items, undoRedo]);
 
   const saveNow = () => {
+    clearSaveStatusTimer();
     setSaveStatus('saving');
-    onSave({ items });
-    lastSavedRef.current = JSON.stringify(items);
-    setTimeout(() => setSaveStatus('saved'), 300);
+    persistItems(latestItemsRef.current);
+    saveStatusTimerRef.current = setTimeout(() => setSaveStatus('saved'), 300);
   };
 
   const openCreate = (type: RoadmapItemType = 'phase') => {

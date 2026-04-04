@@ -203,9 +203,30 @@ const DataGridEditor: React.FC<EditorProps> = ({ initialContent, onSave, fileNam
   const [saveStatus, setSaveStatus] = useState<SaveStatus>('saved');
 
   const lastSavedData = useRef(JSON.stringify(initialDataRef.current));
+  const latestGridRef = useRef<GridData>(initialDataRef.current);
+  const saveStatusTimerRef = useRef<ReturnType<typeof setTimeout> | null>(null);
   const tableScrollRef = useRef<HTMLDivElement | null>(null);
   const [scrollTop, setScrollTop] = useState(0);
   const [viewportHeight, setViewportHeight] = useState(600);
+
+  const clearSaveStatusTimer = () => {
+    if (saveStatusTimerRef.current) {
+      clearTimeout(saveStatusTimerRef.current);
+      saveStatusTimerRef.current = null;
+    }
+  };
+
+  const persistGrid = (nextGrid: GridData) => {
+    onSave(nextGrid);
+    lastSavedData.current = JSON.stringify(nextGrid);
+    latestGridRef.current = nextGrid;
+  };
+
+  const flushPendingSave = () => {
+    const nextGrid = latestGridRef.current;
+    if (JSON.stringify(nextGrid) === lastSavedData.current) return;
+    persistGrid(nextGrid);
+  };
 
   useEffect(() => {
     const normalized = normalizeInitialData(initialContent);
@@ -217,8 +238,14 @@ const DataGridEditor: React.FC<EditorProps> = ({ initialContent, onSave, fileNam
     setSortColumnId(null);
     setSortDirection(null);
     lastSavedData.current = JSON.stringify(normalized);
+    latestGridRef.current = normalized;
+    clearSaveStatusTimer();
     setSaveStatus('saved');
   }, [initialContent]);
+
+  useEffect(() => {
+    latestGridRef.current = { columns, rows };
+  }, [columns, rows]);
 
   useEffect(() => {
     const currentData = JSON.stringify({ columns, rows });
@@ -228,6 +255,13 @@ const DataGridEditor: React.FC<EditorProps> = ({ initialContent, onSave, fileNam
     const timer = setTimeout(() => handleManualSave(), 1200);
     return () => clearTimeout(timer);
   }, [columns, rows]);
+
+  useEffect(() => {
+    return () => {
+      clearSaveStatusTimer();
+      flushPendingSave();
+    };
+  }, []);
 
   useEffect(() => {
     const updateViewportHeight = () => {
@@ -311,10 +345,10 @@ const DataGridEditor: React.FC<EditorProps> = ({ initialContent, onSave, fileNam
   const allVisibleSelected = displayedRows.length > 0 && displayedRows.every(row => selectedRowIds.has(row.id));
 
   const handleManualSave = () => {
+    clearSaveStatusTimer();
     setSaveStatus('saving');
-    onSave({ columns, rows });
-    lastSavedData.current = JSON.stringify({ columns, rows });
-    setTimeout(() => setSaveStatus('saved'), 300);
+    persistGrid(latestGridRef.current);
+    saveStatusTimerRef.current = setTimeout(() => setSaveStatus('saved'), 300);
   };
 
   const addColumn = () => {

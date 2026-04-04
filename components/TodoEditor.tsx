@@ -69,6 +69,8 @@ const TodoEditor: React.FC<EditorProps> = ({ initialContent, onSave, fileName, p
   // Save Status
   const [saveStatus, setSaveStatus] = useState<'saved' | 'saving' | 'unsaved'>('saved');
   const lastSavedData = useRef(JSON.stringify(items));
+  const latestItemsRef = useRef<TodoItem[]>(items);
+  const saveStatusTimerRef = useRef<ReturnType<typeof setTimeout> | null>(null);
 
   // Drag & Drop State
   const [draggedItemIds, setDraggedItemIds] = useState<string[]>([]);
@@ -119,6 +121,25 @@ const TodoEditor: React.FC<EditorProps> = ({ initialContent, onSave, fileName, p
     [items]
   );
 
+  const clearSaveStatusTimer = () => {
+    if (saveStatusTimerRef.current) {
+      clearTimeout(saveStatusTimerRef.current);
+      saveStatusTimerRef.current = null;
+    }
+  };
+
+  const persistItems = (nextItems: TodoItem[]) => {
+    onSave({ items: nextItems });
+    lastSavedData.current = JSON.stringify(nextItems);
+    latestItemsRef.current = nextItems;
+  };
+
+  const flushPendingSave = () => {
+    const nextItems = latestItemsRef.current;
+    if (JSON.stringify(nextItems) === lastSavedData.current) return;
+    persistItems(nextItems);
+  };
+
   // Sync with prop changes
   useEffect(() => {
     const rawItems = initialContent?.items || [];
@@ -126,7 +147,14 @@ const TodoEditor: React.FC<EditorProps> = ({ initialContent, onSave, fileName, p
     setItems(migratedItems);
     undoRedo.reset(migratedItems);
     lastSavedData.current = JSON.stringify(migratedItems);
+    latestItemsRef.current = migratedItems;
+    clearSaveStatusTimer();
+    setSaveStatus('saved');
   }, [initialContent]);
+
+  useEffect(() => {
+    latestItemsRef.current = items;
+  }, [items]);
 
   useEffect(() => {
     if (!linkPickerTaskId) return;
@@ -186,6 +214,13 @@ const TodoEditor: React.FC<EditorProps> = ({ initialContent, onSave, fileName, p
     return () => clearTimeout(timer);
   }, [items]);
 
+  useEffect(() => {
+    return () => {
+      clearSaveStatusTimer();
+      flushPendingSave();
+    };
+  }, []);
+
   // Shortcuts
   useEffect(() => {
     const handleKeyDown = (e: KeyboardEvent) => {
@@ -218,10 +253,10 @@ const TodoEditor: React.FC<EditorProps> = ({ initialContent, onSave, fileName, p
   }, [items, undoRedo]);
 
   const handleManualSave = () => {
+    clearSaveStatusTimer();
     setSaveStatus('saving');
-    onSave({ items });
-    lastSavedData.current = JSON.stringify(items);
-    setTimeout(() => setSaveStatus('saved'), 500);
+    persistItems(latestItemsRef.current);
+    saveStatusTimerRef.current = setTimeout(() => setSaveStatus('saved'), 500);
   };
 
   // --- Actions ---

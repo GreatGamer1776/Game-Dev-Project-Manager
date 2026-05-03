@@ -8,6 +8,7 @@ const TASK_LINK_DRAG_MIME = 'application/x-gdpm-task-link';
 const TASK_MOVE_DRAG_MIME = 'application/x-gdpm-task-id';
 const TODO_COLUMNS: TodoStatus[] = ['Backlog', 'To Do', 'In Progress', 'Review', 'Done'];
 const TODO_STATUS_OPTIONS = TODO_COLUMNS.map(status => ({ value: status, label: status }));
+const MAX_TAGS = 8;
 
 const normalizeTodoStatus = (status?: string, completed?: boolean): TodoStatus => {
   if (status && TODO_COLUMNS.includes(status as TodoStatus)) {
@@ -29,6 +30,111 @@ const migrateTodoItem = (item: any): TodoItem => {
 type SelectOption = {
   value: string;
   label: string;
+};
+
+const normalizeTagKey = (tag: string) => tag.trim().toLowerCase();
+
+const dedupeTags = (tags: string[]) => {
+  const seen = new Set<string>();
+  const uniqueTags: string[] = [];
+
+  for (const tag of tags) {
+    const trimmedTag = tag.trim();
+    if (!trimmedTag) continue;
+
+    const normalizedTag = normalizeTagKey(trimmedTag);
+    if (seen.has(normalizedTag)) continue;
+
+    seen.add(normalizedTag);
+    uniqueTags.push(trimmedTag);
+
+    if (uniqueTags.length >= MAX_TAGS) break;
+  }
+
+  return uniqueTags;
+};
+
+const parseTagInput = (value: string) => dedupeTags(value.split(','));
+
+const formatTagInput = (tags: string[]) => dedupeTags(tags).join(', ');
+
+const getDescriptionPreviewText = (description?: string) => {
+  if (!description?.trim()) return 'No description provided.';
+  return description
+    .replace(/\[([^\]]+)\]\(file:\/\/([^)]+)\)/g, '$1')
+    .replace(/\s+/g, ' ')
+    .trim();
+};
+
+const TagInputSection: React.FC<{
+  value: string;
+  onChange: (value: string) => void;
+  allTags: string[];
+  placeholder: string;
+  inputClassName: string;
+  helperTextClassName: string;
+  helperText: string;
+}> = ({ value, onChange, allTags, placeholder, inputClassName, helperTextClassName, helperText }) => {
+  const suggestionsId = React.useId();
+  const selectedTags = React.useMemo(() => parseTagInput(value), [value]);
+  const availableTags = React.useMemo(() => {
+    const selectedTagKeys = new Set(selectedTags.map(normalizeTagKey));
+    return allTags.filter(tag => !selectedTagKeys.has(normalizeTagKey(tag))).slice(0, 12);
+  }, [allTags, selectedTags]);
+
+  const addTag = (tag: string) => onChange(formatTagInput([...selectedTags, tag]));
+  const removeTag = (tag: string) =>
+    onChange(formatTagInput(selectedTags.filter(selectedTag => normalizeTagKey(selectedTag) !== normalizeTagKey(tag))));
+
+  return (
+    <div>
+      <input
+        type="text"
+        list={allTags.length > 0 ? suggestionsId : undefined}
+        value={value}
+        onChange={(e) => onChange(e.target.value)}
+        className={inputClassName}
+        placeholder={placeholder}
+      />
+      {allTags.length > 0 && (
+        <datalist id={suggestionsId}>
+          {allTags.map(tag => (
+            <option key={tag} value={tag} />
+          ))}
+        </datalist>
+      )}
+      {selectedTags.length > 0 && (
+        <div className="mt-2 flex flex-wrap gap-1.5">
+          {selectedTags.map(tag => (
+            <span key={tag} className="inline-flex items-center gap-1 rounded-full border border-zinc-700 bg-zinc-950 px-2 py-1 text-[11px] text-zinc-300">
+              #{tag}
+              <button type="button" onClick={() => removeTag(tag)} className="text-zinc-500 transition-colors hover:text-white" title={`Remove ${tag}`}>
+                <X className="h-3 w-3" />
+              </button>
+            </span>
+          ))}
+        </div>
+      )}
+      {availableTags.length > 0 && (
+        <div className="mt-2">
+          <p className="text-[10px] uppercase tracking-wide text-zinc-500">Existing Tags</p>
+          <div className="mt-1 flex flex-wrap gap-1.5">
+            {availableTags.map(tag => (
+              <button
+                key={tag}
+                type="button"
+                onClick={() => addTag(tag)}
+                className="rounded-full border border-zinc-700 bg-zinc-900 px-2 py-1 text-[11px] text-zinc-300 transition-colors hover:border-zinc-500 hover:text-white"
+              >
+                #{tag}
+              </button>
+            ))}
+          </div>
+        </div>
+      )}
+      <p className={helperTextClassName}>{helperText}</p>
+    </div>
+  );
 };
 
 const StyledSelect: React.FC<{
@@ -70,6 +176,7 @@ const TodoEditor: React.FC<EditorProps> = ({ initialContent, onSave, fileName, p
   const [saveStatus, setSaveStatus] = useState<'saved' | 'saving' | 'unsaved'>('saved');
   const lastSavedData = useRef(JSON.stringify(items));
   const latestItemsRef = useRef<TodoItem[]>(items);
+  const autosaveTimerRef = useRef<ReturnType<typeof setTimeout> | null>(null);
   const saveStatusTimerRef = useRef<ReturnType<typeof setTimeout> | null>(null);
 
   // Drag & Drop State
@@ -121,24 +228,46 @@ const TodoEditor: React.FC<EditorProps> = ({ initialContent, onSave, fileName, p
     [items]
   );
 
-  const clearSaveStatusTimer = () => {
+  const clearAutosaveTimer = React.useCallback(() => {
+    if (autosaveTimerRef.current) {
+      clearTimeout(autosaveTimerRef.current);
+      autosaveTimerRef.current = null;
+    }
+  }, []);
+
+  const clearSaveStatusTimer = React.useCallback(() => {
     if (saveStatusTimerRef.current) {
       clearTimeout(saveStatusTimerRef.current);
       saveStatusTimerRef.current = null;
     }
-  };
+  }, []);
 
-  const persistItems = (nextItems: TodoItem[]) => {
+  const persistItems = React.useCallback((nextItems: TodoItem[]) => {
     onSave({ items: nextItems });
     lastSavedData.current = JSON.stringify(nextItems);
     latestItemsRef.current = nextItems;
-  };
+  }, [onSave]);
 
-  const flushPendingSave = () => {
+  const scheduleSavedStatus = React.useCallback(() => {
+    clearSaveStatusTimer();
+    saveStatusTimerRef.current = setTimeout(() => {
+      setSaveStatus('saved');
+      saveStatusTimerRef.current = null;
+    }, 500);
+  }, [clearSaveStatusTimer]);
+
+  const flushPendingSave = React.useCallback(() => {
     const nextItems = latestItemsRef.current;
     if (JSON.stringify(nextItems) === lastSavedData.current) return;
     persistItems(nextItems);
-  };
+  }, [persistItems]);
+
+  const saveItems = React.useCallback((nextItems: TodoItem[]) => {
+    clearAutosaveTimer();
+    setSaveStatus('saving');
+    persistItems(nextItems);
+    scheduleSavedStatus();
+  }, [clearAutosaveTimer, persistItems, scheduleSavedStatus]);
 
   // Sync with prop changes
   useEffect(() => {
@@ -148,9 +277,10 @@ const TodoEditor: React.FC<EditorProps> = ({ initialContent, onSave, fileName, p
     undoRedo.reset(migratedItems);
     lastSavedData.current = JSON.stringify(migratedItems);
     latestItemsRef.current = migratedItems;
+    clearAutosaveTimer();
     clearSaveStatusTimer();
     setSaveStatus('saved');
-  }, [initialContent]);
+  }, [clearAutosaveTimer, clearSaveStatusTimer, initialContent, undoRedo.reset]);
 
   useEffect(() => {
     latestItemsRef.current = items;
@@ -210,16 +340,20 @@ const TodoEditor: React.FC<EditorProps> = ({ initialContent, onSave, fileName, p
     if (currentData === lastSavedData.current) return;
 
     setSaveStatus('unsaved');
-    const timer = setTimeout(() => handleManualSave(), 2000);
-    return () => clearTimeout(timer);
-  }, [items]);
+    clearAutosaveTimer();
+    autosaveTimerRef.current = setTimeout(() => {
+      saveItems(latestItemsRef.current);
+    }, 2000);
+    return clearAutosaveTimer;
+  }, [clearAutosaveTimer, items, saveItems]);
 
   useEffect(() => {
     return () => {
+      clearAutosaveTimer();
       clearSaveStatusTimer();
       flushPendingSave();
     };
-  }, []);
+  }, [clearAutosaveTimer, clearSaveStatusTimer, flushPendingSave]);
 
   // Shortcuts
   useEffect(() => {
@@ -241,7 +375,7 @@ const TodoEditor: React.FC<EditorProps> = ({ initialContent, onSave, fileName, p
     };
     window.addEventListener('keydown', handleKeyDown);
     return () => window.removeEventListener('keydown', handleKeyDown);
-  }, [items, undoRedo]);
+  }, [undoRedo.redo, undoRedo.undo]);
 
   // Push to undo stack when items change
   const lastUndoPushRef = useRef(JSON.stringify(items));
@@ -250,14 +384,19 @@ const TodoEditor: React.FC<EditorProps> = ({ initialContent, onSave, fileName, p
     if (serialized === lastUndoPushRef.current) return;
     lastUndoPushRef.current = serialized;
     undoRedo.pushState(items);
-  }, [items, undoRedo]);
+  }, [items, undoRedo.pushState]);
 
-  const handleManualSave = () => {
-    clearSaveStatusTimer();
-    setSaveStatus('saving');
-    persistItems(latestItemsRef.current);
-    saveStatusTimerRef.current = setTimeout(() => setSaveStatus('saved'), 500);
-  };
+  const handleManualSave = React.useCallback(() => {
+    const nextItems = latestItemsRef.current;
+    if (JSON.stringify(nextItems) === lastSavedData.current) {
+      clearAutosaveTimer();
+      clearSaveStatusTimer();
+      setSaveStatus('saved');
+      return;
+    }
+
+    saveItems(nextItems);
+  }, [clearAutosaveTimer, clearSaveStatusTimer, saveItems]);
 
   // --- Actions ---
 
@@ -358,9 +497,6 @@ const TodoEditor: React.FC<EditorProps> = ({ initialContent, onSave, fileName, p
   const updateItemField = (id: string, patch: Partial<TodoItem>) => {
     setItems(items.map(item => item.id === id ? { ...item, ...patch } : item));
   };
-
-  const parseTagInput = (value: string) =>
-    Array.from(new Set(value.split(',').map(tag => tag.trim()).filter(Boolean))).slice(0, 8);
 
   const beginTaskTitleEdit = (item: TodoItem) => {
     setEditingTaskId(item.id);
@@ -926,29 +1062,32 @@ const TodoEditor: React.FC<EditorProps> = ({ initialContent, onSave, fileName, p
                                         {item.estimateHours}h
                                      </span>
                                   )}
-                                  {item.tags && item.tags.length > 0 && (
-                                     <div className="flex items-center gap-1">
-                                        {item.tags.slice(0, 2).map(tag => (
+                                   {item.tags && item.tags.length > 0 && (
+                                      <div className="flex items-center gap-1">
+                                         {item.tags.slice(0, 2).map(tag => (
                                           <span key={`${item.id}-${tag}`} className="text-[10px] text-zinc-400 bg-zinc-800 px-1.5 py-0.5 rounded">
                                             #{tag}
                                           </span>
                                         ))}
-                                        {item.tags.length > 2 && <span className="text-[10px] text-zinc-500">+{item.tags.length - 2}</span>}
-                                     </div>
-                                  )}
-                                  {subTasks.length > 0 && (
+                                         {item.tags.length > 2 && <span className="text-[10px] text-zinc-500">+{item.tags.length - 2}</span>}
+                                      </div>
+                                   )}
+                                   {subTasks.length > 0 && (
                                      <div className="flex items-center gap-1.5 ml-auto">
                                         <ListChecks className="w-3 h-3 text-zinc-500" />
                                         <span className="text-[10px] text-zinc-500 font-medium">{completedSub}/{subTasks.length}</span>
                                         <div className="w-8 h-1 bg-zinc-800 rounded-full overflow-hidden">
                                             <div className="h-full bg-blue-500/80" style={{ width: `${progress}%` }}></div>
                                         </div>
-                                     </div>
-                                  )}
-                              </div>
+                                       </div>
+                                   )}
+                               </div>
+                               <p className="mt-2 text-xs text-zinc-500 line-clamp-2 break-words">
+                                 {getDescriptionPreviewText(item.description)}
+                               </p>
 
-                              {/* Expanded Details */}
-                              {isExpanded && (
+                               {/* Expanded Details */}
+                               {isExpanded && (
                                   <div className="mt-3 pt-3 border-t border-zinc-800/50 space-y-3 animate-in fade-in slide-in-from-top-1 duration-200">
                                       <div className="grid grid-cols-1 sm:grid-cols-3 gap-2">
                                           <div className="bg-zinc-950 border border-zinc-800 rounded p-2">
@@ -1000,17 +1139,21 @@ const TodoEditor: React.FC<EditorProps> = ({ initialContent, onSave, fileName, p
                                             className="mt-1 w-full bg-transparent text-xs text-zinc-200 focus:outline-none"
                                           />
                                       </div>
-                                      <div className="bg-zinc-950 border border-zinc-800 rounded p-2">
-                                          <label className="text-[10px] uppercase tracking-wide text-zinc-500">Tags</label>
-                                          <input
-                                            type="text"
-                                            value={(item.tags || []).join(', ')}
-                                            onChange={(e) => updateItemField(item.id, { tags: parseTagInput(e.target.value) })}
-                                            placeholder="bugfix, polish, ui"
-                                            className="mt-1 w-full bg-transparent text-xs text-zinc-200 focus:outline-none"
-                                          />
-                                          <p className="mt-1 text-[10px] text-zinc-500">Comma-separated, up to 8 tags.</p>
-                                      </div>
+                                       <div className="bg-zinc-950 border border-zinc-800 rounded p-2">
+                                           <label className="text-[10px] uppercase tracking-wide text-zinc-500">Tags</label>
+                                           <TagInputSection
+                                             value={(item.tags || []).join(', ')}
+                                             onChange={(value) => {
+                                               const parsedTags = parseTagInput(value);
+                                               updateItemField(item.id, { tags: parsedTags.length ? parsedTags : undefined });
+                                             }}
+                                             allTags={allTags}
+                                             placeholder="bugfix, polish, ui"
+                                             inputClassName="mt-1 w-full bg-transparent text-xs text-zinc-200 focus:outline-none"
+                                             helperTextClassName="mt-1 text-[10px] text-zinc-500"
+                                             helperText="Type comma-separated tags, pick an existing tag, or create a new one."
+                                           />
+                                       </div>
                                       {/* Description */}
                                       <div className="space-y-2">
                                           <div className="relative flex items-center justify-between gap-2">
@@ -1196,12 +1339,14 @@ const TodoEditor: React.FC<EditorProps> = ({ initialContent, onSave, fileName, p
               </div>
               <div>
                 <label className="block text-sm font-medium text-zinc-400 mb-1">Tags</label>
-                <input
-                  type="text"
+                <TagInputSection
                   value={newItemTags}
-                  onChange={(e) => setNewItemTags(e.target.value)}
-                  className="w-full bg-zinc-950 border border-zinc-800 rounded-lg p-2.5 text-white focus:ring-2 focus:ring-blue-600 focus:border-transparent outline-none transition-all"
+                  onChange={setNewItemTags}
+                  allTags={allTags}
                   placeholder="ui, polish, animation"
+                  inputClassName="w-full bg-zinc-950 border border-zinc-800 rounded-lg p-2.5 text-white focus:ring-2 focus:ring-blue-600 focus:border-transparent outline-none transition-all"
+                  helperTextClassName="mt-2 text-xs text-zinc-500"
+                  helperText="Select existing tags below or type comma-separated tags, up to 8 total."
                 />
               </div>
               <div>

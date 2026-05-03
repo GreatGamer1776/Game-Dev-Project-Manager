@@ -1036,14 +1036,14 @@ const App: React.FC = () => {
     }
   };
 
-  const updateFileContent = (content: any) => {
-    if (!activeProjectId || !activeFileId) return;
+  const updateFileContent = (fileId: string, content: any) => {
+    if (!activeProjectId || !fileId) return;
     const project = projectsRef.current.find(p => p.id === activeProjectId);
     if (project) {
         const updatedProject = {
             ...project,
             lastModified: Date.now(),
-            files: project.files.map(f => f.id === activeFileId ? { ...f, content } : f)
+            files: project.files.map(f => f.id === fileId ? { ...f, content } : f)
         };
         projectsRef.current = projectsRef.current.map(p => p.id === updatedProject.id ? updatedProject : p);
         updateProjectState(updatedProject);
@@ -1471,7 +1471,7 @@ const App: React.FC = () => {
                     key: activeFile.id,
                     fileName: activeFile.name,
                     initialContent: activeFile.content,
-                    onSave: updateFileContent,
+                    onSave: (content: any) => updateFileContent(activeFile.id, content),
                     assets: activeProject.assets || {},
                     onAddAsset: handleAddAsset,
                     onDeleteAsset: handleDeleteAsset,

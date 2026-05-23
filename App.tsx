@@ -2,20 +2,21 @@ import React, { useState, useEffect } from 'react';
 import { LayoutDashboard, FileText, Network, ArrowLeft, Plus, Folder, File, CheckSquare, Bug as BugIcon, Trash2, HardDrive, Download, Upload, Map as MapIcon, Table, PenTool, Image as ImageIcon, HelpCircle, ChevronRight, ChevronDown, FolderPlus, FilePlus, X, Copy as CopyIcon, Pencil, PanelLeftClose, PanelLeftOpen, BookOpen } from 'lucide-react';
 import JSZip from 'jszip';
 import Dashboard from './components/Dashboard';
-import FlowchartEditor from './components/FlowchartEditor';
-import DocEditor from './components/DocEditor';
-import TodoEditor from './components/TodoEditor';
-import KanbanBoard from './components/KanbanBoard';
-import RoadmapEditor from './components/RoadmapEditor';
-import DataGridEditor from './components/DataGridEditor';
-import WhiteboardEditor from './components/WhiteboardEditor';
-import AssetBrowser from './components/AssetBrowser';
 import CommandPalette from './components/CommandPalette';
 import HelpModal from './components/HelpModal';
 import GuideView, { GuideSectionId } from './components/GuideView';
 import { Project, ViewState, ProjectFile, FileType, EditorProps, ProjectFolder, TaskNavigationTarget } from './types';
 import { useProjectStore } from './stores/useProjectStore';
 import { getAssetExtensionFromMime, getAssetMimeType } from './services/assetUtils';
+
+const DocEditor = React.lazy(() => import('./components/DocEditor'));
+const FlowchartEditor = React.lazy(() => import('./components/FlowchartEditor'));
+const TodoEditor = React.lazy(() => import('./components/TodoEditor'));
+const KanbanBoard = React.lazy(() => import('./components/KanbanBoard'));
+const RoadmapEditor = React.lazy(() => import('./components/RoadmapEditor'));
+const DataGridEditor = React.lazy(() => import('./components/DataGridEditor'));
+const WhiteboardEditor = React.lazy(() => import('./components/WhiteboardEditor'));
+const AssetBrowser = React.lazy(() => import('./components/AssetBrowser'));
 
 // --- UTILS ---
 
@@ -154,15 +155,26 @@ const IDB = {
     }
 };
 
-const EDITOR_PLUGINS = [
+type EditorComponent = React.LazyExoticComponent<React.FC<EditorProps>>;
+
+type EditorPlugin = {
+  type: FileType;
+  label: string;
+  pluralLabel: string;
+  icon: React.ComponentType<{ className?: string }>;
+  component: EditorComponent;
+  createDefaultContent: (name: string) => any;
+};
+
+const EDITOR_PLUGINS: EditorPlugin[] = [
   { type: 'doc', label: 'Document', pluralLabel: 'Documents', icon: FileText, component: DocEditor, createDefaultContent: (name: string) => `# ${name}\n\nCreated on ${new Date().toLocaleDateString()}` },
-  { type: 'flowchart', label: 'Flowchart', pluralLabel: 'Flowcharts', icon: Network, component: FlowchartEditor as React.FC<EditorProps>, createDefaultContent: () => ({ nodes: [], edges: [] }) },
-  { type: 'todo', label: 'Task List', pluralLabel: 'Task Lists', icon: CheckSquare, component: TodoEditor as React.FC<EditorProps>, createDefaultContent: () => ({ items: [] }) },
-  { type: 'kanban', label: 'Bug Tracker', pluralLabel: 'Bug Trackers', icon: BugIcon, component: KanbanBoard as React.FC<EditorProps>, createDefaultContent: () => ({ tasks: [] }) },
-  { type: 'roadmap', label: 'Roadmap', pluralLabel: 'Roadmaps', icon: MapIcon, component: RoadmapEditor as React.FC<EditorProps>, createDefaultContent: () => ({ items: [] }) },
-  { type: 'grid', label: 'Data Grid', pluralLabel: 'Data Grids', icon: Table, component: DataGridEditor as React.FC<EditorProps>, createDefaultContent: () => ({ columns: [], rows: [] }) },
-  { type: 'whiteboard', label: 'Whiteboard', pluralLabel: 'Whiteboards', icon: PenTool, component: WhiteboardEditor as React.FC<EditorProps>, createDefaultContent: () => '' },
-  { type: 'asset-gallery', label: 'Asset Library', pluralLabel: 'Asset Libraries', icon: ImageIcon, component: AssetBrowser as React.FC<EditorProps>, createDefaultContent: () => ({}) }
+  { type: 'flowchart', label: 'Flowchart', pluralLabel: 'Flowcharts', icon: Network, component: FlowchartEditor, createDefaultContent: () => ({ nodes: [], edges: [] }) },
+  { type: 'todo', label: 'Task List', pluralLabel: 'Task Lists', icon: CheckSquare, component: TodoEditor, createDefaultContent: () => ({ items: [] }) },
+  { type: 'kanban', label: 'Bug Tracker', pluralLabel: 'Bug Trackers', icon: BugIcon, component: KanbanBoard, createDefaultContent: () => ({ tasks: [] }) },
+  { type: 'roadmap', label: 'Roadmap', pluralLabel: 'Roadmaps', icon: MapIcon, component: RoadmapEditor, createDefaultContent: () => ({ items: [] }) },
+  { type: 'grid', label: 'Data Grid', pluralLabel: 'Data Grids', icon: Table, component: DataGridEditor, createDefaultContent: () => ({ columns: [], rows: [] }) },
+  { type: 'whiteboard', label: 'Whiteboard', pluralLabel: 'Whiteboards', icon: PenTool, component: WhiteboardEditor, createDefaultContent: () => '' },
+  { type: 'asset-gallery', label: 'Asset Library', pluralLabel: 'Asset Libraries', icon: ImageIcon, component: AssetBrowser, createDefaultContent: () => ({}) }
 ];
 
 const ASSET_LIBRARY_TYPE: FileType = 'asset-gallery';
@@ -416,6 +428,15 @@ const MOCK_PROJECTS: Project[] = [{
     folders: [], 
     assets: {}
 }];
+
+const EditorLoadingFallback = ({ fileName }: { fileName: string }) => (
+  <div className="h-full flex items-center justify-center bg-zinc-950 p-6">
+    <div className="flex items-center gap-3 rounded-lg border border-zinc-800 bg-zinc-900 px-4 py-3 text-sm text-zinc-400 shadow-xl">
+      <File className="h-4 w-4 text-zinc-500" />
+      <span className="truncate">Loading {fileName}...</span>
+    </div>
+  </div>
+);
 
 const App: React.FC = () => {
   const projects = useProjectStore(state => state.projects);
@@ -1052,6 +1073,7 @@ const App: React.FC = () => {
 
   const activeProject = projects.find(p => p.id === activeProjectId);
   const activeFile = activeProject?.files.find(f => f.id === activeFileId);
+  const activeEditorPlugin = activeFile ? EDITOR_PLUGINS.find(p => p.type === activeFile.type) : null;
   const quickOpenFiles = activeProject
     ? activeProject.files
         .filter(f => f.type !== ASSET_LIBRARY_TYPE)
@@ -1466,8 +1488,9 @@ const App: React.FC = () => {
             />
             )
           ) : (
-            activeProject && activeFile ? (
-                React.createElement(EDITOR_PLUGINS.find(p => p.type === activeFile.type)!.component, {
+            activeProject && activeFile && activeEditorPlugin ? (
+                <React.Suspense fallback={<EditorLoadingFallback fileName={activeFile.name} />}>
+                  {React.createElement(activeEditorPlugin.component, {
                     key: activeFile.id,
                     fileName: activeFile.name,
                     initialContent: activeFile.content,
@@ -1481,7 +1504,8 @@ const App: React.FC = () => {
                     onOpenTask: handleOpenTaskFromLink,
                     taskNavigationTarget: taskNavigationTarget?.fileId === activeFile.id ? taskNavigationTarget : null,
                     onTaskNavigationHandled: () => setTaskNavigationTarget(null)
-                })
+                  })}
+                </React.Suspense>
             ) : (
               <div className="h-full flex items-center justify-center p-6">
                 <div className="w-full max-w-2xl bg-zinc-900 border border-zinc-800 rounded-xl p-6 shadow-xl">

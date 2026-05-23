@@ -40,6 +40,41 @@ const parseTaskHref = (href: string): { fileId: string; taskId: string } | null 
     return { fileId: match[1], taskId: match[2] };
 };
 
+const INLINE_TOKEN_PATTERN = /(`[^`\n]+`|\*\*[^*\n]+?\*\*|~~[^~\n]+?~~|<u>.*?<\/u>|<span style="color:\s*[^"]+">.*?<\/span>|\[[^\]\n]*?\]\([^)]+?\)|\*[^*\n]+?\*)/g;
+const BULLET_PATTERN = /^\s*-\s/;
+const ORDERED_LIST_PATTERN = /^\s*(\d+)\.\s/;
+const MEDIA_PATTERN = /^!\[(.*?)\]\((.*?)\)$/;
+const SAFE_COLOR_PATTERN = /^#[0-9a-fA-F]{3,8}$/;
+
+const escapeHtml = (value: string) =>
+    value.replace(/[&<>"']/g, char => {
+        switch (char) {
+            case '&': return '&amp;';
+            case '<': return '&lt;';
+            case '>': return '&gt;';
+            case '"': return '&quot;';
+            case "'": return '&#39;';
+            default: return char;
+        }
+    });
+
+const escapeAttribute = (value: string) => escapeHtml(value);
+
+const schedulePreviewRender = (callback: () => void) => {
+    const win = window as typeof window & {
+        requestIdleCallback?: (callback: () => void, options?: { timeout: number }) => number;
+        cancelIdleCallback?: (handle: number) => void;
+    };
+
+    if (win.requestIdleCallback && win.cancelIdleCallback) {
+        const handle = win.requestIdleCallback(callback, { timeout: 600 });
+        return () => win.cancelIdleCallback?.(handle);
+    }
+
+    const handle = window.setTimeout(callback, 0);
+    return () => window.clearTimeout(handle);
+};
+
 const parseDoc = (text: string, assets: Record<string, string>, fileLookup: Map<string, string>, taskLookup: Map<string, TaskLinkRecord>) => {
     
     const resolveSrc = (src: string) => {
@@ -52,137 +87,166 @@ const parseDoc = (text: string, assets: Record<string, string>, fileLookup: Map<
     };
 
     const lines = text.split('\n');
-    let html = '';
+    const html: string[] = [];
     let inCodeBlock = false;
 
     for (let i = 0; i < lines.length; i++) {
-        let line = lines[i];
+        const line = lines[i];
+        const trimmed = line.trim();
 
         // 1. Code Blocks
-        if (line.trim().startsWith('```')) {
+        if (trimmed.startsWith('```')) {
             inCodeBlock = !inCodeBlock;
-            html += inCodeBlock 
+            html.push(inCodeBlock
                 ? '<div class="bg-zinc-950 p-4 rounded-lg my-4 border border-zinc-800 font-mono text-sm text-zinc-300 overflow-x-auto"><pre>' 
-                : '</pre></div>';
+                : '</pre></div>');
             continue;
         }
         if (inCodeBlock) {
-            const escaped = line.replace(/&/g, "&amp;").replace(/</g, "&lt;").replace(/>/g, "&gt;");
-            html += `${escaped}\n`;
+            html.push(`${escapeHtml(line)}\n`);
             continue;
         }
 
         // 2. Headers
         if (line.startsWith('# ')) {
-            html += `<h1 class="text-3xl font-bold text-zinc-100 mb-4 pb-2 border-b border-zinc-800 mt-6">${parseInline(line.slice(2), assets, fileLookup, taskLookup)}</h1>`;
+            html.push(`<h1 class="text-3xl font-bold text-zinc-100 mb-4 pb-2 border-b border-zinc-800 mt-6">${parseInline(line.slice(2), assets, fileLookup, taskLookup)}</h1>`);
             continue;
         }
         if (line.startsWith('## ')) {
-            html += `<h2 class="text-2xl font-semibold text-zinc-100 mb-3 mt-8">${parseInline(line.slice(3), assets, fileLookup, taskLookup)}</h2>`;
+            html.push(`<h2 class="text-2xl font-semibold text-zinc-100 mb-3 mt-8">${parseInline(line.slice(3), assets, fileLookup, taskLookup)}</h2>`);
             continue;
         }
         if (line.startsWith('### ')) {
-            html += `<h3 class="text-xl font-medium text-zinc-200 mb-2 mt-6">${parseInline(line.slice(4), assets, fileLookup, taskLookup)}</h3>`;
+            html.push(`<h3 class="text-xl font-medium text-zinc-200 mb-2 mt-6">${parseInline(line.slice(4), assets, fileLookup, taskLookup)}</h3>`);
             continue;
         }
 
         // 3. Blockquotes
         if (line.startsWith('> ')) {
-            html += `<blockquote class="border-l-4 border-blue-500 pl-4 py-2 my-4 text-zinc-400 italic bg-zinc-800/30 rounded-r">${parseInline(line.slice(2), assets, fileLookup, taskLookup)}</blockquote>`;
+            html.push(`<blockquote class="border-l-4 border-blue-500 pl-4 py-2 my-4 text-zinc-400 italic bg-zinc-800/30 rounded-r">${parseInline(line.slice(2), assets, fileLookup, taskLookup)}</blockquote>`);
             continue;
         }
 
         // 4. Lists
-        if (line.match(/^\s*-\s/)) {
-            html += `<div class="flex gap-2 ml-4 mb-1 text-zinc-300"><span class="text-zinc-500">•</span><span>${parseInline(line.replace(/^\s*-\s/, ''), assets, fileLookup, taskLookup)}</span></div>`;
+        if (BULLET_PATTERN.test(line)) {
+            html.push(`<div class="flex gap-2 ml-4 mb-1 text-zinc-300"><span class="text-zinc-500">•</span><span>${parseInline(line.replace(BULLET_PATTERN, ''), assets, fileLookup, taskLookup)}</span></div>`);
             continue;
         }
-        if (line.match(/^\s*\d+\.\s/)) {
-            const num = line.match(/^\s*(\d+)\./)?.[1] || '1';
-            html += `<div class="flex gap-2 ml-4 mb-1 text-zinc-300"><span class="text-zinc-500 font-mono">${num}.</span><span>${parseInline(line.replace(/^\s*\d+\.\s/, ''), assets, fileLookup, taskLookup)}</span></div>`;
+        const orderedListMatch = line.match(ORDERED_LIST_PATTERN);
+        if (orderedListMatch) {
+            const num = orderedListMatch[1] || '1';
+            html.push(`<div class="flex gap-2 ml-4 mb-1 text-zinc-300"><span class="text-zinc-500 font-mono">${num}.</span><span>${parseInline(line.replace(ORDERED_LIST_PATTERN, ''), assets, fileLookup, taskLookup)}</span></div>`);
             continue;
         }
 
         // 5. Media
-        const mediaMatch = line.match(/^!\[(.*?)\]\((.*?)\)$/);
+        const mediaMatch = line.match(MEDIA_PATTERN);
         if (mediaMatch) {
             const [_, alt, src] = mediaMatch;
             const resolved = resolveSrc(src);
+            const safeAlt = escapeHtml(alt);
+            const safeSrc = escapeAttribute(resolved);
             
-            const isVideo = resolved.startsWith('data:video') || src.match(/\.(mp4|webm|mov)$/i);
-            const isAudio = resolved.startsWith('data:audio') || src.match(/\.(mp3|wav|ogg)$/i);
+            const isVideo = resolved.startsWith('data:video') || /\.(mp4|webm|mov)$/i.test(src);
+            const isAudio = resolved.startsWith('data:audio') || /\.(mp3|wav|ogg)$/i.test(src);
 
             if (isVideo) {
-                html += `<div class="my-6"><video controls src="${resolved}" class="max-w-full rounded-lg shadow-lg border border-zinc-800 bg-black max-h-[500px]"></video><div class="text-xs text-zinc-500 mt-2 text-center italic">${alt}</div></div>`;
+                html.push(`<div class="my-6"><video controls src="${safeSrc}" class="max-w-full rounded-lg shadow-lg border border-zinc-800 bg-black max-h-[500px]"></video><div class="text-xs text-zinc-500 mt-2 text-center italic">${safeAlt}</div></div>`);
             } else if (isAudio) {
-                html += `<div class="my-4 p-4 bg-zinc-800/50 rounded-lg border border-zinc-800 flex flex-col gap-2"><div class="text-xs text-zinc-400 flex items-center gap-2 font-mono uppercase"><span class="w-2 h-2 rounded-full bg-purple-500"></span> ${alt || 'Audio Track'}</div><audio controls src="${resolved}" class="w-full h-8"></audio></div>`;
+                html.push(`<div class="my-4 p-4 bg-zinc-800/50 rounded-lg border border-zinc-800 flex flex-col gap-2"><div class="text-xs text-zinc-400 flex items-center gap-2 font-mono uppercase"><span class="w-2 h-2 rounded-full bg-purple-500"></span> ${safeAlt || 'Audio Track'}</div><audio controls src="${safeSrc}" class="w-full h-8"></audio></div>`);
             } else {
-                html += `<div class="my-6"><img src="${resolved}" alt="${alt}" class="max-w-full rounded-lg shadow-lg border border-zinc-800" /><div class="text-xs text-zinc-500 mt-2 text-center italic">${alt}</div></div>`;
+                html.push(`<div class="my-6"><img src="${safeSrc}" alt="${safeAlt}" class="max-w-full rounded-lg shadow-lg border border-zinc-800" /><div class="text-xs text-zinc-500 mt-2 text-center italic">${safeAlt}</div></div>`);
             }
             continue;
         }
 
         // 6. Horizontal Rule
-        if (line.trim() === '---' || line.trim() === '***') {
-            html += `<hr class="border-zinc-800 my-8" />`;
+        if (trimmed === '---' || trimmed === '***') {
+            html.push('<hr class="border-zinc-800 my-8" />');
             continue;
         }
 
         // 7. Empty lines
-        if (line.trim() === '') {
-            html += `<div class="h-4"></div>`;
+        if (trimmed === '') {
+            html.push('<div class="h-4"></div>');
             continue;
         }
 
         // 8. Paragraphs
-        html += `<p class="mb-2 leading-relaxed text-zinc-300">${parseInline(line, assets, fileLookup, taskLookup)}</p>`;
+        html.push(`<p class="mb-2 leading-relaxed text-zinc-300">${parseInline(line, assets, fileLookup, taskLookup)}</p>`);
     }
-    return html;
+    return html.join('');
 };
 
 const parseInline = (text: string, assets: Record<string, string>, fileLookup: Map<string, string>, taskLookup: Map<string, TaskLinkRecord>) => {
-    let out = text;
+    const parts: string[] = [];
+    let lastIndex = 0;
+    INLINE_TOKEN_PATTERN.lastIndex = 0;
 
-    // Bold (**text**)
-    out = out.replace(/\*\*(.*?)\*\*/g, '<strong class="text-zinc-100 font-bold">$1</strong>');
-    
-    // Italic (*text*)
-    out = out.replace(/\*(.*?)\*/g, '<em class="text-zinc-200 italic">$1</em>');
-    
-    // Strikethrough (~~text~~)
-    out = out.replace(/~~(.*?)~~/g, '<s class="opacity-60 text-zinc-500 decoration-zinc-500">$1</s>');
-    
-    // Underline (<u>text</u>)
-    out = out.replace(/<u>(.*?)<\/u>/g, '<u class="decoration-blue-500 decoration-2 underline-offset-4">$1</u>');
-
-    // Color Spans
-    out = out.replace(/<span style="color: (.*?)">(.*?)<\/span>/g, '<span style="color: $1">$2</span>');
-
-    // Inline Code
-    out = out.replace(/`([^`]+)`/g, '<code class="bg-zinc-800 text-red-400 px-1.5 py-0.5 rounded text-sm font-mono border border-zinc-700/50">$1</code>');
-
-    // Links
-    out = out.replace(/\[(.*?)\]\((.*?)\)/g, (_, label: string, href: string) => {
-        if (href.startsWith('file://')) {
-            const fileId = href.replace('file://', '');
-            const linkedName = fileLookup.get(fileId);
-            const display = label || linkedName || 'Open file';
-            const existsClass = linkedName ? 'text-cyan-400 hover:text-cyan-300' : 'text-zinc-500 line-through';
-            return `<a href="${href}" data-file-id="${fileId}" class="${existsClass} hover:underline cursor-pointer transition-colors">${display}</a>`;
+    for (const match of text.matchAll(INLINE_TOKEN_PATTERN)) {
+        const token = match[0];
+        const index = match.index || 0;
+        if (index > lastIndex) {
+            parts.push(escapeHtml(text.slice(lastIndex, index)));
         }
-        if (href.startsWith('task://')) {
-            const taskTarget = parseTaskHref(href);
-            const linkedTask = taskTarget ? taskLookup.get(getTaskLookupKey(taskTarget.fileId, taskTarget.taskId)) : undefined;
-            const display = label || linkedTask?.taskName || 'Open task';
-            const existsClass = linkedTask ? 'text-emerald-400 hover:text-emerald-300' : 'text-zinc-500 line-through';
-            return taskTarget
-                ? `<a href="${href}" data-task-file-id="${taskTarget.fileId}" data-task-id="${taskTarget.taskId}" class="${existsClass} hover:underline cursor-pointer transition-colors">${display}</a>`
-                : `<span class="text-zinc-500 line-through">${display}</span>`;
-        }
-        return `<a href="${href}" target="_blank" rel="noopener noreferrer" class="text-blue-400 hover:text-blue-300 hover:underline cursor-pointer transition-colors">${label}</a>`;
-    });
 
-    return out;
+        if (token.startsWith('`') && token.endsWith('`')) {
+            parts.push(`<code class="bg-zinc-800 text-red-400 px-1.5 py-0.5 rounded text-sm font-mono border border-zinc-700/50">${escapeHtml(token.slice(1, -1))}</code>`);
+        } else if (token.startsWith('**') && token.endsWith('**')) {
+            parts.push(`<strong class="text-zinc-100 font-bold">${parseInline(token.slice(2, -2), assets, fileLookup, taskLookup)}</strong>`);
+        } else if (token.startsWith('*') && token.endsWith('*')) {
+            parts.push(`<em class="text-zinc-200 italic">${parseInline(token.slice(1, -1), assets, fileLookup, taskLookup)}</em>`);
+        } else if (token.startsWith('~~') && token.endsWith('~~')) {
+            parts.push(`<s class="opacity-60 text-zinc-500 decoration-zinc-500">${parseInline(token.slice(2, -2), assets, fileLookup, taskLookup)}</s>`);
+        } else if (token.startsWith('<u>') && token.endsWith('</u>')) {
+            parts.push(`<u class="decoration-blue-500 decoration-2 underline-offset-4">${parseInline(token.slice(3, -4), assets, fileLookup, taskLookup)}</u>`);
+        } else if (token.startsWith('<span style="color:')) {
+            const spanMatch = token.match(/^<span style="color:\s*([^"]+)">(.*)<\/span>$/);
+            const color = spanMatch?.[1]?.trim() || '';
+            const spanText = spanMatch?.[2] || '';
+            if (SAFE_COLOR_PATTERN.test(color)) {
+                parts.push(`<span style="color: ${color}">${parseInline(spanText, assets, fileLookup, taskLookup)}</span>`);
+            } else {
+                parts.push(escapeHtml(token));
+            }
+        } else if (token.startsWith('[')) {
+            const linkMatch = token.match(/^\[([^\]]*?)\]\(([^)]+?)\)$/);
+            if (!linkMatch) {
+                parts.push(escapeHtml(token));
+            } else {
+                const label = linkMatch[1];
+                const href = linkMatch[2];
+                const safeHref = escapeAttribute(href);
+                if (href.startsWith('file://')) {
+                    const fileId = href.replace('file://', '');
+                    const linkedName = fileLookup.get(fileId);
+                    const display = label || linkedName || 'Open file';
+                    const existsClass = linkedName ? 'text-cyan-400 hover:text-cyan-300' : 'text-zinc-500 line-through';
+                    parts.push(`<a href="${safeHref}" data-file-id="${escapeAttribute(fileId)}" class="${existsClass} hover:underline cursor-pointer transition-colors">${escapeHtml(display)}</a>`);
+                } else if (href.startsWith('task://')) {
+                    const taskTarget = parseTaskHref(href);
+                    const linkedTask = taskTarget ? taskLookup.get(getTaskLookupKey(taskTarget.fileId, taskTarget.taskId)) : undefined;
+                    const display = label || linkedTask?.taskName || 'Open task';
+                    const existsClass = linkedTask ? 'text-emerald-400 hover:text-emerald-300' : 'text-zinc-500 line-through';
+                    parts.push(taskTarget
+                        ? `<a href="${safeHref}" data-task-file-id="${escapeAttribute(taskTarget.fileId)}" data-task-id="${escapeAttribute(taskTarget.taskId)}" class="${existsClass} hover:underline cursor-pointer transition-colors">${escapeHtml(display)}</a>`
+                        : `<span class="text-zinc-500 line-through">${escapeHtml(display)}</span>`);
+                } else {
+                    parts.push(`<a href="${safeHref}" target="_blank" rel="noopener noreferrer" class="text-blue-400 hover:text-blue-300 hover:underline cursor-pointer transition-colors">${escapeHtml(label)}</a>`);
+                }
+            }
+        } else {
+            parts.push(escapeHtml(token));
+        }
+
+        lastIndex = index + token.length;
+    }
+
+    if (lastIndex < text.length) {
+        parts.push(escapeHtml(text.slice(lastIndex)));
+    }
+
+    return parts.join('');
 };
 
 
@@ -340,16 +404,22 @@ const DocEditor: React.FC<EditorProps> = ({ initialContent, onSave, fileName, as
     latestContentRef.current = content;
   }, [content]);
 
-  // OPTIMIZATION: Debounce the preview parsing and only run if viewMode requires it
+  // Debounce preview work and run it during browser idle time so typing stays responsive.
   useEffect(() => {
-      // If we are in Edit mode, do NOT parse HTML (saves resources)
       if (viewMode === 'edit') return;
 
+      let cancelPreviewRender: (() => void) | null = null;
+      const debounceMs = viewMode === 'preview' ? 80 : 250;
       const timer = setTimeout(() => {
-        setPreviewHtml(parseDoc(content, assets, fileLookup, taskLookup));
-      }, 500); // 500ms debounce to prevent lag while typing fast in split view
+        cancelPreviewRender = schedulePreviewRender(() => {
+          setPreviewHtml(parseDoc(content, assets, fileLookup, taskLookup));
+        });
+      }, debounceMs);
 
-      return () => clearTimeout(timer);
+      return () => {
+        clearTimeout(timer);
+        cancelPreviewRender?.();
+      };
   }, [content, assets, fileLookup, taskLookup, viewMode]);
 
   useEffect(() => {

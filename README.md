@@ -1,39 +1,67 @@
 # Game Dev Project Manager
 
-`Game Dev Project Manager` is a local-first planning workspace for software, web, and game projects. The app is branded in the UI as `DevArchitect` and combines documents, task tracking, roadmaps, flowcharts, whiteboards, data grids, and an asset library in a single browser-based workspace.
+`Game Dev Project Manager` is a local-first project planning workspace for software, web, and game projects. The in-app product name is `DevArchitect`.
 
-## What It Does
+The app keeps project documents, task planning, bug tracking, roadmaps, flowcharts, whiteboards, data grids, and project media in one browser-based workspace with no backend requirement.
 
-- Create and manage multiple projects from a dashboard
-- Organize project files inside nested folders
-- Edit typed project files with purpose-built editors:
-  - Documents
-  - Flowcharts
-  - Task Lists
-  - Bug Trackers
-  - Roadmaps
-  - Data Grids
-  - Whiteboards
-  - Asset Library
-- View app release notes in the in-app `What's New` guide section
-- Link files, tasks, and embedded assets from documents
-- Persist projects locally in the browser with IndexedDB
-- Export projects as `.zip` archives
-- Link a project to a local folder on disk with the File System Access API
+## Current Feature Set
+
+- Multi-project dashboard for creating, opening, updating, exporting, and deleting projects
+- Nested project folders with drag-and-drop file organization
+- Command palette for quickly opening files and creating common project artifacts
+- In-app guide, help modal, and release notes
+- Browser-local persistence with IndexedDB
+- Optional local folder linking through the File System Access API
+- ZIP export for portable project backups
+- Cross-file links from documents, task lists, and bug descriptions
+- Task links from documents into the task list editor
+- Shared asset library for images, videos, and audio used by documents and whiteboards
+
+## Editor Types
+
+| Type | Purpose | Notes |
+| --- | --- | --- |
+| Document | Markdown-style project docs, GDDs, specs, notes | Supports headings, lists, code, blockquotes, media embeds, file links, and task links |
+| Flowchart | Node-and-edge diagrams | Built on React Flow |
+| Task List | Todo and production task tracking | Single-instance project file |
+| Bug Tracker | Kanban-style bug tracking | Single-instance project file |
+| Roadmap | Phase and milestone planning | Single-instance project file |
+| Data Grid | Lightweight tabular project data | Supports CSV-style import/export from the editor |
+| Whiteboard | Freeform visual planning | Supports media elements and image export |
+| Asset Library | Project media repository | Single-instance project file backed by project assets |
+
+## Performance Model
+
+- Editor components are lazy-loaded with `React.lazy`, so the initial app bundle does not include every editor up front.
+- The document preview renderer is custom and optimized for large markdown files:
+  - preview rendering is skipped in edit-only mode
+  - preview updates are debounced
+  - parsing is scheduled during browser idle time when available
+  - block rendering uses chunked string assembly
+  - inline markdown is parsed in a single token pass
+- Tailwind scans only application source paths, avoiding `node_modules` during development and production builds.
 
 ## Storage Model
 
-The app currently supports two persistence modes:
+The app supports two persistence modes.
 
-### 1. Browser-local storage
+### Browser-local storage
 
-Projects created inside the app are saved to IndexedDB. This is the default experience and works without any backend.
+Projects created inside the app are saved to IndexedDB. This is the default mode and works without a server.
 
-### 2. Local folder linking
+IndexedDB stores:
 
-Projects can be opened from a folder on disk using `Import Local Folder`, or an existing browser-stored project can be linked to a folder from the dashboard. When a valid folder is linked, edits are written back to disk automatically.
+- project records
+- remembered File System Access handles
+- app session state such as the active project, active file, and sidebar state
 
-The expected folder layout is:
+### Local folder linking
+
+Projects can be opened from a folder on disk with `Import Local Folder`, or an existing browser-stored project can be linked to a folder from the dashboard.
+
+When a folder is linked, the app writes project changes back to disk automatically.
+
+Expected folder layout:
 
 ```text
 your-project-folder/
@@ -44,26 +72,27 @@ your-project-folder/
 
 Notes:
 
-- `project.json` stores the project structure and file contents
-- Binary assets are written into the `assets/` folder
-- Local folder linking requires a Chromium-based browser with File System Access API support
-- The app remembers previously granted folder handles in IndexedDB
+- `project.json` stores project metadata, folders, file records, and file contents.
+- Binary assets are written into `assets/`.
+- Local folder linking requires a Chromium-based desktop browser with File System Access API support.
+- The app remembers granted folder handles in IndexedDB.
 
 ## Tech Stack
 
 - React 18
 - TypeScript
-- Vite
+- Vite 5
 - Zustand
 - React Flow
 - JSZip
 - Tailwind CSS
+- Lucide React icons
 
 ## Getting Started
 
 ### Prerequisites
 
-- Node.js 18+ recommended
+- Node.js 18+
 - npm
 
 ### Install
@@ -93,30 +122,29 @@ npm run preview
 ## Project Structure
 
 ```text
-App.tsx                  Main app shell, routing, persistence, and disk I/O
-components/              Editors and UI surfaces
+App.tsx                  App shell, lazy editor routing, persistence, and disk I/O
+components/              Editors and reusable UI surfaces
 hooks/                   Shared hooks such as undo/redo
-services/                Utility helpers
-stores/                  Zustand state store
-types.ts                 Shared TypeScript types
+services/                Utility helpers for assets, app changelog, and integrations
+stores/                  Zustand project/session store
+types.ts                 Shared TypeScript models
+tailwind.config.js       Tailwind source scanning and theme config
+vite.config.ts           Vite configuration
 ```
 
-## Editor Notes
+## Validation
 
-- Documents support Markdown-style content plus in-app linking syntax
-- Whiteboards export as images from the editor UI
-- Task Lists, Bug Trackers, Roadmaps, and Asset Libraries are treated as single-instance project files
-- Assets are stored as data URLs in memory/browser storage and are materialized as files when exporting or writing to disk
+The current codebase does not include an automated test suite yet. Use these checks before shipping changes:
+
+```bash
+npx tsc --noEmit
+npm run build
+```
 
 ## Known Constraints
 
-- There is currently no backend or cloud sync
-- ZIP export is supported, but this codebase does not currently include a ZIP import flow
-- Local folder import expects an existing `project.json`
-- Clearing browser storage will remove projects that only exist in IndexedDB
-
-## Development Notes
-
-- The package name is currently `dev-architect`
-- The app uses `React.StrictMode`
-- There is no automated test suite configured yet
+- There is no backend or cloud sync.
+- ZIP export is supported, but ZIP import is not currently implemented.
+- Local folder import expects an existing `project.json`.
+- Projects stored only in IndexedDB are removed if browser storage is cleared.
+- Large embedded media assets increase project size because assets are stored as data URLs in browser storage.

@@ -1,8 +1,8 @@
 import React from 'react';
-import { Sun, Moon, Monitor } from 'lucide-react';
+import { Sun, Moon, Monitor, Check } from 'lucide-react';
 import { Modal, Button, cn } from './ui';
 import { useSettingsStore } from '../stores/useSettingsStore';
-import { useThemeStore, ThemePreference } from '../stores/useThemeStore';
+import { useThemeStore, ThemePreference, COLOR_SCHEMES } from '../stores/useThemeStore';
 
 const THEME_OPTIONS: {
   value: ThemePreference;
@@ -63,6 +63,40 @@ const ThemeChooser: React.FC = () => {
   );
 };
 
+const SchemeChooser: React.FC = () => {
+  const scheme = useThemeStore((s) => s.scheme);
+  const setScheme = useThemeStore((s) => s.setScheme);
+
+  return (
+    <div className="grid grid-cols-4 gap-2 sm:grid-cols-8">
+      {COLOR_SCHEMES.map(({ id, label, swatch }) => {
+        const active = scheme === id;
+        return (
+          <button
+            key={id}
+            type="button"
+            onClick={() => setScheme(id)}
+            aria-pressed={active}
+            title={label}
+            className={cn(
+              'group flex flex-col items-center gap-1.5 rounded-lg border p-2 transition-all',
+              active ? 'border-accent bg-accent/10' : 'border-border hover:border-border-strong hover:bg-surface-hover'
+            )}
+          >
+            <span
+              className="flex h-8 w-8 items-center justify-center rounded-full shadow-soft ring-1 ring-black/10"
+              style={{ backgroundImage: swatch }}
+            >
+              {active && <Check className="h-4 w-4 text-white drop-shadow" />}
+            </span>
+            <span className={cn('text-[11px] font-medium', active ? 'text-content' : 'text-muted')}>{label}</span>
+          </button>
+        );
+      })}
+    </div>
+  );
+};
+
 /**
  * Program-wide settings dialog. Opened from anywhere via useSettingsStore.
  * Add new program-wide settings as additional <Section> blocks.
@@ -81,8 +115,12 @@ export const SettingsModal: React.FC = () => {
       footer={<Button variant="secondary" onClick={closeSettings}>Done</Button>}
     >
       <div className="space-y-6 py-1">
-        <Section title="Appearance" description="Choose how DevArchitect looks.">
+        <Section title="Theme" description="Choose how DevArchitect looks.">
           <ThemeChooser />
+        </Section>
+
+        <Section title="Accent color" description="Pick the highlight color used across the app.">
+          <SchemeChooser />
         </Section>
       </div>
     </Modal>

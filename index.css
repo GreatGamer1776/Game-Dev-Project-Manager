@@ -24,11 +24,11 @@
     --color-content: 24 24 27;          /* zinc-900 */
     --color-muted: 82 82 91;            /* zinc-600 */
     --color-faint: 161 161 170;         /* zinc-400 */
-    /* Accent (indigo -> violet) */
-    --color-accent: 99 102 241;         /* indigo-500 */
-    --color-accent-grad: 139 92 246;    /* violet-500 */
-    --color-accent-hover: 79 70 229;    /* indigo-600 */
-    --color-accent-muted: 224 231 255;  /* indigo-100 */
+    /* Accent — default (Azure). Overridden per color scheme below. */
+    --color-accent: 37 99 235;          /* blue-600 */
+    --color-accent-grad: 14 165 233;    /* sky-500 */
+    --color-accent-hover: 29 78 216;    /* blue-700 */
+    --color-accent-muted: 219 234 254;  /* blue-100 */
     --color-accent-content: 255 255 255;/* white */
     /* Status */
     --color-success: 22 163 74;         /* green-600 */
@@ -53,11 +53,11 @@
     --color-content: 244 244 245;       /* zinc-100 */
     --color-muted: 161 161 170;         /* zinc-400 */
     --color-faint: 113 113 122;         /* zinc-500 */
-    /* Accent (indigo -> violet, slightly brighter on dark) */
-    --color-accent: 129 140 248;        /* indigo-400 */
-    --color-accent-grad: 167 139 250;   /* violet-400 */
-    --color-accent-hover: 99 102 241;   /* indigo-500 */
-    --color-accent-muted: 49 46 129;    /* indigo-950-ish */
+    /* Accent — default (Azure, brighter on dark). Overridden per scheme below. */
+    --color-accent: 96 165 250;         /* blue-400 */
+    --color-accent-grad: 56 189 248;    /* sky-400 */
+    --color-accent-hover: 59 130 246;   /* blue-500 */
+    --color-accent-muted: 30 58 138;    /* blue-900 */
     --color-accent-content: 9 9 11;     /* near-black for contrast on bright accent */
     /* Status */
     --color-success: 52 211 153;        /* emerald-400 */
@@ -66,6 +66,94 @@
     --color-info: 96 165 250;           /* blue-400 */
 
     color-scheme: dark;
+  }
+
+  /*
+   * Color schemes
+   * -------------
+   * Each scheme overrides only the accent ramp. `[data-scheme]` blocks hold
+   * light values; `.dark[data-scheme]` hold the brighter dark-mode values.
+   * The attribute is set on <html> by useThemeStore / the init script.
+   */
+
+  /* Azure (default) */
+  [data-scheme="blue"] {
+    --color-accent: 37 99 235; --color-accent-grad: 14 165 233;
+    --color-accent-hover: 29 78 216; --color-accent-muted: 219 234 254; --color-accent-content: 255 255 255;
+  }
+  .dark[data-scheme="blue"] {
+    --color-accent: 96 165 250; --color-accent-grad: 56 189 248;
+    --color-accent-hover: 59 130 246; --color-accent-muted: 30 58 138; --color-accent-content: 9 9 11;
+  }
+
+  /* Cyan */
+  [data-scheme="cyan"] {
+    --color-accent: 8 145 178; --color-accent-grad: 13 148 136;
+    --color-accent-hover: 14 116 144; --color-accent-muted: 207 250 254; --color-accent-content: 255 255 255;
+  }
+  .dark[data-scheme="cyan"] {
+    --color-accent: 34 211 238; --color-accent-grad: 45 212 191;
+    --color-accent-hover: 6 182 212; --color-accent-muted: 8 51 68; --color-accent-content: 9 9 11;
+  }
+
+  /* Teal */
+  [data-scheme="teal"] {
+    --color-accent: 13 148 136; --color-accent-grad: 5 150 105;
+    --color-accent-hover: 15 118 110; --color-accent-muted: 204 251 241; --color-accent-content: 255 255 255;
+  }
+  .dark[data-scheme="teal"] {
+    --color-accent: 45 212 191; --color-accent-grad: 52 211 153;
+    --color-accent-hover: 20 184 166; --color-accent-muted: 19 78 74; --color-accent-content: 9 9 11;
+  }
+
+  /* Emerald */
+  [data-scheme="emerald"] {
+    --color-accent: 5 150 105; --color-accent-grad: 22 163 74;
+    --color-accent-hover: 4 120 87; --color-accent-muted: 209 250 229; --color-accent-content: 255 255 255;
+  }
+  .dark[data-scheme="emerald"] {
+    --color-accent: 52 211 153; --color-accent-grad: 74 222 128;
+    --color-accent-hover: 16 185 129; --color-accent-muted: 6 78 59; --color-accent-content: 9 9 11;
+  }
+
+  /* Violet */
+  [data-scheme="violet"] {
+    --color-accent: 124 58 237; --color-accent-grad: 217 70 239;
+    --color-accent-hover: 109 40 217; --color-accent-muted: 237 233 254; --color-accent-content: 255 255 255;
+  }
+  .dark[data-scheme="violet"] {
+    --color-accent: 167 139 250; --color-accent-grad: 232 121 249;
+    --color-accent-hover: 139 92 246; --color-accent-muted: 76 29 149; --color-accent-content: 9 9 11;
+  }
+
+  /* Indigo */
+  [data-scheme="indigo"] {
+    --color-accent: 79 70 229; --color-accent-grad: 139 92 246;
+    --color-accent-hover: 67 56 202; --color-accent-muted: 224 231 255; --color-accent-content: 255 255 255;
+  }
+  .dark[data-scheme="indigo"] {
+    --color-accent: 129 140 248; --color-accent-grad: 167 139 250;
+    --color-accent-hover: 99 102 241; --color-accent-muted: 49 46 129; --color-accent-content: 9 9 11;
+  }
+
+  /* Rose */
+  [data-scheme="rose"] {
+    --color-accent: 225 29 72; --color-accent-grad: 219 39 119;
+    --color-accent-hover: 190 18 60; --color-accent-muted: 255 228 230; --color-accent-content: 255 255 255;
+  }
+  .dark[data-scheme="rose"] {
+    --color-accent: 251 113 133; --color-accent-grad: 244 114 182;
+    --color-accent-hover: 244 63 94; --color-accent-muted: 136 19 55; --color-accent-content: 9 9 11;
+  }
+
+  /* Amber */
+  [data-scheme="amber"] {
+    --color-accent: 217 119 6; --color-accent-grad: 234 88 12;
+    --color-accent-hover: 180 83 9; --color-accent-muted: 254 243 199; --color-accent-content: 255 255 255;
+  }
+  .dark[data-scheme="amber"] {
+    --color-accent: 251 191 36; --color-accent-grad: 251 146 60;
+    --color-accent-hover: 245 158 11; --color-accent-muted: 120 53 15; --color-accent-content: 9 9 11;
   }
 
   body {

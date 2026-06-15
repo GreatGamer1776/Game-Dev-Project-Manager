@@ -14,8 +14,11 @@
           var dark = stored ? stored === 'dark' : true; // default to dark
           if (stored === 'system') dark = prefersDark;
           document.documentElement.classList.toggle('dark', dark);
+          var scheme = localStorage.getItem('devarchitect-scheme') || 'blue';
+          document.documentElement.setAttribute('data-scheme', scheme);
         } catch (e) {
           document.documentElement.classList.add('dark');
+          document.documentElement.setAttribute('data-scheme', 'blue');
         }
       })();
     </script>

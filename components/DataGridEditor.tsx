@@ -525,27 +525,27 @@ const DataGridEditor: React.FC<EditorProps> = ({ initialContent, onSave, fileNam
   };
 
   return (
-    <div className="h-full flex flex-col bg-zinc-900">
-      <div className="border-b border-zinc-800 bg-zinc-900/60 backdrop-blur-sm px-6 py-3 space-y-3 shrink-0">
+    <div className="h-full flex flex-col bg-surface">
+      <div className="border-b border-border bg-surface/60 backdrop-blur-sm px-6 py-3 space-y-3 shrink-0">
         <div className="flex items-center justify-between gap-4">
-          <h3 className="text-zinc-200 font-medium flex items-center gap-2">
+          <h3 className="text-content font-medium flex items-center gap-2">
             <Columns className="w-4 h-4 text-emerald-400" />
             {fileName}
           </h3>
           <div className="flex items-center gap-2">
             <div className="flex items-center gap-0.5 mr-1">
-              <button onClick={() => { const prev = undoRedo.undo(); if (prev !== undefined) { setColumns(prev.columns); setRows(prev.rows); } }} disabled={!undoRedo.canUndo} className="p-1.5 rounded text-zinc-500 hover:text-white hover:bg-zinc-800 disabled:opacity-30 disabled:pointer-events-none transition-colors" title="Undo (Ctrl+Z)"><Undo2 className="w-4 h-4" /></button>
-              <button onClick={() => { const next = undoRedo.redo(); if (next !== undefined) { setColumns(next.columns); setRows(next.rows); } }} disabled={!undoRedo.canRedo} className="p-1.5 rounded text-zinc-500 hover:text-white hover:bg-zinc-800 disabled:opacity-30 disabled:pointer-events-none transition-colors" title="Redo (Ctrl+Y)"><Redo2 className="w-4 h-4" /></button>
+              <button onClick={() => { const prev = undoRedo.undo(); if (prev !== undefined) { setColumns(prev.columns); setRows(prev.rows); } }} disabled={!undoRedo.canUndo} className="p-1.5 rounded text-faint hover:text-content hover:bg-surface-hover disabled:opacity-30 disabled:pointer-events-none transition-colors" title="Undo (Ctrl+Z)"><Undo2 className="w-4 h-4" /></button>
+              <button onClick={() => { const next = undoRedo.redo(); if (next !== undefined) { setColumns(next.columns); setRows(next.rows); } }} disabled={!undoRedo.canRedo} className="p-1.5 rounded text-faint hover:text-content hover:bg-surface-hover disabled:opacity-30 disabled:pointer-events-none transition-colors" title="Redo (Ctrl+Y)"><Redo2 className="w-4 h-4" /></button>
             </div>
             <div className="text-xs">
               {saveStatus === 'saving' && (
-                <span className="text-zinc-400 flex items-center gap-1">
+                <span className="text-muted flex items-center gap-1">
                   <Loader2 className="w-3 h-3 animate-spin" />
                   Saving...
                 </span>
               )}
               {saveStatus === 'saved' && (
-                <span className="text-zinc-500 flex items-center gap-1 opacity-70">
+                <span className="text-faint flex items-center gap-1 opacity-70">
                   <Check className="w-3 h-3" />
                   Saved
                 </span>
@@ -557,16 +557,16 @@ const DataGridEditor: React.FC<EditorProps> = ({ initialContent, onSave, fileNam
                 </span>
               )}
             </div>
-            <button onClick={importCsv} className="p-2 text-zinc-400 hover:text-white hover:bg-zinc-800 rounded" title="Import CSV">
+            <button onClick={importCsv} className="p-2 text-muted hover:text-content hover:bg-surface-hover rounded" title="Import CSV">
               <Upload className="w-4 h-4" />
             </button>
-            <button onClick={exportCsv} className="p-2 text-zinc-400 hover:text-white hover:bg-zinc-800 rounded" title="Export CSV">
+            <button onClick={exportCsv} className="p-2 text-muted hover:text-content hover:bg-surface-hover rounded" title="Export CSV">
               <Download className="w-4 h-4" />
             </button>
             <button
               onClick={handleManualSave}
               className={`flex items-center gap-2 px-4 py-2 rounded-md text-sm font-medium transition-colors ${
-                saveStatus === 'unsaved' ? 'bg-emerald-600 hover:bg-emerald-700 text-white' : 'bg-zinc-700 hover:bg-zinc-600 text-zinc-200'
+                saveStatus === 'unsaved' ? 'bg-emerald-600 hover:bg-emerald-700 text-content' : 'bg-surface-raised hover:bg-surface-hover text-content'
               }`}
             >
               <Save className="w-4 h-4" />
@@ -577,17 +577,17 @@ const DataGridEditor: React.FC<EditorProps> = ({ initialContent, onSave, fileNam
 
         <div className="flex flex-wrap items-center gap-3">
           <div className="relative w-72 max-w-full">
-            <Search className="w-4 h-4 text-zinc-500 absolute left-3 top-1/2 -translate-y-1/2" />
+            <Search className="w-4 h-4 text-faint absolute left-3 top-1/2 -translate-y-1/2" />
             <input
               type="text"
               value={searchQuery}
               onChange={(e) => setSearchQuery(e.target.value)}
               placeholder="Search across all columns..."
-              className="w-full bg-zinc-950 border border-zinc-800 rounded-md py-2 pl-9 pr-3 text-sm text-zinc-200 focus:outline-none focus:border-zinc-600"
+              className="w-full bg-bg border border-border rounded-md py-2 pl-9 pr-3 text-sm text-content focus:outline-none focus:border-border-strong"
             />
           </div>
 
-          <button onClick={addRow} className="flex items-center gap-2 px-3 py-2 rounded-md bg-blue-600 hover:bg-blue-700 text-white text-sm font-medium">
+          <button onClick={addRow} className="flex items-center gap-2 px-3 py-2 rounded-md bg-accent hover:bg-accent-hover text-accent-content text-sm font-medium">
             <Plus className="w-4 h-4" />
             Add Row
           </button>
@@ -595,36 +595,36 @@ const DataGridEditor: React.FC<EditorProps> = ({ initialContent, onSave, fileNam
           <button
             onClick={deleteSelectedRows}
             disabled={selectedRowIds.size === 0}
-            className="flex items-center gap-2 px-3 py-2 rounded-md bg-zinc-800 hover:bg-zinc-700 disabled:opacity-50 disabled:cursor-not-allowed text-zinc-200 text-sm font-medium"
+            className="flex items-center gap-2 px-3 py-2 rounded-md bg-surface-raised hover:bg-surface-hover disabled:opacity-50 disabled:cursor-not-allowed text-content text-sm font-medium"
           >
             <Trash2 className="w-4 h-4" />
             Delete Selected
           </button>
 
-          <div className="h-6 w-px bg-zinc-800" />
+          <div className="h-6 w-px bg-surface-raised" />
 
           <input
             type="text"
             value={newColumnName}
             onChange={(e) => setNewColumnName(e.target.value)}
             placeholder="New column name"
-            className="bg-zinc-950 border border-zinc-800 rounded-md px-3 py-2 text-sm text-zinc-200 focus:outline-none focus:border-zinc-600 w-44"
+            className="bg-bg border border-border rounded-md px-3 py-2 text-sm text-content focus:outline-none focus:border-border-strong w-44"
           />
           <select
             value={newColumnType}
             onChange={(e) => setNewColumnType(e.target.value as GridColumn['type'])}
-            className="bg-zinc-950 border border-zinc-800 rounded-md px-3 py-2 text-sm text-zinc-200 focus:outline-none focus:border-zinc-600"
+            className="bg-bg border border-border rounded-md px-3 py-2 text-sm text-content focus:outline-none focus:border-border-strong"
           >
             <option value="text">Text</option>
             <option value="number">Number</option>
             <option value="boolean">Boolean</option>
           </select>
-          <button onClick={addColumn} className="flex items-center gap-2 px-3 py-2 rounded-md bg-zinc-800 hover:bg-zinc-700 text-zinc-200 text-sm font-medium">
+          <button onClick={addColumn} className="flex items-center gap-2 px-3 py-2 rounded-md bg-surface-raised hover:bg-surface-hover text-content text-sm font-medium">
             <Plus className="w-4 h-4" />
             Add Column
           </button>
 
-          <div className="ml-auto text-xs text-zinc-500">
+          <div className="ml-auto text-xs text-faint">
             {rows.length} rows | {columns.length} columns | {displayedRows.length} shown
           </div>
         </div>
@@ -636,9 +636,9 @@ const DataGridEditor: React.FC<EditorProps> = ({ initialContent, onSave, fileNam
         className="flex-1 overflow-auto custom-scrollbar p-6"
       >
         <div className="min-w-full inline-block align-middle">
-          <div className="border border-zinc-800 rounded-lg overflow-hidden bg-zinc-950">
+          <div className="border border-border rounded-lg overflow-hidden bg-bg">
             <table className="min-w-full">
-              <thead className="sticky top-0 z-10 bg-zinc-900 border-b border-zinc-800">
+              <thead className="sticky top-0 z-10 bg-surface border-b border-border">
                 <tr>
                   <th className="w-10 px-2 py-2 text-left">
                     <button
@@ -646,35 +646,35 @@ const DataGridEditor: React.FC<EditorProps> = ({ initialContent, onSave, fileNam
                       role="checkbox"
                       aria-checked={allVisibleSelected}
                       onClick={toggleSelectAllVisible}
-                      className={`inline-flex h-5 w-5 items-center justify-center rounded border transition-all focus:outline-none focus:ring-2 focus:ring-blue-500/70 focus:ring-offset-1 focus:ring-offset-zinc-900 ${
+                      className={`inline-flex h-5 w-5 items-center justify-center rounded border transition-all focus:outline-none focus:ring-2 focus:ring-accent/70 focus:ring-offset-1 focus:ring-offset-surface ${
                         allVisibleSelected
-                          ? 'border-blue-500 bg-blue-500 text-white shadow-[0_0_0_1px_rgba(59,130,246,0.25)]'
-                          : 'border-zinc-500 bg-zinc-900 text-transparent hover:border-zinc-300 hover:bg-zinc-800'
+                          ? 'border-blue-500 bg-blue-500 text-content shadow-[0_0_0_1px_rgba(59,130,246,0.25)]'
+                          : 'border-border-strong bg-surface text-transparent hover:border-content hover:bg-surface-hover'
                       }`}
                       aria-label="Select all visible rows"
                     >
                       <Check className="h-3.5 w-3.5" />
                     </button>
                   </th>
-                  <th className="w-12 px-2 py-2 text-left text-xs font-semibold uppercase tracking-wide text-zinc-500">#</th>
+                  <th className="w-12 px-2 py-2 text-left text-xs font-semibold uppercase tracking-wide text-faint">#</th>
                   {columns.map((column) => (
-                    <th key={column.id} className="min-w-[220px] px-2 py-2 text-left align-top border-l border-zinc-800">
+                    <th key={column.id} className="min-w-[220px] px-2 py-2 text-left align-top border-l border-border">
                       <div className="flex items-center gap-1">
                         <input
                           value={column.name}
                           onChange={(e) => updateColumnName(column.id, e.target.value)}
-                          className="w-full bg-transparent text-sm font-semibold text-zinc-200 focus:outline-none"
+                          className="w-full bg-transparent text-sm font-semibold text-content focus:outline-none"
                         />
                         <button
                           onClick={() => toggleSort(column.id)}
-                          className="p-1 text-zinc-500 hover:text-zinc-200 hover:bg-zinc-800 rounded"
+                          className="p-1 text-faint hover:text-content hover:bg-surface-hover rounded"
                           title="Sort"
                         >
                           {renderSortIcon(column.id)}
                         </button>
                         <button
                           onClick={() => deleteColumn(column.id)}
-                          className="p-1 text-zinc-600 hover:text-red-400 hover:bg-zinc-800 rounded"
+                          className="p-1 text-faint hover:text-red-400 hover:bg-surface-hover rounded"
                           title="Delete column"
                         >
                           <Trash2 className="h-3.5 w-3.5" />
@@ -683,7 +683,7 @@ const DataGridEditor: React.FC<EditorProps> = ({ initialContent, onSave, fileNam
                       <select
                         value={column.type}
                         onChange={(e) => updateColumnType(column.id, e.target.value as GridColumn['type'])}
-                        className="mt-1 w-full bg-zinc-950 border border-zinc-800 rounded px-2 py-1 text-[11px] text-zinc-300 focus:outline-none focus:border-zinc-600"
+                        className="mt-1 w-full bg-bg border border-border rounded px-2 py-1 text-[11px] text-content focus:outline-none focus:border-border-strong"
                       >
                         <option value="text">Text</option>
                         <option value="number">Number</option>
@@ -691,7 +691,7 @@ const DataGridEditor: React.FC<EditorProps> = ({ initialContent, onSave, fileNam
                       </select>
                     </th>
                   ))}
-                  <th className="w-10 px-2 py-2 border-l border-zinc-800" />
+                  <th className="w-10 px-2 py-2 border-l border-border" />
                 </tr>
               </thead>
 
@@ -705,35 +705,35 @@ const DataGridEditor: React.FC<EditorProps> = ({ initialContent, onSave, fileNam
                 {visibleRows.map((row, idx) => {
                   const isSelected = selectedRowIds.has(row.id);
                   return (
-                    <tr key={row.id} className={`border-b border-zinc-900 hover:bg-zinc-900/60 ${isSelected ? 'bg-blue-500/10' : 'bg-zinc-950'}`}>
+                    <tr key={row.id} className={`border-b border-border hover:bg-surface-hover/60 ${isSelected ? 'bg-blue-500/10' : 'bg-bg'}`}>
                       <td className="px-2 py-2 align-middle" style={{ height: ROW_HEIGHT }}>
                         <button
                           type="button"
                           role="checkbox"
                           aria-checked={isSelected}
                           onClick={() => toggleRowSelection(row.id)}
-                          className={`inline-flex h-5 w-5 items-center justify-center rounded border transition-all focus:outline-none focus:ring-2 focus:ring-blue-500/70 focus:ring-offset-1 focus:ring-offset-zinc-900 ${
+                          className={`inline-flex h-5 w-5 items-center justify-center rounded border transition-all focus:outline-none focus:ring-2 focus:ring-accent/70 focus:ring-offset-1 focus:ring-offset-surface ${
                             isSelected
-                              ? 'border-blue-500 bg-blue-500 text-white shadow-[0_0_0_1px_rgba(59,130,246,0.25)]'
-                              : 'border-zinc-500 bg-zinc-900 text-transparent hover:border-zinc-300 hover:bg-zinc-800'
+                              ? 'border-blue-500 bg-blue-500 text-content shadow-[0_0_0_1px_rgba(59,130,246,0.25)]'
+                              : 'border-border-strong bg-surface text-transparent hover:border-content hover:bg-surface-hover'
                           }`}
                           aria-label={`Select row ${startIndex + idx + 1}`}
                         >
                           <Check className="h-3.5 w-3.5" />
                         </button>
                       </td>
-                      <td className="px-2 py-2 text-xs text-zinc-500 align-middle" style={{ height: ROW_HEIGHT }}>
+                      <td className="px-2 py-2 text-xs text-faint align-middle" style={{ height: ROW_HEIGHT }}>
                         {startIndex + idx + 1}
                       </td>
                       {columns.map((column) => (
-                        <td key={column.id} className="px-2 py-2 align-middle border-l border-zinc-900" style={{ height: ROW_HEIGHT }}>
+                        <td key={column.id} className="px-2 py-2 align-middle border-l border-border" style={{ height: ROW_HEIGHT }}>
                           {column.type === 'boolean' ? (
                             <button
                               onClick={() => updateCell(row.id, column, !toBoolean(row[column.id]))}
                               className={`w-full text-left px-2 py-1.5 rounded border text-xs transition-colors ${
                                 toBoolean(row[column.id])
                                   ? 'bg-emerald-600/20 border-emerald-500/40 text-emerald-300'
-                                  : 'bg-zinc-900 border-zinc-700 text-zinc-400 hover:text-zinc-200'
+                                  : 'bg-surface border-border-strong text-muted hover:text-content'
                               }`}
                             >
                               {toBoolean(row[column.id]) ? 'True' : 'False'}
@@ -743,15 +743,15 @@ const DataGridEditor: React.FC<EditorProps> = ({ initialContent, onSave, fileNam
                               type={column.type === 'number' ? 'number' : 'text'}
                               value={column.type === 'number' ? toNumber(row[column.id]) : String(row[column.id] ?? '')}
                               onChange={(e) => updateCell(row.id, column, e.target.value)}
-                              className={`w-full bg-zinc-900 border border-zinc-800 rounded px-2 py-1.5 text-sm text-zinc-200 focus:outline-none focus:border-blue-500 ${
+                              className={`w-full bg-surface border border-border rounded px-2 py-1.5 text-sm text-content focus:outline-none focus:border-blue-500 ${
                                 column.type === 'number' ? 'text-right' : ''
                               }`}
                             />
                           )}
                         </td>
                       ))}
-                      <td className="px-2 py-2 align-middle border-l border-zinc-900" style={{ height: ROW_HEIGHT }}>
-                        <button onClick={() => deleteRow(row.id)} className="p-1.5 text-zinc-600 hover:text-red-400 hover:bg-zinc-800 rounded" title="Delete row">
+                      <td className="px-2 py-2 align-middle border-l border-border" style={{ height: ROW_HEIGHT }}>
+                        <button onClick={() => deleteRow(row.id)} className="p-1.5 text-faint hover:text-red-400 hover:bg-surface-hover rounded" title="Delete row">
                           <Trash2 className="w-4 h-4" />
                         </button>
                       </td>
@@ -767,7 +767,7 @@ const DataGridEditor: React.FC<EditorProps> = ({ initialContent, onSave, fileNam
 
                 {displayedRows.length === 0 && (
                   <tr>
-                    <td colSpan={columns.length + 3} className="px-6 py-10 text-center text-sm text-zinc-500">
+                    <td colSpan={columns.length + 3} className="px-6 py-10 text-center text-sm text-faint">
                       No rows match your filter.
                     </td>
                   </tr>

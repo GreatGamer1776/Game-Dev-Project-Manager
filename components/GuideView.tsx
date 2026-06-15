@@ -215,12 +215,12 @@ const shortcuts = [
 const CollapsibleSection: React.FC<{ title: string; defaultOpen?: boolean; children: React.ReactNode }> = ({ title, defaultOpen = false, children }) => {
   const [open, setOpen] = useState(defaultOpen);
   return (
-    <div className="border border-zinc-800 rounded-xl overflow-hidden">
-      <button onClick={() => setOpen(!open)} className="w-full flex items-center gap-2 px-5 py-3.5 bg-zinc-900/50 hover:bg-zinc-900 text-left transition-colors">
-        {open ? <ChevronDown className="w-4 h-4 text-zinc-500" /> : <ChevronRight className="w-4 h-4 text-zinc-500" />}
-        <span className="font-semibold text-zinc-200 text-sm">{title}</span>
+    <div className="border border-border rounded-xl overflow-hidden">
+      <button onClick={() => setOpen(!open)} className="w-full flex items-center gap-2 px-5 py-3.5 bg-surface/60 hover:bg-surface-hover text-left transition-colors">
+        {open ? <ChevronDown className="w-4 h-4 text-faint" /> : <ChevronRight className="w-4 h-4 text-faint" />}
+        <span className="font-semibold text-content text-sm">{title}</span>
       </button>
-      {open && <div className="px-5 py-4 border-t border-zinc-800/50">{children}</div>}
+      {open && <div className="px-5 py-4 border-t border-border/50">{children}</div>}
     </div>
   );
 };
@@ -238,46 +238,46 @@ const GuideView: React.FC<GuideViewProps> = ({ initialSection = 'overview' }) =>
 
   const renderOverview = () => (
     <div className="space-y-6">
-      <div className="bg-zinc-800/30 border border-zinc-700/50 rounded-xl p-6">
-        <h3 className="text-xl font-semibold text-zinc-100 mb-3">What is DevArchitect?</h3>
-        <p className="text-zinc-400 leading-relaxed mb-4">
-          DevArchitect is an <strong className="text-zinc-200">offline-capable project management workspace</strong> built specifically for game developers. 
+      <div className="bg-surface-raised/40 border border-border rounded-xl p-6">
+        <h3 className="text-xl font-semibold text-content mb-3">What is DevArchitect?</h3>
+        <p className="text-muted leading-relaxed mb-4">
+          DevArchitect is an <strong className="text-content">offline-capable project management workspace</strong> built specifically for game developers. 
           Instead of scattering your Game Design Documents in Word, tasks in Trello, bugs in Jira, and stat tables in Excel, 
           DevArchitect keeps everything in a single, portable project file.
         </p>
-        <p className="text-zinc-400 leading-relaxed">
+        <p className="text-muted leading-relaxed">
           Each project is a self-contained workspace with typed files (Documents, Flowcharts, Task Lists, Bug Trackers, Roadmaps, Data Grids, Whiteboards, and Asset Libraries) 
-          organized in folders. Projects are stored in your browser's IndexedDB, and can be exported as <code className="text-zinc-300 bg-zinc-800 px-1.5 py-0.5 rounded text-xs">.zip</code> archives 
+          organized in folders. Projects are stored in your browser's IndexedDB, and can be exported as <code className="text-content bg-surface-raised px-1.5 py-0.5 rounded text-xs">.zip</code> archives 
           or linked to a local folder on your disk for automatic persistence.
         </p>
       </div>
 
       <div className="grid grid-cols-1 md:grid-cols-3 gap-4">
-        <div className="bg-zinc-900 border border-zinc-800 rounded-xl p-5">
+        <div className="bg-surface border border-border rounded-xl p-5">
           <FolderOpen className="w-8 h-8 text-blue-400 mb-3" />
-          <h4 className="font-semibold text-zinc-200 mb-1">Project-Based</h4>
-          <p className="text-sm text-zinc-500">Each project is a self-contained workspace with its own files, folders, and assets. Work on multiple projects and switch between them from the dashboard.</p>
+          <h4 className="font-semibold text-content mb-1">Project-Based</h4>
+          <p className="text-sm text-faint">Each project is a self-contained workspace with its own files, folders, and assets. Work on multiple projects and switch between them from the dashboard.</p>
         </div>
-        <div className="bg-zinc-900 border border-zinc-800 rounded-xl p-5">
+        <div className="bg-surface border border-border rounded-xl p-5">
           <HardDrive className="w-8 h-8 text-emerald-400 mb-3" />
-          <h4 className="font-semibold text-zinc-200 mb-1">Offline-First</h4>
-          <p className="text-sm text-zinc-500">Everything is stored locally in your browser. No accounts, no cloud sync, no internet required. Your data stays on your machine.</p>
+          <h4 className="font-semibold text-content mb-1">Offline-First</h4>
+          <p className="text-sm text-faint">Everything is stored locally in your browser. No accounts, no cloud sync, no internet required. Your data stays on your machine.</p>
         </div>
-        <div className="bg-zinc-900 border border-zinc-800 rounded-xl p-5">
+        <div className="bg-surface border border-border rounded-xl p-5">
           <Workflow className="w-8 h-8 text-purple-400 mb-3" />
-          <h4 className="font-semibold text-zinc-200 mb-1">Integrated Tools</h4>
-          <p className="text-sm text-zinc-500">Eight specialized editors work together. Link tasks from documents, embed asset images, and cross-reference files without leaving the app.</p>
+          <h4 className="font-semibold text-content mb-1">Integrated Tools</h4>
+          <p className="text-sm text-faint">Eight specialized editors work together. Link tasks from documents, embed asset images, and cross-reference files without leaving the app.</p>
         </div>
       </div>
 
-      <div className="bg-zinc-900 border border-zinc-800 rounded-xl p-5">
-        <h4 className="font-semibold text-zinc-200 mb-3">Quick Start</h4>
-        <ol className="space-y-2 text-sm text-zinc-400">
-          <li className="flex gap-3"><span className="shrink-0 w-6 h-6 rounded-full bg-blue-600/20 text-blue-400 flex items-center justify-center text-xs font-bold">1</span><span><strong className="text-zinc-200">Create a project</strong> from the dashboard — give it a name, type, and description.</span></li>
-          <li className="flex gap-3"><span className="shrink-0 w-6 h-6 rounded-full bg-blue-600/20 text-blue-400 flex items-center justify-center text-xs font-bold">2</span><span><strong className="text-zinc-200">Add files</strong> using the "New File" button in the sidebar. Choose the editor type that fits your content.</span></li>
-          <li className="flex gap-3"><span className="shrink-0 w-6 h-6 rounded-full bg-blue-600/20 text-blue-400 flex items-center justify-center text-xs font-bold">3</span><span><strong className="text-zinc-200">Organize with folders</strong> — create folders to group related files (e.g., "Design", "Art", "Code").</span></li>
-          <li className="flex gap-3"><span className="shrink-0 w-6 h-6 rounded-full bg-blue-600/20 text-blue-400 flex items-center justify-center text-xs font-bold">4</span><span><strong className="text-zinc-200">Save your work</strong> — files auto-save, but use Ctrl+S for manual saves. Export the project as a .zip for backup.</span></li>
-          <li className="flex gap-3"><span className="shrink-0 w-6 h-6 rounded-full bg-blue-600/20 text-blue-400 flex items-center justify-center text-xs font-bold">5</span><span><strong className="text-zinc-200">Link a local folder</strong> — use "Import Local Folder" to persist your project directly to disk for version control.</span></li>
+      <div className="bg-surface border border-border rounded-xl p-5">
+        <h4 className="font-semibold text-content mb-3">Quick Start</h4>
+        <ol className="space-y-2 text-sm text-muted">
+          <li className="flex gap-3"><span className="shrink-0 w-6 h-6 rounded-full bg-accent/20 text-blue-400 flex items-center justify-center text-xs font-bold">1</span><span><strong className="text-content">Create a project</strong> from the dashboard — give it a name, type, and description.</span></li>
+          <li className="flex gap-3"><span className="shrink-0 w-6 h-6 rounded-full bg-accent/20 text-blue-400 flex items-center justify-center text-xs font-bold">2</span><span><strong className="text-content">Add files</strong> using the "New File" button in the sidebar. Choose the editor type that fits your content.</span></li>
+          <li className="flex gap-3"><span className="shrink-0 w-6 h-6 rounded-full bg-accent/20 text-blue-400 flex items-center justify-center text-xs font-bold">3</span><span><strong className="text-content">Organize with folders</strong> — create folders to group related files (e.g., "Design", "Art", "Code").</span></li>
+          <li className="flex gap-3"><span className="shrink-0 w-6 h-6 rounded-full bg-accent/20 text-blue-400 flex items-center justify-center text-xs font-bold">4</span><span><strong className="text-content">Save your work</strong> — files auto-save, but use Ctrl+S for manual saves. Export the project as a .zip for backup.</span></li>
+          <li className="flex gap-3"><span className="shrink-0 w-6 h-6 rounded-full bg-accent/20 text-blue-400 flex items-center justify-center text-xs font-bold">5</span><span><strong className="text-content">Link a local folder</strong> — use "Import Local Folder" to persist your project directly to disk for version control.</span></li>
         </ol>
       </div>
     </div>
@@ -285,20 +285,20 @@ const GuideView: React.FC<GuideViewProps> = ({ initialSection = 'overview' }) =>
 
   const renderUpdates = () => (
     <div className="space-y-6">
-      <div className="bg-zinc-800/30 border border-zinc-700/50 rounded-xl p-6">
-        <h3 className="text-xl font-semibold text-zinc-100 mb-2">App Changelog</h3>
-        <p className="text-zinc-400 leading-relaxed">
+      <div className="bg-surface-raised/40 border border-border rounded-xl p-6">
+        <h3 className="text-xl font-semibold text-content mb-2">App Changelog</h3>
+        <p className="text-muted leading-relaxed">
           This section tracks updates to DevArchitect itself so users can quickly see what changed between releases.
         </p>
       </div>
 
       {APP_CHANGELOG.map((entry, index) => (
-        <div key={entry.id} className="relative border border-zinc-800 rounded-xl bg-zinc-900 overflow-hidden">
-          <div className="px-5 py-4 border-b border-zinc-800 bg-zinc-950/70">
+        <div key={entry.id} className="relative border border-border rounded-xl bg-surface overflow-hidden">
+          <div className="px-5 py-4 border-b border-border bg-bg/70">
             <div className="flex flex-col gap-2 md:flex-row md:items-center md:justify-between">
               <div>
-                <h4 className="text-lg font-semibold text-zinc-100">{entry.title}</h4>
-                <p className="text-sm text-zinc-400 mt-1">{entry.summary}</p>
+                <h4 className="text-lg font-semibold text-content">{entry.title}</h4>
+                <p className="text-sm text-muted mt-1">{entry.summary}</p>
               </div>
               <span className="shrink-0 text-xs uppercase tracking-wide text-blue-400 bg-blue-500/10 border border-blue-500/20 rounded-full px-3 py-1">
                 {entry.date}
@@ -308,7 +308,7 @@ const GuideView: React.FC<GuideViewProps> = ({ initialSection = 'overview' }) =>
           <div className="px-5 py-4">
             <ul className="space-y-2">
               {entry.changes.map((change, changeIndex) => (
-                <li key={`${entry.id}-${changeIndex}`} className="text-sm text-zinc-400 flex gap-2">
+                <li key={`${entry.id}-${changeIndex}`} className="text-sm text-muted flex gap-2">
                   <span className="text-emerald-400 shrink-0 mt-1">•</span>
                   <span>{change}</span>
                 </li>
@@ -317,7 +317,7 @@ const GuideView: React.FC<GuideViewProps> = ({ initialSection = 'overview' }) =>
           </div>
           {index === 0 && (
             <div className="absolute top-4 right-4 md:right-28">
-              <span className="text-[10px] uppercase tracking-[0.2em] text-zinc-500">Latest</span>
+              <span className="text-[10px] uppercase tracking-[0.2em] text-faint">Latest</span>
             </div>
           )}
         </div>
@@ -327,7 +327,7 @@ const GuideView: React.FC<GuideViewProps> = ({ initialSection = 'overview' }) =>
 
   const renderTools = () => (
     <div className="space-y-4">
-      <p className="text-zinc-400 text-sm mb-2">
+      <p className="text-muted text-sm mb-2">
         DevArchitect provides 8 specialized file types. Click any tool below to see its full capabilities and suggested use cases.
       </p>
       {tools.map((tool) => (
@@ -338,16 +338,16 @@ const GuideView: React.FC<GuideViewProps> = ({ initialSection = 'overview' }) =>
                 <tool.icon className={`w-7 h-7 ${tool.color}`} />
               </div>
               <div>
-                <p className="text-sm text-zinc-300 font-medium">{tool.summary}</p>
-                <p className="text-sm text-zinc-500 mt-1 leading-relaxed">{tool.description}</p>
+                <p className="text-sm text-content font-medium">{tool.summary}</p>
+                <p className="text-sm text-faint mt-1 leading-relaxed">{tool.description}</p>
               </div>
             </div>
             <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
               <div>
-                <h5 className="text-xs font-bold uppercase tracking-wider text-zinc-500 mb-2">Use Cases</h5>
+                <h5 className="text-xs font-bold uppercase tracking-wider text-faint mb-2">Use Cases</h5>
                 <ul className="space-y-1.5">
                   {tool.useCases.map((uc, i) => (
-                    <li key={i} className="text-sm text-zinc-400 flex gap-2">
+                    <li key={i} className="text-sm text-muted flex gap-2">
                       <span className="text-blue-500 shrink-0 mt-1">•</span>
                       <span>{uc}</span>
                     </li>
@@ -355,10 +355,10 @@ const GuideView: React.FC<GuideViewProps> = ({ initialSection = 'overview' }) =>
                 </ul>
               </div>
               <div>
-                <h5 className="text-xs font-bold uppercase tracking-wider text-zinc-500 mb-2">Features</h5>
+                <h5 className="text-xs font-bold uppercase tracking-wider text-faint mb-2">Features</h5>
                 <ul className="space-y-1.5">
                   {tool.features.map((f, i) => (
-                    <li key={i} className="text-sm text-zinc-400 flex gap-2">
+                    <li key={i} className="text-sm text-muted flex gap-2">
                       <span className="text-emerald-500 shrink-0 mt-1">✓</span>
                       <span>{f}</span>
                     </li>
@@ -374,17 +374,17 @@ const GuideView: React.FC<GuideViewProps> = ({ initialSection = 'overview' }) =>
 
   const renderShortcuts = () => (
     <div className="space-y-6">
-      <p className="text-zinc-400 text-sm mb-2">
+      <p className="text-muted text-sm mb-2">
         Use keyboard shortcuts to work faster. All shortcuts use Ctrl on Windows/Linux and ⌘ (Cmd) on macOS.
       </p>
       {shortcuts.map((group) => (
         <div key={group.category}>
-          <h4 className="text-xs font-bold uppercase tracking-wider text-zinc-500 mb-3">{group.category}</h4>
-          <div className="bg-zinc-900 border border-zinc-800 rounded-xl overflow-hidden">
+          <h4 className="text-xs font-bold uppercase tracking-wider text-faint mb-3">{group.category}</h4>
+          <div className="bg-surface border border-border rounded-xl overflow-hidden">
             {group.items.map((item, i) => (
-              <div key={i} className={`flex items-center gap-4 px-5 py-3 ${i > 0 ? 'border-t border-zinc-800/50' : ''}`}>
-                <kbd className="shrink-0 min-w-[120px] px-3 py-1.5 bg-zinc-800 border border-zinc-700 rounded-lg text-xs font-mono text-zinc-300 text-center">{item.keys}</kbd>
-                <span className="text-sm text-zinc-400">{item.desc}</span>
+              <div key={i} className={`flex items-center gap-4 px-5 py-3 ${i > 0 ? 'border-t border-border/50' : ''}`}>
+                <kbd className="shrink-0 min-w-[120px] px-3 py-1.5 bg-surface-raised border border-border-strong rounded-lg text-xs font-mono text-content text-center">{item.keys}</kbd>
+                <span className="text-sm text-muted">{item.desc}</span>
               </div>
             ))}
           </div>
@@ -396,9 +396,9 @@ const GuideView: React.FC<GuideViewProps> = ({ initialSection = 'overview' }) =>
   const renderWorkflows = () => (
     <div className="space-y-4">
       <CollapsibleSection title="Cross-File Linking" defaultOpen>
-        <div className="space-y-3 text-sm text-zinc-400">
+        <div className="space-y-3 text-sm text-muted">
           <p>DevArchitect files can reference each other using a special link syntax in Documents:</p>
-          <div className="bg-zinc-950 border border-zinc-800 rounded-lg p-4 font-mono text-xs space-y-2">
+          <div className="bg-bg border border-border rounded-lg p-4 font-mono text-xs space-y-2">
             <p><span className="text-blue-400">[[file:&lt;file-id&gt;]]</span> — Creates a clickable link to another file. Click it in preview to jump to that file.</p>
             <p><span className="text-emerald-400">[[task:&lt;task-id&gt;]]</span> — Links directly to a specific task in a Task List. Clicking navigates to the task and highlights it.</p>
             <p><span className="text-purple-400">[[asset:&lt;asset-id&gt;]]</span> — Embeds an image from the Asset Library inline in the document.</p>
@@ -408,30 +408,30 @@ const GuideView: React.FC<GuideViewProps> = ({ initialSection = 'overview' }) =>
       </CollapsibleSection>
 
       <CollapsibleSection title="Suggested Project Structure">
-        <div className="space-y-3 text-sm text-zinc-400">
+        <div className="space-y-3 text-sm text-muted">
           <p>A well-organized project might look like:</p>
-          <div className="bg-zinc-950 border border-zinc-800 rounded-lg p-4 font-mono text-xs leading-loose text-zinc-300">
+          <div className="bg-bg border border-border rounded-lg p-4 font-mono text-xs leading-loose text-content">
             <p>📁 Design</p>
-            <p className="ml-4">📄 Game Design Document <span className="text-zinc-600">(doc)</span></p>
-            <p className="ml-4">📄 Core Game Loop <span className="text-zinc-600">(flowchart)</span></p>
-            <p className="ml-4">📄 Dialogue Trees <span className="text-zinc-600">(flowchart)</span></p>
+            <p className="ml-4">📄 Game Design Document <span className="text-faint">(doc)</span></p>
+            <p className="ml-4">📄 Core Game Loop <span className="text-faint">(flowchart)</span></p>
+            <p className="ml-4">📄 Dialogue Trees <span className="text-faint">(flowchart)</span></p>
             <p>📁 Production</p>
-            <p className="ml-4">📄 Sprint Tasks <span className="text-zinc-600">(todo)</span></p>
-            <p className="ml-4">📄 Bug List <span className="text-zinc-600">(kanban)</span></p>
-            <p className="ml-4">📄 Release Roadmap <span className="text-zinc-600">(roadmap)</span></p>
+            <p className="ml-4">📄 Sprint Tasks <span className="text-faint">(todo)</span></p>
+            <p className="ml-4">📄 Bug List <span className="text-faint">(kanban)</span></p>
+            <p className="ml-4">📄 Release Roadmap <span className="text-faint">(roadmap)</span></p>
             <p>📁 Data</p>
-            <p className="ml-4">📄 Weapon Stats <span className="text-zinc-600">(grid)</span></p>
-            <p className="ml-4">📄 Enemy Database <span className="text-zinc-600">(grid)</span></p>
+            <p className="ml-4">📄 Weapon Stats <span className="text-faint">(grid)</span></p>
+            <p className="ml-4">📄 Enemy Database <span className="text-faint">(grid)</span></p>
             <p>📁 Art</p>
-            <p className="ml-4">📄 Reference Images <span className="text-zinc-600">(asset-gallery)</span></p>
-            <p className="ml-4">📄 Level Sketches <span className="text-zinc-600">(whiteboard)</span></p>
+            <p className="ml-4">📄 Reference Images <span className="text-faint">(asset-gallery)</span></p>
+            <p className="ml-4">📄 Level Sketches <span className="text-faint">(whiteboard)</span></p>
           </div>
         </div>
       </CollapsibleSection>
 
       <CollapsibleSection title="Command Palette">
-        <div className="space-y-3 text-sm text-zinc-400">
-          <p>Press <kbd className="px-2 py-0.5 bg-zinc-800 border border-zinc-700 rounded text-xs font-mono text-zinc-300">Ctrl + K</kbd> anywhere to open the Command Palette. It lets you:</p>
+        <div className="space-y-3 text-sm text-muted">
+          <p>Press <kbd className="px-2 py-0.5 bg-surface-raised border border-border-strong rounded text-xs font-mono text-content">Ctrl + K</kbd> anywhere to open the Command Palette. It lets you:</p>
           <ul className="space-y-1.5 ml-1">
             <li className="flex gap-2"><span className="text-blue-500">•</span>Search and open any file in the current project by name</li>
             <li className="flex gap-2"><span className="text-blue-500">•</span>Quickly switch between files without navigating the sidebar tree</li>
@@ -441,10 +441,10 @@ const GuideView: React.FC<GuideViewProps> = ({ initialSection = 'overview' }) =>
       </CollapsibleSection>
 
       <CollapsibleSection title="Undo & Redo">
-        <div className="space-y-3 text-sm text-zinc-400">
+        <div className="space-y-3 text-sm text-muted">
           <p>Every editor supports undo and redo with up to 50 history levels (200 for Whiteboard):</p>
           <ul className="space-y-1.5 ml-1">
-            <li className="flex gap-2"><span className="text-emerald-500">✓</span><strong className="text-zinc-300">Ctrl+Z</strong> to undo, <strong className="text-zinc-300">Ctrl+Y</strong> to redo</li>
+            <li className="flex gap-2"><span className="text-emerald-500">✓</span><strong className="text-content">Ctrl+Z</strong> to undo, <strong className="text-content">Ctrl+Y</strong> to redo</li>
             <li className="flex gap-2"><span className="text-emerald-500">✓</span>Toolbar buttons are also available at the top of each editor</li>
             <li className="flex gap-2"><span className="text-emerald-500">✓</span>History is per-file and resets when you switch files</li>
             <li className="flex gap-2"><span className="text-emerald-500">✓</span>Document editor uses smart debouncing — rapid typing is grouped into single undo steps</li>
@@ -453,9 +453,9 @@ const GuideView: React.FC<GuideViewProps> = ({ initialSection = 'overview' }) =>
       </CollapsibleSection>
 
       <CollapsibleSection title="Auto-Save & Manual Save">
-        <div className="space-y-3 text-sm text-zinc-400">
+        <div className="space-y-3 text-sm text-muted">
           <p>All editors auto-save your changes after a short delay (typically 1-2 seconds of inactivity). You'll see a save indicator when changes are persisted.</p>
-          <p>Use <kbd className="px-2 py-0.5 bg-zinc-800 border border-zinc-700 rounded text-xs font-mono text-zinc-300">Ctrl + S</kbd> to force an immediate save if you want to be sure your latest changes are written before exporting or switching files.</p>
+          <p>Use <kbd className="px-2 py-0.5 bg-surface-raised border border-border-strong rounded text-xs font-mono text-content">Ctrl + S</kbd> to force an immediate save if you want to be sure your latest changes are written before exporting or switching files.</p>
         </div>
       </CollapsibleSection>
     </div>
@@ -464,8 +464,8 @@ const GuideView: React.FC<GuideViewProps> = ({ initialSection = 'overview' }) =>
   const renderStorage = () => (
     <div className="space-y-4">
       <CollapsibleSection title="Browser Storage (IndexedDB)" defaultOpen>
-        <div className="space-y-3 text-sm text-zinc-400">
-          <p>By default, all projects are stored in your browser's <strong className="text-zinc-300">IndexedDB</strong>. This means:</p>
+        <div className="space-y-3 text-sm text-muted">
+          <p>By default, all projects are stored in your browser's <strong className="text-content">IndexedDB</strong>. This means:</p>
           <ul className="space-y-1.5 ml-1">
             <li className="flex gap-2"><span className="text-blue-500">•</span>Data persists across browser sessions — closing and reopening the tab won't lose your work</li>
             <li className="flex gap-2"><span className="text-blue-500">•</span>Storage is local only — no data is sent to any server</li>
@@ -475,22 +475,22 @@ const GuideView: React.FC<GuideViewProps> = ({ initialSection = 'overview' }) =>
       </CollapsibleSection>
 
       <CollapsibleSection title="Export as ZIP">
-        <div className="space-y-3 text-sm text-zinc-400">
-          <p>Export any project as a <code className="text-zinc-300 bg-zinc-800 px-1.5 py-0.5 rounded text-xs">.zip</code> file for backup or sharing. The archive contains all files and assets in a structured format that can be re-imported later.</p>
+        <div className="space-y-3 text-sm text-muted">
+          <p>Export any project as a <code className="text-content bg-surface-raised px-1.5 py-0.5 rounded text-xs">.zip</code> file for backup or sharing. The archive contains all files and assets in a structured format that can be re-imported later.</p>
           <p>To export: go to the Dashboard, find the project card, and click the download icon.</p>
         </div>
       </CollapsibleSection>
 
       <CollapsibleSection title="Local Folder Linking">
-        <div className="space-y-3 text-sm text-zinc-400">
-          <p>For version control workflows, you can link a project to a <strong className="text-zinc-300">local folder</strong> on your disk using the browser's File System Access API.</p>
+        <div className="space-y-3 text-sm text-muted">
+          <p>For version control workflows, you can link a project to a <strong className="text-content">local folder</strong> on your disk using the browser's File System Access API.</p>
           <ul className="space-y-1.5 ml-1">
             <li className="flex gap-2"><span className="text-blue-500">•</span>Click "Import Local Folder" on the Dashboard to link a directory</li>
             <li className="flex gap-2"><span className="text-blue-500">•</span>The project reads/writes files directly to that folder</li>
             <li className="flex gap-2"><span className="text-blue-500">•</span>Combine with Git for full version history of your project files</li>
             <li className="flex gap-2"><span className="text-blue-500">•</span>The disk icon on a project card indicates it's folder-linked</li>
           </ul>
-          <p className="text-zinc-500 text-xs mt-2">Note: Local folder linking requires a Chromium-based browser (Chrome, Edge, Brave) due to File System Access API support.</p>
+          <p className="text-faint text-xs mt-2">Note: Local folder linking requires a Chromium-based browser (Chrome, Edge, Brave) due to File System Access API support.</p>
         </div>
       </CollapsibleSection>
     </div>
@@ -499,7 +499,7 @@ const GuideView: React.FC<GuideViewProps> = ({ initialSection = 'overview' }) =>
   const renderTips = () => (
     <div className="space-y-4">
       <CollapsibleSection title="Game Design Documents" defaultOpen>
-        <div className="space-y-2 text-sm text-zinc-400">
+        <div className="space-y-2 text-sm text-muted">
           <p>Structure your GDD as a Document file with clear sections:</p>
           <ul className="space-y-1.5 ml-1">
             <li className="flex gap-2"><span className="text-amber-500">★</span>Start with a one-paragraph "elevator pitch" for the game concept</li>
@@ -511,7 +511,7 @@ const GuideView: React.FC<GuideViewProps> = ({ initialSection = 'overview' }) =>
       </CollapsibleSection>
 
       <CollapsibleSection title="Balancing Game Data">
-        <div className="space-y-2 text-sm text-zinc-400">
+        <div className="space-y-2 text-sm text-muted">
           <p>Use Data Grids as your single source of truth for game stats:</p>
           <ul className="space-y-1.5 ml-1">
             <li className="flex gap-2"><span className="text-amber-500">★</span>Create one grid per data category (Weapons, Enemies, Items, Levels)</li>
@@ -522,7 +522,7 @@ const GuideView: React.FC<GuideViewProps> = ({ initialSection = 'overview' }) =>
       </CollapsibleSection>
 
       <CollapsibleSection title="Production Planning">
-        <div className="space-y-2 text-sm text-zinc-400">
+        <div className="space-y-2 text-sm text-muted">
           <ul className="space-y-1.5 ml-1">
             <li className="flex gap-2"><span className="text-amber-500">★</span>Use the Roadmap for high-level milestones (monthly/quarterly goals)</li>
             <li className="flex gap-2"><span className="text-amber-500">★</span>Use Task Lists for weekly sprint tasks — break milestones into actionable items</li>
@@ -533,7 +533,7 @@ const GuideView: React.FC<GuideViewProps> = ({ initialSection = 'overview' }) =>
       </CollapsibleSection>
 
       <CollapsibleSection title="Keeping Projects Portable">
-        <div className="space-y-2 text-sm text-zinc-400">
+        <div className="space-y-2 text-sm text-muted">
           <ul className="space-y-1.5 ml-1">
             <li className="flex gap-2"><span className="text-amber-500">★</span>Export a .zip backup before clearing browser data or switching machines</li>
             <li className="flex gap-2"><span className="text-amber-500">★</span>Use local folder linking + Git for the most robust backup strategy</li>
@@ -565,22 +565,22 @@ const GuideView: React.FC<GuideViewProps> = ({ initialSection = 'overview' }) =>
   };
 
   return (
-    <div className="h-full flex flex-col bg-zinc-950">
+    <div className="h-full flex flex-col bg-bg">
       {/* Header */}
-      <div className="shrink-0 px-8 py-6 border-b border-zinc-800 bg-zinc-950">
+      <div className="shrink-0 px-8 py-6 border-b border-border bg-bg">
         <div className="flex items-center gap-3 mb-1">
-          <div className="p-2 bg-blue-600/20 rounded-lg">
+          <div className="p-2 bg-accent/20 rounded-lg">
             <Box className="w-6 h-6 text-blue-500" />
           </div>
           <div>
-            <h1 className="text-2xl font-bold text-white">DevArchitect Guide</h1>
-            <p className="text-sm text-zinc-500">Everything you need to know about this project management workspace.</p>
+            <h1 className="text-2xl font-bold text-content">DevArchitect Guide</h1>
+            <p className="text-sm text-faint">Everything you need to know about this project management workspace.</p>
           </div>
         </div>
       </div>
 
       {/* Nav tabs */}
-      <div className="shrink-0 px-8 border-b border-zinc-800 bg-zinc-950/80">
+      <div className="shrink-0 px-8 border-b border-border bg-bg/80">
         <div className="flex gap-1 -mb-px overflow-x-auto">
           {sections.map((s) => (
             <button
@@ -589,7 +589,7 @@ const GuideView: React.FC<GuideViewProps> = ({ initialSection = 'overview' }) =>
               className={`flex items-center gap-2 px-4 py-3 text-sm font-medium border-b-2 transition-colors whitespace-nowrap ${
                 activeSection === s.id
                   ? 'border-blue-500 text-blue-400'
-                  : 'border-transparent text-zinc-500 hover:text-zinc-300 hover:border-zinc-700'
+                  : 'border-transparent text-faint hover:text-content hover:border-border-strong'
               }`}
             >
               {sectionIcons[s.id]}

@@ -125,42 +125,42 @@ const CommandPalette: React.FC<CommandPaletteProps> = ({
   return (
     <div className="fixed inset-0 z-[100] flex items-start justify-center pt-[20vh] bg-black/50 backdrop-blur-sm p-4" onClick={onClose}>
       <div 
-        className="w-full max-w-2xl bg-zinc-900 border border-zinc-800 rounded-xl shadow-2xl overflow-hidden flex flex-col"
+        className="w-full max-w-2xl bg-surface border border-border rounded-xl shadow-2xl overflow-hidden flex flex-col"
         onClick={e => e.stopPropagation()}
       >
-        <div className="flex items-center px-4 py-3 border-b border-zinc-800">
-          <Search className="w-5 h-5 text-zinc-500 mr-3" />
+        <div className="flex items-center px-4 py-3 border-b border-border">
+          <Search className="w-5 h-5 text-faint mr-3" />
           <input
             ref={inputRef}
             type="text"
-            className="flex-1 bg-transparent text-lg text-white placeholder-zinc-600 focus:outline-none"
+            className="flex-1 bg-transparent text-lg text-content placeholder-faint focus:outline-none"
             placeholder={activeProject ? `Search files in ${activeProject.name}...` : "Search projects..."}
             value={query}
             onChange={e => { setQuery(e.target.value); setSelectedIndex(0); }}
             onKeyDown={handleKeyDown}
           />
-          <div className="text-xs text-zinc-600 border border-zinc-800 rounded px-2 py-1">ESC</div>
+          <div className="text-xs text-faint border border-border rounded px-2 py-1">ESC</div>
         </div>
         
         <div className="max-h-[60vh] overflow-y-auto custom-scrollbar p-2">
           {filteredOptions.length === 0 ? (
-            <div className="p-4 text-center text-zinc-500">No results found.</div>
+            <div className="p-4 text-center text-faint">No results found.</div>
           ) : (
             filteredOptions.map((option, idx) => (
               <div
                 key={`${option.type}-${option.id}`}
                 className={`flex items-center gap-3 px-4 py-3 rounded-lg cursor-pointer transition-colors ${
-                  idx === selectedIndex ? 'bg-blue-600 text-white' : 'text-zinc-300 hover:bg-zinc-800'
+                  idx === selectedIndex ? 'bg-accent text-accent-content' : 'text-content hover:bg-surface-hover'
                 }`}
                 onClick={() => option.action()}
                 onMouseEnter={() => setSelectedIndex(idx)}
               >
-                <div className={`p-2 rounded-md ${idx === selectedIndex ? 'bg-white/20' : 'bg-zinc-800'}`}>
+                <div className={`p-2 rounded-md ${idx === selectedIndex ? 'bg-white/20' : 'bg-surface-raised'}`}>
                   {getIcon(option.type)}
                 </div>
                 <div className="flex-1">
                   <div className="font-medium text-sm">{option.label}</div>
-                  {option.subLabel && <div className={`text-xs ${idx === selectedIndex ? 'text-blue-200' : 'text-zinc-500'}`}>{option.subLabel}</div>}
+                  {option.subLabel && <div className={`text-xs ${idx === selectedIndex ? 'text-blue-200' : 'text-faint'}`}>{option.subLabel}</div>}
                 </div>
                 {idx === selectedIndex && <div className="text-xs opacity-70">Enter</div>}
               </div>
@@ -168,7 +168,7 @@ const CommandPalette: React.FC<CommandPaletteProps> = ({
           )}
         </div>
         
-        <div className="px-4 py-2 bg-zinc-950 border-t border-zinc-800 text-[10px] text-zinc-500 flex justify-between">
+        <div className="px-4 py-2 bg-bg border-t border-border text-[10px] text-faint flex justify-between">
            <span>Navigate with ↑↓</span>
            <span>Use keywords like "create", "todo", "doc"</span>
         </div>

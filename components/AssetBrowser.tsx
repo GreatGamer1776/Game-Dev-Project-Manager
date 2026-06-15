@@ -207,7 +207,7 @@ const AssetBrowser: React.FC<EditorProps> = ({ initialContent, assets = {}, onAd
       <div key={folder.id}>
         <div
           style={{ marginLeft: depth * 10 }}
-          className={`group flex items-center justify-between rounded-md px-1 py-1 mb-0.5 transition-colors ${isDropActive ? 'bg-blue-500/10 ring-1 ring-blue-500/40' : 'hover:bg-zinc-900'}`}
+          className={`group flex items-center justify-between rounded-md px-1 py-1 mb-0.5 transition-colors ${isDropActive ? 'bg-blue-500/10 ring-1 ring-blue-500/40' : 'hover:bg-surface-hover'}`}
           onDragOver={(e) => handleFolderDragOver(e, folder.id)}
           onDrop={(e) => handleFolderDrop(e, folder.id)}
         >
@@ -223,15 +223,15 @@ const AssetBrowser: React.FC<EditorProps> = ({ initialContent, assets = {}, onAd
               }
               setSelectedFolderId(folder.id);
             }}
-            className={`flex-1 flex items-center gap-2 px-1.5 py-1 text-sm text-left rounded ${isSelected ? 'text-white bg-zinc-800' : 'text-zinc-300'}`}
+            className={`flex-1 flex items-center gap-2 px-1.5 py-1 text-sm text-left rounded ${isSelected ? 'text-content bg-surface-raised' : 'text-content'}`}
           >
-            {hasChildren ? (isExpanded ? <ChevronDown className="w-3.5 h-3.5 text-zinc-500" /> : <ChevronRight className="w-3.5 h-3.5 text-zinc-500" />) : <span className="w-3.5 h-3.5" />}
+            {hasChildren ? (isExpanded ? <ChevronDown className="w-3.5 h-3.5 text-faint" /> : <ChevronRight className="w-3.5 h-3.5 text-faint" />) : <span className="w-3.5 h-3.5" />}
             <Folder className="w-4 h-4 text-blue-400/90" />
             <span className="truncate">{folder.name}</span>
           </button>
           <button
             onClick={() => createFolder(folder.id)}
-            className="p-1 text-zinc-500 hover:text-white hover:bg-zinc-800 rounded opacity-0 group-hover:opacity-100"
+            className="p-1 text-faint hover:text-content hover:bg-surface-hover rounded opacity-0 group-hover:opacity-100"
             title="New Subfolder"
           >
             <FolderPlus className="w-3.5 h-3.5" />
@@ -389,33 +389,33 @@ const AssetBrowser: React.FC<EditorProps> = ({ initialContent, assets = {}, onAd
   };
 
   return (
-    <div className="h-full flex flex-col bg-zinc-900">
-      <div className="h-16 border-b border-zinc-800 flex items-center justify-between px-6 bg-zinc-900/50 backdrop-blur-sm sticky top-0 z-20">
-        <h3 className="text-zinc-200 font-medium flex items-center gap-2">
+    <div className="h-full flex flex-col bg-surface">
+      <div className="h-16 border-b border-border flex items-center justify-between px-6 bg-surface/60 backdrop-blur-sm sticky top-0 z-20">
+        <h3 className="text-content font-medium flex items-center gap-2">
             <ImageIcon className="w-4 h-4 text-purple-500" /> {fileName}
         </h3>
         <div className="flex items-center gap-3">
             <div className="relative">
-                <Search className="w-4 h-4 text-zinc-500 absolute left-3 top-1/2 -translate-y-1/2" />
+                <Search className="w-4 h-4 text-faint absolute left-3 top-1/2 -translate-y-1/2" />
                 <input 
                     type="text" 
                     placeholder="Search assets..." 
                     value={searchQuery}
                     onChange={(e) => setSearchQuery(e.target.value)}
-                    className="bg-zinc-950 border border-zinc-800 rounded-full py-1.5 pl-9 pr-4 text-sm text-zinc-300 focus:outline-none focus:border-zinc-700 w-48"
+                    className="bg-bg border border-border rounded-full py-1.5 pl-9 pr-4 text-sm text-content focus:outline-none focus:border-border-strong w-48"
                 />
             </div>
             <button 
                 onClick={handleUploadFiles}
                 disabled={isUploading}
-                className="flex items-center gap-2 bg-purple-600 hover:bg-purple-700 disabled:opacity-60 disabled:cursor-not-allowed text-white px-4 py-2 rounded-md text-sm font-medium transition-colors shadow-lg shadow-purple-900/20"
+                className="flex items-center gap-2 bg-purple-600 hover:bg-purple-700 disabled:opacity-60 disabled:cursor-not-allowed text-content px-4 py-2 rounded-md text-sm font-medium transition-colors shadow-lg shadow-purple-900/20"
             >
                 <Upload className="w-4 h-4" /> Upload Files
             </button>
             <button
                 onClick={handleUploadFolder}
                 disabled={isUploading}
-                className="flex items-center gap-2 bg-zinc-800 hover:bg-zinc-700 disabled:opacity-60 disabled:cursor-not-allowed text-zinc-200 px-4 py-2 rounded-md text-sm font-medium transition-colors border border-zinc-700"
+                className="flex items-center gap-2 bg-surface-raised hover:bg-surface-hover disabled:opacity-60 disabled:cursor-not-allowed text-content px-4 py-2 rounded-md text-sm font-medium transition-colors border border-border-strong"
             >
                 <FolderOpen className="w-4 h-4" /> Upload Folder
             </button>
@@ -423,18 +423,18 @@ const AssetBrowser: React.FC<EditorProps> = ({ initialContent, assets = {}, onAd
       </div>
 
       {uploadStatus && (
-        <div className="px-6 py-2 text-xs text-zinc-400 border-b border-zinc-800 bg-zinc-900/70">
+        <div className="px-6 py-2 text-xs text-muted border-b border-border bg-surface/70">
           {uploadStatus}
         </div>
       )}
 
       <div className="flex-1 min-h-0 flex">
-        <aside className="w-64 border-r border-zinc-800 p-3 overflow-y-auto custom-scrollbar">
+        <aside className="w-64 border-r border-border p-3 overflow-y-auto custom-scrollbar">
           <div className="flex items-center justify-between mb-2">
-            <span className="text-[11px] uppercase tracking-wide text-zinc-500">Folders</span>
+            <span className="text-[11px] uppercase tracking-wide text-faint">Folders</span>
             <button
               onClick={() => createFolder(selectedFolderId)}
-              className="p-1.5 text-zinc-400 hover:text-white hover:bg-zinc-800 rounded"
+              className="p-1.5 text-muted hover:text-content hover:bg-surface-hover rounded"
               title={selectedFolderId ? 'New Subfolder' : 'New Folder'}
             >
               <FolderPlus className="w-4 h-4" />
@@ -445,30 +445,30 @@ const AssetBrowser: React.FC<EditorProps> = ({ initialContent, assets = {}, onAd
             onClick={() => setSelectedFolderId(null)}
             onDragOver={handleRootDragOver}
             onDrop={handleRootDrop}
-            className={`w-full mb-2 flex items-center gap-2 px-2 py-2 rounded-md text-sm transition-colors ${selectedFolderId === null ? 'bg-zinc-800 text-white' : 'text-zinc-300 hover:bg-zinc-900'} ${activeDropFolderId === 'root' ? 'ring-1 ring-blue-500/40 bg-blue-500/10' : ''}`}
+            className={`w-full mb-2 flex items-center gap-2 px-2 py-2 rounded-md text-sm transition-colors ${selectedFolderId === null ? 'bg-surface-raised text-content' : 'text-content hover:bg-surface-hover'} ${activeDropFolderId === 'root' ? 'ring-1 ring-blue-500/40 bg-blue-500/10' : ''}`}
             title="Drop here to move asset to root"
           >
-            <FolderOpen className="w-4 h-4 text-zinc-500" />
+            <FolderOpen className="w-4 h-4 text-faint" />
             <span>Root (No Folder)</span>
           </button>
 
           <div>
             {sortedRootFolders.map(folder => renderFolderTree(folder))}
             {sortedRootFolders.length === 0 && (
-              <div className="text-xs text-zinc-600 px-2 py-3">No folders yet.</div>
+              <div className="text-xs text-faint px-2 py-3">No folders yet.</div>
             )}
           </div>
         </aside>
 
         <div className="flex-1 overflow-y-auto p-6 custom-scrollbar">
           {assetList.length === 0 ? (
-              <div className="h-full flex flex-col items-center justify-center text-zinc-500 opacity-50">
+              <div className="h-full flex flex-col items-center justify-center text-faint opacity-50">
                   <Grid className="w-16 h-16 mb-4" />
                   <p>No assets in this project yet.</p>
                   <p className="text-sm mt-2">Upload media or reuse what your documents already imported.</p>
                </div>
           ) : filteredAssets.length === 0 ? (
-              <div className="h-full flex flex-col items-center justify-center text-zinc-500 opacity-60">
+              <div className="h-full flex flex-col items-center justify-center text-faint opacity-60">
                   <Grid className="w-12 h-12 mb-3" />
                   <p>No assets in this folder.</p>
                   <p className="text-xs mt-2">Drag assets onto folders to reorganize or into documents to reuse them.</p>
@@ -481,7 +481,7 @@ const AssetBrowser: React.FC<EditorProps> = ({ initialContent, assets = {}, onAd
                          draggable
                          onDragStart={(e) => handleAssetDragStart(e, id, name, kind, mime)}
                          onDragEnd={handleAssetDragEnd}
-                         className={`group bg-zinc-950 border border-zinc-800 rounded-xl overflow-hidden hover:border-zinc-600 transition-all shadow-sm hover:shadow-xl cursor-grab active:cursor-grabbing ${draggedAssetId === id ? 'opacity-45 grayscale' : ''}`}
+                         className={`group bg-bg border border-border rounded-xl overflow-hidden hover:border-border-strong transition-all shadow-sm hover:shadow-xl cursor-grab active:cursor-grabbing ${draggedAssetId === id ? 'opacity-45 grayscale' : ''}`}
                        >
                            {/* Image Preview */}
                            <div className="aspect-square bg-[#101012] relative flex items-center justify-center overflow-hidden bg-[url('data:image/svg+xml;base64,PHN2ZyB3aWR0aD0iMjAiIGhlaWdodD0iMjAiIHhtbG5zPSJodHRwOi8vd3d3LnczLm9yZy8yMDAwL3N2ZyI+PHBhdGggZD0iTTAgMGgyMHYyMEgwem0xMCAxMGgxMHYxMEgxMHoiIGZpbGw9IiMxODE4MWIiIGZpbGwtb3BhY2l0eT0iMC40Ii8+PC9zdmc+')]">
@@ -490,17 +490,17 @@ const AssetBrowser: React.FC<EditorProps> = ({ initialContent, assets = {}, onAd
                                ) : kind === 'video' ? (
                                  <video src={data} className="h-full w-full object-cover" muted preload="metadata" playsInline />
                                ) : kind === 'audio' ? (
-                                 <div className="flex flex-col items-center gap-2 text-zinc-300">
+                                 <div className="flex flex-col items-center gap-2 text-content">
                                    <Music className="w-12 h-12 text-purple-400" />
-                                   <span className="text-xs uppercase tracking-wide text-zinc-400">Audio</span>
+                                   <span className="text-xs uppercase tracking-wide text-muted">Audio</span>
                                  </div>
                                ) : (
-                                 <div className="flex flex-col items-center gap-2 text-zinc-300">
-                                   <FileIcon className="w-12 h-12 text-zinc-500" />
-                                   <span className="text-xs uppercase tracking-wide text-zinc-400">Asset</span>
+                                 <div className="flex flex-col items-center gap-2 text-content">
+                                   <FileIcon className="w-12 h-12 text-faint" />
+                                   <span className="text-xs uppercase tracking-wide text-muted">Asset</span>
                                  </div>
                                )}
-                               <div className="absolute left-2 top-2 rounded-full border border-zinc-700/80 bg-black/70 px-2 py-0.5 text-[10px] uppercase tracking-wide text-zinc-200">
+                               <div className="absolute left-2 top-2 rounded-full border border-border-strong/80 bg-black/70 px-2 py-0.5 text-[10px] uppercase tracking-wide text-content">
                                  {kind}
                                </div>
                                
@@ -515,21 +515,21 @@ const AssetBrowser: React.FC<EditorProps> = ({ initialContent, assets = {}, onAd
                                   </button>
                                    <button 
                                        onClick={() => downloadAsset(data, id, name)}
-                                       className="p-2 bg-zinc-800 text-white rounded-full hover:scale-110 transition-transform"
+                                       className="p-2 bg-surface-raised text-content rounded-full hover:scale-110 transition-transform"
                                        title="Download"
                                    >
                                        <Download className="w-4 h-4" />
                                    </button>
                                    <button
                                        onClick={() => handleRename(id)}
-                                       className="p-2 bg-zinc-800 text-white rounded-full hover:scale-110 transition-transform"
+                                       className="p-2 bg-surface-raised text-content rounded-full hover:scale-110 transition-transform"
                                        title="Rename Asset"
                                    >
                                        <Pencil className="w-4 h-4" />
                                    </button>
                                    <button 
                                        onClick={() => handleDelete(id)}
-                                       className="p-2 bg-red-600 text-white rounded-full hover:scale-110 transition-transform"
+                                       className="p-2 bg-red-600 text-content rounded-full hover:scale-110 transition-transform"
                                        title="Delete Asset"
                                   >
                                       <Trash2 className="w-4 h-4" />
@@ -538,25 +538,25 @@ const AssetBrowser: React.FC<EditorProps> = ({ initialContent, assets = {}, onAd
                           </div>
 
                            {/* Footer info */}
-                           <div className="p-3 border-t border-zinc-800 bg-zinc-900/50">
+                           <div className="p-3 border-t border-border bg-surface/60">
                                 <div className="flex items-start gap-2">
                                     <div className="min-w-0 flex-1">
-                                        <div className="text-[11px] text-zinc-200 truncate" title={name}>
+                                        <div className="text-[11px] text-content truncate" title={name}>
                                             {name}
                                         </div>
                                     </div>
                                     <button
                                         onClick={() => handleRename(id)}
-                                        className="shrink-0 rounded p-1 text-zinc-500 transition-colors hover:bg-zinc-800 hover:text-white"
+                                        className="shrink-0 rounded p-1 text-faint transition-colors hover:bg-surface-hover hover:text-content"
                                         title="Rename Asset"
                                     >
                                         <Pencil className="w-3.5 h-3.5" />
                                     </button>
                                 </div>
-                                <div className="text-[10px] font-mono text-zinc-500 truncate" title={id}>
+                                <div className="text-[10px] font-mono text-faint truncate" title={id}>
                                     {id}
                                 </div>
-                               <div className="text-[10px] text-zinc-600 mt-1">
+                               <div className="text-[10px] text-faint mt-1">
                                    {(data.length / 1024).toFixed(1)} KB • {mime}
                                </div>
                            </div>

@@ -1,5 +1,5 @@
 import React, { useState, useEffect } from 'react';
-import { LayoutDashboard, FileText, Network, ArrowLeft, Folder, File, CheckSquare, Bug as BugIcon, Trash2, HardDrive, Download, Map as MapIcon, Table, PenTool, Image as ImageIcon, HelpCircle, ChevronRight, ChevronDown, FolderPlus, FilePlus, Copy as CopyIcon, Pencil, PanelLeftClose, PanelLeftOpen, BookOpen, Settings as SettingsIcon } from 'lucide-react';
+import { LayoutDashboard, FileText, Network, ArrowLeft, Folder, File, CheckSquare, Bug as BugIcon, Trash2, HardDrive, Download, Map as MapIcon, Table, PenTool, Image as ImageIcon, HelpCircle, ChevronRight, ChevronDown, FolderPlus, FilePlus, Copy as CopyIcon, Pencil, PanelLeftClose, PanelLeftOpen, BookOpen, Settings as SettingsIcon, X } from 'lucide-react';
 import JSZip from 'jszip';
 import Dashboard from './components/Dashboard';
 import CommandPalette from './components/CommandPalette';
@@ -470,6 +470,8 @@ const App: React.FC = () => {
   const [draggedFileId, setDraggedFileId] = useState<string | null>(null);
   const [activeDropFolderId, setActiveDropFolderId] = useState<string | 'root' | null>(null);
   const [taskNavigationTarget, setTaskNavigationTarget] = useState<TaskNavigationTarget | null>(null);
+  // IDE-style open-file tabs (ordered). Kept in sync with activeFileId below.
+  const [openFileIds, setOpenFileIds] = useState<string[]>([]);
 
   const isSavingRef = React.useRef(false);
   const saveQueueRef = React.useRef<Project | null>(null);
@@ -585,6 +587,33 @@ const App: React.FC = () => {
   useEffect(() => {
     setTaskNavigationTarget(null);
   }, [activeProjectId]);
+
+  // When the project changes, drop tabs for files not in the new project.
+  useEffect(() => {
+    const project = projects.find(p => p.id === activeProjectId);
+    if (!project) { setOpenFileIds([]); return; }
+    setOpenFileIds(prev => prev.filter(id => project.files.some(f => f.id === id)));
+  }, [activeProjectId]);
+
+  // Any file that becomes active is opened as a tab (covers every open path:
+  // sidebar, command palette, links, quick-open, file creation).
+  useEffect(() => {
+    if (!activeFileId) return;
+    setOpenFileIds(prev => (prev.includes(activeFileId) ? prev : [...prev, activeFileId]));
+  }, [activeFileId]);
+
+  const closeTab = (fileId: string, e?: React.MouseEvent) => {
+    e?.stopPropagation();
+    setOpenFileIds(prev => {
+      const idx = prev.indexOf(fileId);
+      const next = prev.filter(id => id !== fileId);
+      if (activeFileId === fileId) {
+        const fallback = next[idx] ?? next[idx - 1] ?? null;
+        setActiveFileId(fallback);
+      }
+      return next;
+    });
+  };
 
   const openGuideSection = (section: GuideSectionId = 'overview') => {
     setGuideSection(section);
@@ -1079,6 +1108,12 @@ const App: React.FC = () => {
   const activeProject = projects.find(p => p.id === activeProjectId);
   const activeFile = activeProject?.files.find(f => f.id === activeFileId);
   const activeEditorPlugin = activeFile ? EDITOR_PLUGINS.find(p => p.type === activeFile.type) : null;
+  // Open tabs, in order, resolved to currently-existing project files.
+  const openTabs = activeProject
+    ? openFileIds
+        .map(id => activeProject.files.find(f => f.id === id))
+        .filter((f): f is ProjectFile => Boolean(f))
+    : [];
   const quickOpenFiles = activeProject
     ? activeProject.files
         .filter(f => f.type !== ASSET_LIBRARY_TYPE)
@@ -1334,6 +1369,39 @@ const App: React.FC = () => {
       );
   };
 
+  const renderFileTabs = () => {
+    if (openTabs.length === 0) return null;
+    return (
+      <div className="flex items-stretch border-b border-border bg-surface overflow-x-auto custom-scrollbar shrink-0">
+        {openTabs.map(file => {
+          const plugin = EDITOR_PLUGINS.find(p => p.type === file.type);
+          const Icon = plugin?.icon || File;
+          const active = file.id === activeFileId;
+          return (
+            <button
+              key={file.id}
+              onClick={() => setActiveFileId(file.id)}
+              className={`group/tab relative flex items-center gap-2 pl-3 pr-2 py-2.5 text-sm border-r border-border max-w-[200px] shrink-0 transition-colors ${active ? 'bg-bg text-content' : 'text-muted hover:text-content hover:bg-surface-hover'}`}
+              title={file.name}
+            >
+              {active && <span className="absolute inset-x-0 top-0 h-0.5 bg-accent" />}
+              <Icon className={`w-4 h-4 shrink-0 ${active ? 'text-accent' : 'text-faint'}`} />
+              <span className="truncate">{file.name}</span>
+              <span
+                role="button"
+                aria-label={`Close ${file.name}`}
+                onClick={(e) => closeTab(file.id, e)}
+                className={`ml-1 shrink-0 rounded p-0.5 text-faint hover:text-content hover:bg-surface-hover transition-opacity ${active ? 'opacity-70 hover:opacity-100' : 'opacity-0 group-hover/tab:opacity-100'}`}
+              >
+                <X className="w-3.5 h-3.5" />
+              </span>
+            </button>
+          );
+        })}
+      </div>
+    );
+  };
+
   const renderSidebar = () => {
     if (currentView === ViewState.DASHBOARD || !activeProject) {
       return (
@@ -1494,7 +1562,10 @@ const App: React.FC = () => {
             />
             )
           ) : (
-            activeProject && activeFile && activeEditorPlugin ? (
+            <div className="h-full flex flex-col">
+              {renderFileTabs()}
+              <div className="flex-1 min-h-0 overflow-hidden relative">
+            {activeProject && activeFile && activeEditorPlugin ? (
                 <React.Suspense fallback={<EditorLoadingFallback fileName={activeFile.name} />}>
                   {React.createElement(activeEditorPlugin.component, {
                     key: activeFile.id,
@@ -1554,10 +1625,12 @@ const App: React.FC = () => {
                   </div>
                 </div>
               </div>
-            )
+            )}
+              </div>
+            </div>
           )}
         </div>
-        
+
         <CommandPalette 
             isOpen={isPaletteOpen} 
             onClose={() => setIsPaletteOpen(false)}

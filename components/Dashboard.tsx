@@ -1,8 +1,10 @@
 import React, { useState } from 'react';
 import { Project } from '../types';
-import { Plus, Code, Gamepad2, Globe, Clock, FileCode, Download, Trash2, HardDrive, Import, Pencil, BookOpen, Settings as SettingsIcon } from 'lucide-react';
-import { Button, Card, Modal, Input, Textarea, Field, cn } from './ui';
+import { Plus, Code, Gamepad2, Globe, Clock, FileCode, Download, Trash2, HardDrive, Import, Pencil, BookOpen, Settings as SettingsIcon, Search } from 'lucide-react';
+import { Button, Card, Modal, Input, Textarea, Field, Select, cn } from './ui';
 import { useSettingsStore } from '../stores/useSettingsStore';
+
+type SortKey = 'recent' | 'name' | 'files';
 
 interface DashboardProps {
   projects: Project[];
@@ -36,6 +38,23 @@ const Dashboard: React.FC<DashboardProps> = ({
   const [editProjectName, setEditProjectName] = useState('');
   const [editProjectDescription, setEditProjectDescription] = useState('');
   const openSettings = useSettingsStore((s) => s.openSettings);
+  const [query, setQuery] = useState('');
+  const [sortBy, setSortBy] = useState<SortKey>('recent');
+
+  const visibleProjects = React.useMemo(() => {
+    const q = query.trim().toLowerCase();
+    const filtered = q
+      ? projects.filter(p =>
+          p.name.toLowerCase().includes(q) || (p.description || '').toLowerCase().includes(q))
+      : projects;
+    const sorted = [...filtered];
+    sorted.sort((a, b) => {
+      if (sortBy === 'name') return a.name.localeCompare(b.name, undefined, { sensitivity: 'base' });
+      if (sortBy === 'files') return (b.files?.length || 0) - (a.files?.length || 0);
+      return (b.lastModified || 0) - (a.lastModified || 0); // recent
+    });
+    return sorted;
+  }, [projects, query, sortBy]);
 
   const closeCreateModal = () => {
     setIsModalOpen(false);
@@ -126,8 +145,39 @@ const Dashboard: React.FC<DashboardProps> = ({
           </div>
         </div>
       ) : (
+        <>
+        <div className="flex items-center gap-3 mb-6 flex-wrap">
+          <div className="relative flex-1 min-w-[220px] max-w-md">
+            <Search className="absolute left-3 top-1/2 -translate-y-1/2 w-4 h-4 text-faint pointer-events-none" />
+            <Input
+              value={query}
+              onChange={(e) => setQuery(e.target.value)}
+              placeholder="Search projects..."
+              className="pl-9"
+              aria-label="Search projects"
+            />
+          </div>
+          <div className="w-48">
+            <Select
+              value={sortBy}
+              onChange={(e) => setSortBy(e.target.value as SortKey)}
+              aria-label="Sort projects"
+            >
+              <option value="recent">Recently updated</option>
+              <option value="name">Name (A–Z)</option>
+              <option value="files">Most files</option>
+            </Select>
+          </div>
+          <span className="text-xs text-faint ml-auto">{visibleProjects.length} of {projects.length}</span>
+        </div>
+        {visibleProjects.length === 0 ? (
+          <div className="text-center py-16 border border-dashed border-border rounded-2xl bg-surface/40">
+            <Search className="w-10 h-10 text-faint mx-auto mb-3" />
+            <p className="text-muted">No projects match “{query}”.</p>
+          </div>
+        ) : (
         <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-6">
-          {projects.map((project) => (
+          {visibleProjects.map((project) => (
             <Card key={project.id} className="group relative p-6 overflow-hidden flex flex-col">
               {/* Main Clickable Area */}
               <div
@@ -183,6 +233,8 @@ const Dashboard: React.FC<DashboardProps> = ({
             </Card>
           ))}
         </div>
+        )}
+        </>
       )}
 
       {/* Create Modal */}

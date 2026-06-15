@@ -1,6 +1,7 @@
 import React, { useState } from 'react';
 import { Project } from '../types';
 import { Plus, Code, Gamepad2, Globe, Clock, FileCode, Download, Trash2, HardDrive, Import, Pencil, BookOpen } from 'lucide-react';
+import { Button, Card, Modal, Input, Textarea, Field, ThemeToggle, cn } from './ui';
 
 interface DashboardProps {
   projects: Project[];
@@ -14,14 +15,14 @@ interface DashboardProps {
   onImportFolder: () => void;
 }
 
-const Dashboard: React.FC<DashboardProps> = ({ 
-    projects, 
-    onSelectProject, 
-    onCreateProject, 
+const Dashboard: React.FC<DashboardProps> = ({
+    projects,
+    onSelectProject,
+    onCreateProject,
     onUpdateProject,
     onOpenWhatsNew,
     onLinkProjectToFolder,
-    onExportProject, 
+    onExportProject,
     onDeleteProject,
     onImportFolder
 }) => {
@@ -34,14 +35,18 @@ const Dashboard: React.FC<DashboardProps> = ({
   const [editProjectName, setEditProjectName] = useState('');
   const [editProjectDescription, setEditProjectDescription] = useState('');
 
+  const closeCreateModal = () => {
+    setIsModalOpen(false);
+    setNewProjectName('');
+    setNewProjectDescription('');
+  };
+
   const handleSubmit = (e: React.FormEvent) => {
     e.preventDefault();
     const trimmedName = newProjectName.trim();
     if (trimmedName) {
       onCreateProject(trimmedName, newProjectType, newProjectDescription.trim());
-      setIsModalOpen(false);
-      setNewProjectName('');
-      setNewProjectDescription('');
+      closeCreateModal();
     }
   };
 
@@ -74,265 +79,214 @@ const Dashboard: React.FC<DashboardProps> = ({
 
   const getTypeIcon = (type: Project['type']) => {
     switch (type) {
-      case 'Game': return <Gamepad2 className="w-6 h-6 text-purple-400" />;
-      case 'Web': return <Globe className="w-6 h-6 text-blue-400" />;
+      case 'Game': return <Gamepad2 className="w-6 h-6 text-violet-400" />;
+      case 'Web': return <Globe className="w-6 h-6 text-sky-400" />;
       default: return <Code className="w-6 h-6 text-emerald-400" />;
     }
   };
 
   return (
     <div className="p-8 max-w-7xl mx-auto w-full">
-      <div className="flex items-center justify-between mb-8">
+      <div className="flex items-center justify-between mb-8 gap-4 flex-wrap">
         <div>
-          <h1 className="text-3xl font-bold text-white tracking-tight flex items-center gap-3">
-             Projects
-          </h1>
-          <p className="text-zinc-400 mt-2">Manage your development plans, specs, and architectures.</p>
+          <h1 className="text-3xl font-bold text-content tracking-tight">Projects</h1>
+          <p className="text-muted mt-2">Manage your development plans, specs, and architectures.</p>
         </div>
-        
-        <div className="flex gap-3">
-            <button
-            onClick={onOpenWhatsNew}
-            className="flex items-center gap-2 bg-zinc-900 text-zinc-200 px-5 py-2.5 rounded-lg font-semibold hover:bg-zinc-800 transition-colors border border-zinc-700"
-            >
-            <BookOpen className="w-5 h-5" />
-            What's New
-            </button>
-            <button
-            onClick={onImportFolder}
-            className="flex items-center gap-2 bg-zinc-800 text-zinc-200 px-5 py-2.5 rounded-lg font-semibold hover:bg-zinc-700 transition-colors border border-zinc-700"
-            >
-            <Import className="w-5 h-5" />
-            Import Local Folder
-            </button>
-            
-            <button
-            onClick={() => setIsModalOpen(true)}
-            className="flex items-center gap-2 bg-white text-zinc-950 px-5 py-2.5 rounded-lg font-semibold hover:bg-zinc-200 transition-colors shadow-lg shadow-white/5"
-            >
-            <Plus className="w-5 h-5" />
-            New Project
-            </button>
+
+        <div className="flex items-center gap-3 flex-wrap">
+            <ThemeToggle />
+            <Button variant="secondary" icon={BookOpen} onClick={onOpenWhatsNew}>
+              What's New
+            </Button>
+            <Button variant="secondary" icon={Import} onClick={onImportFolder}>
+              Import Local Folder
+            </Button>
+            <Button variant="primary" icon={Plus} onClick={() => setIsModalOpen(true)}>
+              New Project
+            </Button>
         </div>
       </div>
 
       {projects.length === 0 ? (
-        <div className="text-center py-20 border border-dashed border-zinc-800 rounded-2xl bg-zinc-900/30">
-          <FileCode className="w-16 h-16 text-zinc-700 mx-auto mb-4" />
-          <h3 className="text-xl font-medium text-zinc-300">No projects yet</h3>
-          <p className="text-zinc-500 mt-2 max-w-sm mx-auto">Start planning by creating a new project or importing an existing folder.</p>
+        <div className="text-center py-20 border border-dashed border-border-strong rounded-2xl bg-surface/40">
+          <FileCode className="w-16 h-16 text-faint mx-auto mb-4" />
+          <h3 className="text-xl font-medium text-content">No projects yet</h3>
+          <p className="text-muted mt-2 max-w-sm mx-auto">Start planning by creating a new project or importing an existing folder.</p>
+          <div className="flex items-center justify-center gap-3 mt-6">
+            <Button variant="primary" icon={Plus} onClick={() => setIsModalOpen(true)}>
+              New Project
+            </Button>
+            <Button variant="secondary" icon={Import} onClick={onImportFolder}>
+              Import Local Folder
+            </Button>
+          </div>
         </div>
       ) : (
         <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-6">
           {projects.map((project) => (
-            <div
-              key={project.id}
-              className="group relative bg-zinc-900 border border-zinc-800 rounded-xl p-6 hover:border-zinc-600 transition-all hover:shadow-xl hover:shadow-black/50 overflow-hidden flex flex-col"
-            >
+            <Card key={project.id} className="group relative p-6 overflow-hidden flex flex-col">
               {/* Main Clickable Area */}
-              <div 
+              <div
                 className="cursor-pointer flex-1 relative z-10"
                 onClick={() => onSelectProject(project.id)}
               >
                 <div className="flex justify-between items-start mb-4">
-                    <div className="p-3 bg-zinc-950 rounded-lg inline-block border border-zinc-800 group-hover:border-zinc-700 transition-colors">
+                    <div className="p-3 bg-surface-raised rounded-lg inline-block border border-border group-hover:border-accent/50 transition-colors">
                       {getTypeIcon(project.type)}
                     </div>
-                    
-                    {/* Local Indicator Icon */}
+
+                    {/* Local Indicator */}
                     {project.isLocal && (
-                        <div className="flex items-center gap-1 bg-blue-500/10 border border-blue-500/20 px-2 py-1 rounded text-[10px] text-blue-400 font-bold uppercase tracking-wider">
+                        <div className="flex items-center gap-1 bg-accent/10 border border-accent/20 px-2 py-1 rounded text-[10px] text-accent font-bold uppercase tracking-wider">
                             <HardDrive className="w-3 h-3" />
                             Local
                         </div>
                     )}
                 </div>
-                
-                <h3 className="text-xl font-semibold text-zinc-100 mb-2 group-hover:text-blue-400 transition-colors">{project.name}</h3>
-                <p className="text-zinc-400 text-sm line-clamp-2 mb-4 h-10">{project.description || "No description yet."}</p>
-                <div className="text-xs text-zinc-500 mb-4">
+
+                <h3 className="text-xl font-semibold text-content mb-2 group-hover:text-accent transition-colors">{project.name}</h3>
+                <p className="text-muted text-sm line-clamp-2 mb-4 h-10">{project.description || "No description yet."}</p>
+                <div className="text-xs text-faint mb-4">
                   {project.files.length} files
                 </div>
               </div>
-              
+
               {/* Footer Actions */}
-              <div className="flex items-center justify-between pt-4 border-t border-zinc-800 mt-auto relative z-20">
-                 <div className="flex items-center text-xs text-zinc-500">
+              <div className="flex items-center justify-between pt-4 border-t border-border mt-auto relative z-20">
+                 <div className="flex items-center text-xs text-faint">
                     <Clock className="w-3.5 h-3.5 mr-1.5" />
                     {new Date(project.lastModified).toLocaleDateString()}
                  </div>
-                 <div className="flex items-center gap-2 opacity-0 group-hover:opacity-100 transition-opacity">
-                    <button 
-                    onClick={(e) => { 
-                        e.preventDefault();
-                        e.stopPropagation();
-                        openEditModal(project);
-                    }}
-                    className="p-2 hover:bg-zinc-800 rounded-lg text-zinc-400 hover:text-amber-300 transition-colors"
-                    title="Edit Project"
-                    >
-                    <Pencil className="w-4 h-4" />
-                    </button>
-                    <button 
-                    onClick={(e) => { 
-                        e.preventDefault();
-                        e.stopPropagation();
-                        onLinkProjectToFolder(project.id);
-                    }}
-                    className="p-2 hover:bg-zinc-800 rounded-lg text-zinc-400 hover:text-emerald-400 transition-colors"
-                    title={project.isLocal ? "Relink Local Folder" : "Link to Local Folder"}
-                    >
-                    <HardDrive className="w-4 h-4" />
-                    </button>
-                    <button 
-                    onClick={(e) => { 
-                        e.preventDefault();
-                        e.stopPropagation(); 
-                        onExportProject(project); 
-                    }}
-                    className="p-2 hover:bg-zinc-800 rounded-lg text-zinc-400 hover:text-blue-400 transition-colors"
-                    title="Export JSON"
-                    >
-                    <Download className="w-4 h-4" />
-                    </button>
-                    
-                    <button 
-                      onClick={(e) => { 
-                        e.preventDefault();
-                        e.stopPropagation(); 
-                        onDeleteProject(project.id); 
-                      }}
-                      className="p-2 hover:bg-zinc-800 rounded-lg text-zinc-400 hover:text-red-400 transition-colors"
-                      title={project.isLocal ? "Remove from List" : "Delete Permanently"}
-                    >
+                 <div className="flex items-center gap-1 opacity-0 group-hover:opacity-100 focus-within:opacity-100 transition-opacity">
+                    <IconAction title="Edit Project" hoverClass="hover:text-warning"
+                      onClick={(e) => { e.preventDefault(); e.stopPropagation(); openEditModal(project); }}>
+                      <Pencil className="w-4 h-4" />
+                    </IconAction>
+                    <IconAction title={project.isLocal ? "Relink Local Folder" : "Link to Local Folder"} hoverClass="hover:text-success"
+                      onClick={(e) => { e.preventDefault(); e.stopPropagation(); onLinkProjectToFolder(project.id); }}>
+                      <HardDrive className="w-4 h-4" />
+                    </IconAction>
+                    <IconAction title="Export JSON" hoverClass="hover:text-accent"
+                      onClick={(e) => { e.preventDefault(); e.stopPropagation(); onExportProject(project); }}>
+                      <Download className="w-4 h-4" />
+                    </IconAction>
+                    <IconAction title={project.isLocal ? "Remove from List" : "Delete Permanently"} hoverClass="hover:text-danger"
+                      onClick={(e) => { e.preventDefault(); e.stopPropagation(); onDeleteProject(project.id); }}>
                       <Trash2 className="w-4 h-4" />
-                    </button>
+                    </IconAction>
                  </div>
               </div>
-            </div>
+            </Card>
           ))}
         </div>
       )}
 
-      {/* Modal */}
-      {isModalOpen && (
-        <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/80 backdrop-blur-sm p-4">
-          <div className="bg-zinc-900 border border-zinc-800 rounded-xl w-full max-w-md p-6 shadow-2xl">
-            <h2 className="text-xl font-bold text-white mb-6">Create New Project</h2>
-            <form onSubmit={handleSubmit} className="space-y-4">
-              <div>
-                <label className="block text-sm font-medium text-zinc-400 mb-1">Project Name</label>
-                <input
-                  autoFocus
-                  type="text"
-                  required
-                  value={newProjectName}
-                  onChange={(e) => setNewProjectName(e.target.value)}
-                  className="w-full bg-zinc-950 border border-zinc-800 rounded-lg p-2.5 text-white focus:ring-2 focus:ring-blue-600 focus:border-transparent outline-none transition-all"
-                  placeholder="e.g., Space Explorer RPG"
-                />
-              </div>
-              <div>
-                <label className="block text-sm font-medium text-zinc-400 mb-1">Type</label>
-                <div className="grid grid-cols-3 gap-2">
-                  {(['Software', 'Game', 'Web'] as const).map((type) => (
-                    <button
-                      key={type}
-                      type="button"
-                      onClick={() => setNewProjectType(type)}
-                      className={`py-2 px-3 rounded-lg text-sm font-medium border transition-all ${
-                        newProjectType === type
-                          ? 'bg-blue-600/10 border-blue-600 text-blue-400'
-                          : 'bg-zinc-950 border-zinc-800 text-zinc-400 hover:bg-zinc-800'
-                      }`}
-                    >
-                      {type}
-                    </button>
-                  ))}
-                </div>
-              </div>
-              <div>
-                <label className="block text-sm font-medium text-zinc-400 mb-1">Short Description</label>
-                <textarea
-                  value={newProjectDescription}
-                  onChange={(e) => setNewProjectDescription(e.target.value)}
-                  className="w-full bg-zinc-950 border border-zinc-800 rounded-lg p-2.5 text-white focus:ring-2 focus:ring-blue-600 focus:border-transparent outline-none transition-all resize-none"
-                  placeholder="A short summary shown on the dashboard."
-                  rows={3}
-                  maxLength={200}
-                />
-              </div>
-              <div className="flex gap-3 mt-8 pt-4 border-t border-zinc-800">
+      {/* Create Modal */}
+      <Modal
+        open={isModalOpen}
+        onClose={closeCreateModal}
+        title="Create New Project"
+        footer={
+          <>
+            <Button variant="ghost" type="button" onClick={closeCreateModal}>Cancel</Button>
+            <Button variant="primary" type="submit" form="create-project-form">Create</Button>
+          </>
+        }
+      >
+        <form id="create-project-form" onSubmit={handleSubmit} className="space-y-4">
+          <Field label="Project Name" htmlFor="new-project-name">
+            <Input
+              id="new-project-name"
+              autoFocus
+              required
+              value={newProjectName}
+              onChange={(e) => setNewProjectName(e.target.value)}
+              placeholder="e.g., Space Explorer RPG"
+            />
+          </Field>
+          <Field label="Type">
+            <div className="grid grid-cols-3 gap-2">
+              {(['Software', 'Game', 'Web'] as const).map((type) => (
                 <button
+                  key={type}
                   type="button"
-                  onClick={() => {
-                    setIsModalOpen(false);
-                    setNewProjectName('');
-                    setNewProjectDescription('');
-                  }}
-                  className="flex-1 px-4 py-2 rounded-lg text-zinc-300 hover:bg-zinc-800 transition-colors text-sm font-medium"
+                  onClick={() => setNewProjectType(type)}
+                  className={cn(
+                    'py-2 px-3 rounded-lg text-sm font-medium border transition-all',
+                    newProjectType === type
+                      ? 'bg-accent/10 border-accent text-accent'
+                      : 'bg-surface-raised border-border-strong text-muted hover:bg-surface-hover'
+                  )}
                 >
-                  Cancel
+                  {type}
                 </button>
-                <button
-                  type="submit"
-                  className="flex-1 bg-blue-600 hover:bg-blue-700 text-white px-4 py-2 rounded-lg text-sm font-medium transition-colors"
-                >
-                  Create
-                </button>
-              </div>
-            </form>
-          </div>
-        </div>
-      )}
+              ))}
+            </div>
+          </Field>
+          <Field label="Short Description" htmlFor="new-project-desc">
+            <Textarea
+              id="new-project-desc"
+              value={newProjectDescription}
+              onChange={(e) => setNewProjectDescription(e.target.value)}
+              placeholder="A short summary shown on the dashboard."
+              rows={3}
+              maxLength={200}
+            />
+          </Field>
+        </form>
+      </Modal>
 
-      {isEditModalOpen && (
-        <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/80 backdrop-blur-sm p-4">
-          <div className="bg-zinc-900 border border-zinc-800 rounded-xl w-full max-w-md p-6 shadow-2xl">
-            <h2 className="text-xl font-bold text-white mb-6">Edit Project</h2>
-            <form onSubmit={handleEditSubmit} className="space-y-4">
-              <div>
-                <label className="block text-sm font-medium text-zinc-400 mb-1">Project Name</label>
-                <input
-                  autoFocus
-                  type="text"
-                  required
-                  value={editProjectName}
-                  onChange={(e) => setEditProjectName(e.target.value)}
-                  className="w-full bg-zinc-950 border border-zinc-800 rounded-lg p-2.5 text-white focus:ring-2 focus:ring-blue-600 focus:border-transparent outline-none transition-all"
-                />
-              </div>
-              <div>
-                <label className="block text-sm font-medium text-zinc-400 mb-1">Short Description</label>
-                <textarea
-                  value={editProjectDescription}
-                  onChange={(e) => setEditProjectDescription(e.target.value)}
-                  className="w-full bg-zinc-950 border border-zinc-800 rounded-lg p-2.5 text-white focus:ring-2 focus:ring-blue-600 focus:border-transparent outline-none transition-all resize-none"
-                  rows={3}
-                  maxLength={200}
-                />
-              </div>
-              <div className="flex gap-3 mt-8 pt-4 border-t border-zinc-800">
-                <button
-                  type="button"
-                  onClick={closeEditModal}
-                  className="flex-1 px-4 py-2 rounded-lg text-zinc-300 hover:bg-zinc-800 transition-colors text-sm font-medium"
-                >
-                  Cancel
-                </button>
-                <button
-                  type="submit"
-                  className="flex-1 bg-blue-600 hover:bg-blue-700 text-white px-4 py-2 rounded-lg text-sm font-medium transition-colors"
-                >
-                  Save
-                </button>
-              </div>
-            </form>
-          </div>
-        </div>
-      )}
+      {/* Edit Modal */}
+      <Modal
+        open={isEditModalOpen}
+        onClose={closeEditModal}
+        title="Edit Project"
+        footer={
+          <>
+            <Button variant="ghost" type="button" onClick={closeEditModal}>Cancel</Button>
+            <Button variant="primary" type="submit" form="edit-project-form">Save</Button>
+          </>
+        }
+      >
+        <form id="edit-project-form" onSubmit={handleEditSubmit} className="space-y-4">
+          <Field label="Project Name" htmlFor="edit-project-name">
+            <Input
+              id="edit-project-name"
+              autoFocus
+              required
+              value={editProjectName}
+              onChange={(e) => setEditProjectName(e.target.value)}
+            />
+          </Field>
+          <Field label="Short Description" htmlFor="edit-project-desc">
+            <Textarea
+              id="edit-project-desc"
+              value={editProjectDescription}
+              onChange={(e) => setEditProjectDescription(e.target.value)}
+              rows={3}
+              maxLength={200}
+            />
+          </Field>
+        </form>
+      </Modal>
     </div>
   );
 };
+
+/** Small icon-only action button used in the project card footer. */
+const IconAction: React.FC<{
+  title: string;
+  hoverClass: string;
+  onClick: (e: React.MouseEvent) => void;
+  children: React.ReactNode;
+}> = ({ title, hoverClass, onClick, children }) => (
+  <button
+    onClick={onClick}
+    title={title}
+    className={cn('p-2 rounded-lg text-muted hover:bg-surface-hover transition-colors', hoverClass)}
+  >
+    {children}
+  </button>
+);
 
 export default Dashboard;

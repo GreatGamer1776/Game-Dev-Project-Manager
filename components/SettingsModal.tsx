@@ -85,7 +85,7 @@ const SchemeChooser: React.FC = () => {
           >
             <span
               className="flex h-8 w-8 items-center justify-center rounded-full shadow-soft ring-1 ring-black/10"
-              style={{ backgroundImage: swatch }}
+              style={{ backgroundColor: swatch }}
             >
               {active && <Check className="h-4 w-4 text-white drop-shadow" />}
             </span>

@@ -58,10 +58,6 @@ export default {
         soft: '0 1px 2px 0 rgb(0 0 0 / 0.05), 0 1px 3px 0 rgb(0 0 0 / 0.08)',
         raised: '0 4px 12px -2px rgb(0 0 0 / 0.12), 0 2px 6px -2px rgb(0 0 0 / 0.08)',
         pop: '0 12px 32px -8px rgb(0 0 0 / 0.30), 0 6px 12px -6px rgb(0 0 0 / 0.20)',
-        'accent-glow': '0 0 0 1px rgb(var(--color-accent) / 0.35), 0 8px 24px -6px rgb(var(--color-accent) / 0.35)',
-      },
-      backgroundImage: {
-        'accent-gradient': 'linear-gradient(135deg, rgb(var(--color-accent)) 0%, rgb(var(--color-accent-grad)) 100%)',
       },
       keyframes: {
         'fade-in': {

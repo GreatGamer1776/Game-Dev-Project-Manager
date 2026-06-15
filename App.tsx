@@ -1338,7 +1338,7 @@ const App: React.FC = () => {
     if (currentView === ViewState.DASHBOARD || !activeProject) {
       return (
         <aside className="w-16 md:w-20 bg-surface border-r border-border flex flex-col items-center py-6 gap-6 z-20">
-          <div className="w-10 h-10 bg-accent-gradient rounded-xl flex items-center justify-center shadow-accent-glow mb-4"><Folder className="w-6 h-6 text-accent-content" /></div>
+          <div className="w-10 h-10 bg-accent rounded-xl flex items-center justify-center shadow-soft mb-4"><Folder className="w-6 h-6 text-accent-content" /></div>
           <button onClick={() => { setShowGuide(false); setGuideSection('overview'); }} className={`p-3 rounded-xl transition-colors ${!showGuide ? 'bg-accent/15 text-accent shadow-soft' : 'text-faint hover:bg-surface-hover hover:text-content'}`} title="Dashboard"><LayoutDashboard className="w-5 h-5" /></button>
           <button onClick={() => openGuideSection('overview')} className={`p-3 rounded-xl transition-colors ${showGuide ? 'bg-accent/15 text-accent shadow-soft' : 'text-faint hover:bg-surface-hover hover:text-content'}`} title="Guide & Documentation"><BookOpen className="w-5 h-5" /></button>
           <button onClick={openSettings} className="mt-auto p-3 rounded-xl text-faint hover:bg-surface-hover hover:text-content transition-colors" title="Settings"><SettingsIcon className="w-5 h-5" /></button>

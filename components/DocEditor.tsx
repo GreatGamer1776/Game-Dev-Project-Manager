@@ -1001,7 +1001,7 @@ const DocEditor: React.FC<EditorProps> = ({ initialContent, onSave, fileName, as
                                   ) : asset.kind === 'video' ? (
                                     <video src={asset.data} className="h-full w-full object-cover" muted preload="metadata" playsInline />
                                   ) : asset.kind === 'audio' ? (
-                                    <div className="flex h-full w-full items-center justify-center bg-gradient-to-br from-accent/20 to-surface-raised text-accent">
+                                    <div className="flex h-full w-full items-center justify-center bg-accent/15 text-accent">
                                       <Music className="h-6 w-6" />
                                     </div>
                                   ) : (

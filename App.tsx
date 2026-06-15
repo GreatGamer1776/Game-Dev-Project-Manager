@@ -1,5 +1,5 @@
 import React, { useState, useEffect } from 'react';
-import { LayoutDashboard, FileText, Network, ArrowLeft, Folder, File, CheckSquare, Bug as BugIcon, Trash2, HardDrive, Download, Map as MapIcon, Table, PenTool, Image as ImageIcon, HelpCircle, ChevronRight, ChevronDown, FolderPlus, FilePlus, Copy as CopyIcon, Pencil, PanelLeftClose, PanelLeftOpen, BookOpen } from 'lucide-react';
+import { LayoutDashboard, FileText, Network, ArrowLeft, Folder, File, CheckSquare, Bug as BugIcon, Trash2, HardDrive, Download, Map as MapIcon, Table, PenTool, Image as ImageIcon, HelpCircle, ChevronRight, ChevronDown, FolderPlus, FilePlus, Copy as CopyIcon, Pencil, PanelLeftClose, PanelLeftOpen, BookOpen, Settings as SettingsIcon } from 'lucide-react';
 import JSZip from 'jszip';
 import Dashboard from './components/Dashboard';
 import CommandPalette from './components/CommandPalette';
@@ -9,6 +9,8 @@ import { Project, ViewState, ProjectFile, FileType, EditorProps, ProjectFolder, 
 import { useProjectStore } from './stores/useProjectStore';
 import { getAssetExtensionFromMime, getAssetMimeType } from './services/assetUtils';
 import { Button, Modal, Input, Select, Field } from './components/ui';
+import { SettingsModal } from './components/SettingsModal';
+import { useSettingsStore } from './stores/useSettingsStore';
 
 const DocEditor = React.lazy(() => import('./components/DocEditor'));
 const FlowchartEditor = React.lazy(() => import('./components/FlowchartEditor'));
@@ -451,6 +453,8 @@ const App: React.FC = () => {
   const setActiveProjectId = useProjectStore(state => state.setActiveProjectId);
   const setActiveFileId = useProjectStore(state => state.setActiveFileId);
   
+  const openSettings = useSettingsStore(state => state.openSettings);
+
   const [isPaletteOpen, setIsPaletteOpen] = useState(false);
   const [isHelpOpen, setIsHelpOpen] = useState(false);
   const [isSidebarCollapsed, setIsSidebarCollapsed] = useState(false);
@@ -1337,6 +1341,7 @@ const App: React.FC = () => {
           <div className="w-10 h-10 bg-accent-gradient rounded-xl flex items-center justify-center shadow-accent-glow mb-4"><Folder className="w-6 h-6 text-accent-content" /></div>
           <button onClick={() => { setShowGuide(false); setGuideSection('overview'); }} className={`p-3 rounded-xl transition-colors ${!showGuide ? 'bg-surface-raised text-accent shadow-soft' : 'text-faint hover:bg-surface-hover hover:text-content'}`} title="Dashboard"><LayoutDashboard className="w-5 h-5" /></button>
           <button onClick={() => openGuideSection('overview')} className={`p-3 rounded-xl transition-colors ${showGuide ? 'bg-surface-raised text-accent shadow-soft' : 'text-faint hover:bg-surface-hover hover:text-content'}`} title="Guide & Documentation"><BookOpen className="w-5 h-5" /></button>
+          <button onClick={openSettings} className="mt-auto p-3 rounded-xl text-faint hover:bg-surface-hover hover:text-content transition-colors" title="Settings"><SettingsIcon className="w-5 h-5" /></button>
         </aside>
       );
     }
@@ -1372,6 +1377,9 @@ const App: React.FC = () => {
             </div>
           )}
           <div className="mt-auto pb-4 flex flex-col items-center gap-1">
+            <button onClick={openSettings} className="p-2 rounded-lg text-faint hover:bg-surface-hover hover:text-content transition-colors" title="Settings">
+              <SettingsIcon className="w-4 h-4" />
+            </button>
             <button onClick={() => setIsHelpOpen(true)} className="p-2 rounded-lg text-faint hover:bg-surface-hover hover:text-content transition-colors" title="Help">
               <HelpCircle className="w-4 h-4" />
             </button>
@@ -1450,7 +1458,11 @@ const App: React.FC = () => {
           )}
         </div>
 
-        <div className="p-4 border-t border-border">
+        <div className="p-4 border-t border-border space-y-1">
+             <button onClick={openSettings} className="flex items-center gap-3 px-3 py-2 text-faint hover:text-content hover:bg-surface-hover rounded-lg w-full transition-colors">
+                <SettingsIcon className="w-4 h-4" />
+                <span className="text-sm">Settings</span>
+             </button>
              <button onClick={() => setIsHelpOpen(true)} className="flex items-center gap-3 px-3 py-2 text-faint hover:text-content hover:bg-surface-hover rounded-lg w-full transition-colors">
                 <HelpCircle className="w-4 h-4" />
                 <span className="text-sm">Guide & Help</span>
@@ -1557,6 +1569,8 @@ const App: React.FC = () => {
         />
         
         <HelpModal isOpen={isHelpOpen} onClose={() => setIsHelpOpen(false)} />
+
+        <SettingsModal />
 
         {/* Rename File Modal */}
         <Modal

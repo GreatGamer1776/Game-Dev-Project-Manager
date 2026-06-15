@@ -1,7 +1,8 @@
 import React, { useState } from 'react';
 import { Project } from '../types';
-import { Plus, Code, Gamepad2, Globe, Clock, FileCode, Download, Trash2, HardDrive, Import, Pencil, BookOpen } from 'lucide-react';
-import { Button, Card, Modal, Input, Textarea, Field, ThemeToggle, cn } from './ui';
+import { Plus, Code, Gamepad2, Globe, Clock, FileCode, Download, Trash2, HardDrive, Import, Pencil, BookOpen, Settings as SettingsIcon } from 'lucide-react';
+import { Button, Card, Modal, Input, Textarea, Field, cn } from './ui';
+import { useSettingsStore } from '../stores/useSettingsStore';
 
 interface DashboardProps {
   projects: Project[];
@@ -34,6 +35,7 @@ const Dashboard: React.FC<DashboardProps> = ({
   const [editingProjectId, setEditingProjectId] = useState<string | null>(null);
   const [editProjectName, setEditProjectName] = useState('');
   const [editProjectDescription, setEditProjectDescription] = useState('');
+  const openSettings = useSettingsStore((s) => s.openSettings);
 
   const closeCreateModal = () => {
     setIsModalOpen(false);
@@ -94,7 +96,9 @@ const Dashboard: React.FC<DashboardProps> = ({
         </div>
 
         <div className="flex items-center gap-3 flex-wrap">
-            <ThemeToggle />
+            <Button variant="secondary" size="icon" onClick={openSettings} title="Settings" aria-label="Settings">
+              <SettingsIcon className="w-4 h-4" />
+            </Button>
             <Button variant="secondary" icon={BookOpen} onClick={onOpenWhatsNew}>
               What's New
             </Button>

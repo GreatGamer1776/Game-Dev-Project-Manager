@@ -1298,7 +1298,7 @@ const App: React.FC = () => {
                             draggable
                             onDragStart={(e) => handleFileDragStart(e, file.id, file.name)}
                             onDragEnd={handleFileDragEnd}
-                            className={`w-full flex items-start gap-2 pl-1.5 pr-2 py-1.5 text-sm text-left transition-[padding] duration-150 group-hover:pr-28 ${activeFileId === file.id ? 'bg-surface-raised text-content' : 'text-muted hover:text-content'}`}
+                            className={`w-full flex items-start gap-2 pl-1.5 pr-2 py-1.5 text-sm text-left transition-[padding] duration-150 group-hover:pr-28 ${activeFileId === file.id ? 'bg-accent/10 text-content' : 'text-muted hover:text-content'}`}
                             title={file.name}
                           >
                              <Icon className={`w-4 h-4 shrink-0 mt-0.5 ${activeFileId === file.id ? 'text-accent' : 'text-faint'}`} />
@@ -1339,8 +1339,8 @@ const App: React.FC = () => {
       return (
         <aside className="w-16 md:w-20 bg-surface border-r border-border flex flex-col items-center py-6 gap-6 z-20">
           <div className="w-10 h-10 bg-accent-gradient rounded-xl flex items-center justify-center shadow-accent-glow mb-4"><Folder className="w-6 h-6 text-accent-content" /></div>
-          <button onClick={() => { setShowGuide(false); setGuideSection('overview'); }} className={`p-3 rounded-xl transition-colors ${!showGuide ? 'bg-surface-raised text-accent shadow-soft' : 'text-faint hover:bg-surface-hover hover:text-content'}`} title="Dashboard"><LayoutDashboard className="w-5 h-5" /></button>
-          <button onClick={() => openGuideSection('overview')} className={`p-3 rounded-xl transition-colors ${showGuide ? 'bg-surface-raised text-accent shadow-soft' : 'text-faint hover:bg-surface-hover hover:text-content'}`} title="Guide & Documentation"><BookOpen className="w-5 h-5" /></button>
+          <button onClick={() => { setShowGuide(false); setGuideSection('overview'); }} className={`p-3 rounded-xl transition-colors ${!showGuide ? 'bg-accent/15 text-accent shadow-soft' : 'text-faint hover:bg-surface-hover hover:text-content'}`} title="Dashboard"><LayoutDashboard className="w-5 h-5" /></button>
+          <button onClick={() => openGuideSection('overview')} className={`p-3 rounded-xl transition-colors ${showGuide ? 'bg-accent/15 text-accent shadow-soft' : 'text-faint hover:bg-surface-hover hover:text-content'}`} title="Guide & Documentation"><BookOpen className="w-5 h-5" /></button>
           <button onClick={openSettings} className="mt-auto p-3 rounded-xl text-faint hover:bg-surface-hover hover:text-content transition-colors" title="Settings"><SettingsIcon className="w-5 h-5" /></button>
         </aside>
       );
@@ -1367,7 +1367,7 @@ const App: React.FC = () => {
                   <button
                     key={file.id}
                     onClick={() => setActiveFileId(file.id)}
-                    className={`p-2 rounded-lg transition-colors ${activeFileId === file.id ? 'bg-surface-raised text-accent' : 'text-faint hover:text-content hover:bg-surface-hover'}`}
+                    className={`p-2 rounded-lg transition-colors ${activeFileId === file.id ? 'bg-accent/15 text-accent' : 'text-faint hover:text-content hover:bg-surface-hover'}`}
                     title={file.name}
                   >
                     <Icon className="w-4 h-4" />
@@ -1422,7 +1422,7 @@ const App: React.FC = () => {
                     draggable
                     onDragStart={(e) => handleFileDragStart(e, file.id, file.name)}
                     onDragEnd={handleFileDragEnd}
-                    className={`group relative w-full flex items-start gap-2 px-2 py-2 rounded-lg text-sm transition-colors border cursor-grab active:cursor-grabbing ${activeFileId === file.id ? 'bg-surface-raised text-content border-accent/40' : 'text-content hover:text-content hover:bg-surface-hover border-border'}`}
+                    className={`group relative w-full flex items-start gap-2 px-2 py-2 rounded-lg text-sm transition-colors border cursor-grab active:cursor-grabbing ${activeFileId === file.id ? 'bg-accent/10 text-content border-accent/50' : 'text-content hover:text-content hover:bg-surface-hover border-border'}`}
                     title={`Drag to create link to ${file.name}`}
                   >
                     <Icon className={`w-4 h-4 mt-0.5 shrink-0 ${activeFileId === file.id ? 'text-accent' : 'text-faint'}`} />

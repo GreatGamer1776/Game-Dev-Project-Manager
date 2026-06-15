@@ -162,6 +162,12 @@
     color: rgb(var(--color-content));
   }
 
+  /* Accent-tinted text selection across the app. */
+  ::selection {
+    background-color: rgb(var(--color-accent) / 0.28);
+    color: rgb(var(--color-content));
+  }
+
   /* Smoothly cross-fade surfaces/text when toggling theme. */
   body,
   body * {

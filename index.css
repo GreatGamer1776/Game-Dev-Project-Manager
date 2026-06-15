@@ -24,11 +24,11 @@
     --color-content: 24 24 27;          /* zinc-900 */
     --color-muted: 82 82 91;            /* zinc-600 */
     --color-faint: 161 161 170;         /* zinc-400 */
-    /* Accent — default (Azure). Overridden per color scheme below. */
-    --color-accent: 37 99 235;          /* blue-600 */
-    --color-accent-grad: 14 165 233;    /* sky-500 */
-    --color-accent-hover: 29 78 216;    /* blue-700 */
-    --color-accent-muted: 219 234 254;  /* blue-100 */
+    /* Accent — default (Indigo). Overridden per color scheme below. */
+    --color-accent: 79 70 229;          /* indigo-600 */
+    --color-accent-grad: 99 102 241;    /* indigo-500 */
+    --color-accent-hover: 67 56 202;    /* indigo-700 */
+    --color-accent-muted: 224 231 255;  /* indigo-100 */
     --color-accent-content: 255 255 255;/* white */
     /* Status */
     --color-success: 22 163 74;         /* green-600 */
@@ -53,11 +53,11 @@
     --color-content: 244 244 245;       /* zinc-100 */
     --color-muted: 161 161 170;         /* zinc-400 */
     --color-faint: 113 113 122;         /* zinc-500 */
-    /* Accent — default (Azure, brighter on dark). Overridden per scheme below. */
-    --color-accent: 96 165 250;         /* blue-400 */
-    --color-accent-grad: 56 189 248;    /* sky-400 */
-    --color-accent-hover: 59 130 246;   /* blue-500 */
-    --color-accent-muted: 30 58 138;    /* blue-900 */
+    /* Accent — default (Indigo, brighter on dark). Overridden per scheme below. */
+    --color-accent: 129 140 248;        /* indigo-400 */
+    --color-accent-grad: 165 180 252;   /* indigo-300 */
+    --color-accent-hover: 99 102 241;   /* indigo-500 */
+    --color-accent-muted: 49 46 129;    /* indigo-950-ish */
     --color-accent-content: 9 9 11;     /* near-black for contrast on bright accent */
     /* Status */
     --color-success: 52 211 153;        /* emerald-400 */

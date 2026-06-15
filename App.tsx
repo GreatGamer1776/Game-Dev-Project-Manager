@@ -1,5 +1,5 @@
 import React, { useState, useEffect } from 'react';
-import { LayoutDashboard, FileText, Network, ArrowLeft, Folder, File, CheckSquare, Bug as BugIcon, Trash2, HardDrive, Download, Map as MapIcon, Table, PenTool, Image as ImageIcon, HelpCircle, ChevronRight, ChevronDown, FolderPlus, FilePlus, Copy as CopyIcon, Pencil, PanelLeftClose, PanelLeftOpen, BookOpen, Settings as SettingsIcon, X } from 'lucide-react';
+import { LayoutDashboard, FileText, Network, ArrowLeft, Folder, File, CheckSquare, Bug as BugIcon, Trash2, HardDrive, Download, Map as MapIcon, Table, PenTool, Image as ImageIcon, HelpCircle, ChevronRight, ChevronDown, FolderPlus, FilePlus, Copy as CopyIcon, Pencil, PanelLeftClose, PanelLeftOpen, BookOpen, Settings as SettingsIcon, X, Pin } from 'lucide-react';
 import JSZip from 'jszip';
 import Dashboard from './components/Dashboard';
 import CommandPalette from './components/CommandPalette';
@@ -472,6 +472,8 @@ const App: React.FC = () => {
   const [taskNavigationTarget, setTaskNavigationTarget] = useState<TaskNavigationTarget | null>(null);
   // IDE-style open-file tabs (ordered). Kept in sync with activeFileId below.
   const [openFileIds, setOpenFileIds] = useState<string[]>([]);
+  const [pinnedFileIds, setPinnedFileIds] = useState<string[]>([]);
+  const [draggingTabId, setDraggingTabId] = useState<string | null>(null);
 
   const isSavingRef = React.useRef(false);
   const saveQueueRef = React.useRef<Project | null>(null);
@@ -591,9 +593,39 @@ const App: React.FC = () => {
   // When the project changes, drop tabs for files not in the new project.
   useEffect(() => {
     const project = projects.find(p => p.id === activeProjectId);
-    if (!project) { setOpenFileIds([]); return; }
-    setOpenFileIds(prev => prev.filter(id => project.files.some(f => f.id === id)));
+    if (!project) { setOpenFileIds([]); setPinnedFileIds([]); return; }
+    const exists = (id: string) => project.files.some(f => f.id === id);
+    setOpenFileIds(prev => prev.filter(exists));
+    setPinnedFileIds(prev => prev.filter(exists));
   }, [activeProjectId]);
+
+  // Pinned tabs are kept at the front of the order.
+  const normalizeTabOrder = (ids: string[], pinned: string[]): string[] => {
+    const pinnedSet = new Set(pinned);
+    return [...ids.filter(id => pinnedSet.has(id)), ...ids.filter(id => !pinnedSet.has(id))];
+  };
+
+  const togglePinTab = (fileId: string, e?: React.MouseEvent) => {
+    e?.stopPropagation();
+    const nextPinned = pinnedFileIds.includes(fileId)
+      ? pinnedFileIds.filter(id => id !== fileId)
+      : [...pinnedFileIds, fileId];
+    setPinnedFileIds(nextPinned);
+    setOpenFileIds(prev => normalizeTabOrder(prev, nextPinned));
+  };
+
+  const reorderTabs = (draggedId: string, targetId: string) => {
+    if (draggedId === targetId) return;
+    setOpenFileIds(prev => {
+      const from = prev.indexOf(draggedId);
+      const to = prev.indexOf(targetId);
+      if (from < 0 || to < 0) return prev;
+      const next = [...prev];
+      const [moved] = next.splice(from, 1);
+      next.splice(to, 0, moved);
+      return normalizeTabOrder(next, pinnedFileIds);
+    });
+  };
 
   // Any file that becomes active is opened as a tab (covers every open path:
   // sidebar, command palette, links, quick-open, file creation).
@@ -604,6 +636,7 @@ const App: React.FC = () => {
 
   const closeTab = (fileId: string, e?: React.MouseEvent) => {
     e?.stopPropagation();
+    setPinnedFileIds(prev => prev.filter(id => id !== fileId));
     setOpenFileIds(prev => {
       const idx = prev.indexOf(fileId);
       const next = prev.filter(id => id !== fileId);
@@ -1377,11 +1410,19 @@ const App: React.FC = () => {
           const plugin = EDITOR_PLUGINS.find(p => p.type === file.type);
           const Icon = plugin?.icon || File;
           const active = file.id === activeFileId;
+          const pinned = pinnedFileIds.includes(file.id);
+          const isDragging = draggingTabId === file.id;
           return (
             <button
               key={file.id}
+              draggable
+              onDragStart={(e) => { setDraggingTabId(file.id); e.dataTransfer.effectAllowed = 'move'; }}
+              onDragOver={(e) => { e.preventDefault(); e.dataTransfer.dropEffect = 'move'; }}
+              onDrop={(e) => { e.preventDefault(); if (draggingTabId) reorderTabs(draggingTabId, file.id); setDraggingTabId(null); }}
+              onDragEnd={() => setDraggingTabId(null)}
               onClick={() => setActiveFileId(file.id)}
-              className={`group/tab relative flex items-center gap-2 pl-3 pr-2 py-2.5 text-sm border-r border-border max-w-[200px] shrink-0 transition-colors ${active ? 'bg-bg text-content' : 'text-muted hover:text-content hover:bg-surface-hover'}`}
+              onAuxClick={(e) => { if (e.button === 1 && !pinned) closeTab(file.id, e); }}
+              className={`group/tab relative flex items-center gap-2 pl-3 pr-2 py-2.5 text-sm border-r border-border max-w-[200px] shrink-0 cursor-pointer transition-colors ${active ? 'bg-bg text-content' : 'text-muted hover:text-content hover:bg-surface-hover'} ${isDragging ? 'opacity-50' : ''}`}
               title={file.name}
             >
               {active && <span className="absolute inset-x-0 top-0 h-0.5 bg-accent" />}
@@ -1389,12 +1430,22 @@ const App: React.FC = () => {
               <span className="truncate">{file.name}</span>
               <span
                 role="button"
-                aria-label={`Close ${file.name}`}
-                onClick={(e) => closeTab(file.id, e)}
-                className={`ml-1 shrink-0 rounded p-0.5 text-faint hover:text-content hover:bg-surface-hover transition-opacity ${active ? 'opacity-70 hover:opacity-100' : 'opacity-0 group-hover/tab:opacity-100'}`}
+                aria-label={pinned ? `Unpin ${file.name}` : `Pin ${file.name}`}
+                onClick={(e) => togglePinTab(file.id, e)}
+                className={`ml-1 shrink-0 rounded p-0.5 hover:bg-surface-hover transition-opacity ${pinned ? 'text-accent opacity-100' : 'text-faint hover:text-content opacity-0 group-hover/tab:opacity-100'}`}
               >
-                <X className="w-3.5 h-3.5" />
+                <Pin className={`w-3.5 h-3.5 ${pinned ? 'fill-current' : ''}`} />
               </span>
+              {!pinned && (
+                <span
+                  role="button"
+                  aria-label={`Close ${file.name}`}
+                  onClick={(e) => closeTab(file.id, e)}
+                  className={`shrink-0 rounded p-0.5 text-faint hover:text-content hover:bg-surface-hover transition-opacity ${active ? 'opacity-70 hover:opacity-100' : 'opacity-0 group-hover/tab:opacity-100'}`}
+                >
+                  <X className="w-3.5 h-3.5" />
+                </span>
+              )}
             </button>
           );
         })}
@@ -1406,7 +1457,7 @@ const App: React.FC = () => {
     if (currentView === ViewState.DASHBOARD || !activeProject) {
       return (
         <aside className="w-16 md:w-20 bg-surface border-r border-border flex flex-col items-center py-6 gap-6 z-20">
-          <div className="w-10 h-10 bg-accent rounded-xl flex items-center justify-center shadow-soft mb-4"><Folder className="w-6 h-6 text-accent-content" /></div>
+          <div className="w-10 h-10 bg-accent-soft rounded-xl flex items-center justify-center shadow-soft mb-4"><Folder className="w-6 h-6 text-accent-content" /></div>
           <button onClick={() => { setShowGuide(false); setGuideSection('overview'); }} className={`p-3 rounded-xl transition-colors ${!showGuide ? 'bg-accent/15 text-accent shadow-soft' : 'text-faint hover:bg-surface-hover hover:text-content'}`} title="Dashboard"><LayoutDashboard className="w-5 h-5" /></button>
           <button onClick={() => openGuideSection('overview')} className={`p-3 rounded-xl transition-colors ${showGuide ? 'bg-accent/15 text-accent shadow-soft' : 'text-faint hover:bg-surface-hover hover:text-content'}`} title="Guide & Documentation"><BookOpen className="w-5 h-5" /></button>
           <button onClick={openSettings} className="mt-auto p-3 rounded-xl text-faint hover:bg-surface-hover hover:text-content transition-colors" title="Settings"><SettingsIcon className="w-5 h-5" /></button>

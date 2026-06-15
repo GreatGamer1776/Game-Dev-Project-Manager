@@ -25,7 +25,7 @@ export const COLOR_SCHEMES: { id: ColorScheme; label: string; swatch: string }[]
 
 const THEME_KEY = 'devarchitect-theme';
 const SCHEME_KEY = 'devarchitect-scheme';
-const DEFAULT_SCHEME: ColorScheme = 'blue';
+const DEFAULT_SCHEME: ColorScheme = 'indigo';
 
 const prefersDark = () =>
   typeof window !== 'undefined' &&

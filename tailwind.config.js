@@ -59,6 +59,10 @@ export default {
         raised: '0 4px 12px -2px rgb(0 0 0 / 0.12), 0 2px 6px -2px rgb(0 0 0 / 0.08)',
         pop: '0 12px 32px -8px rgb(0 0 0 / 0.30), 0 6px 12px -6px rgb(0 0 0 / 0.20)',
       },
+      backgroundImage: {
+        // Subtle same-hue vertical sheen for primary buttons (depth, not a rainbow).
+        'accent-soft': 'linear-gradient(180deg, rgb(var(--color-accent)) 0%, rgb(var(--color-accent-hover)) 100%)',
+      },
       keyframes: {
         'fade-in': {
           from: { opacity: '0' },

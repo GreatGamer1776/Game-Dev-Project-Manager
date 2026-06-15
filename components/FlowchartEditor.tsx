@@ -32,14 +32,21 @@ import { useUndoRedo } from '../hooks/useUndoRedo';
 // Handle styling helper to ensure they sit on the border and don't clip
 const HandleStyle = "w-3 h-3 !bg-muted border border-border z-50 transition-colors hover:!bg-accent";
 
+// Every handle can both START and END a connection so you can link any side to
+// any side (e.g. top-to-top). Without isConnectableStart, target handles can't
+// begin a drag, which made many connections impossible even in loose mode.
+const AnyHandle: React.FC<React.ComponentProps<typeof Handle>> = (props) => (
+  <Handle isConnectableStart isConnectableEnd {...props} />
+);
+
 // 1. Terminal Node (Start/End)
 const TerminalNode = ({ data, selected }: NodeProps) => (
   <div className={`px-6 py-3 rounded-full flex items-center justify-center min-w-[120px] bg-surface border-2 shadow-sm transition-all ${selected ? 'border-emerald-500 shadow-emerald-500/20' : 'border-emerald-500/50'}`}>
     <div className="text-center text-xs text-content font-semibold">{data.label}</div>
-    <Handle type="target" position={Position.Top} id="top" className={`${HandleStyle} -mt-[2px]`} />
-    <Handle type="source" position={Position.Bottom} id="bottom" className={`${HandleStyle} -mb-[2px]`} />
-    <Handle type="source" position={Position.Right} id="right" className={`${HandleStyle} -mr-[2px]`} />
-    <Handle type="target" position={Position.Left} id="left" className={`${HandleStyle} -ml-[2px]`} />
+    <AnyHandle type="source" position={Position.Top} id="top" className={`${HandleStyle} -mt-[2px]`} />
+    <AnyHandle type="source" position={Position.Bottom} id="bottom" className={`${HandleStyle} -mb-[2px]`} />
+    <AnyHandle type="source" position={Position.Right} id="right" className={`${HandleStyle} -mr-[2px]`} />
+    <AnyHandle type="source" position={Position.Left} id="left" className={`${HandleStyle} -ml-[2px]`} />
   </div>
 );
 
@@ -47,10 +54,10 @@ const TerminalNode = ({ data, selected }: NodeProps) => (
 const ProcessNode = ({ data, selected }: NodeProps) => (
   <div className={`px-4 py-4 rounded-lg flex items-center justify-center min-w-[140px] bg-surface border-2 shadow-sm transition-all ${selected ? 'border-blue-500 shadow-blue-500/20' : 'border-border-strong'}`}>
     <div className="text-center text-xs text-content font-medium">{data.label}</div>
-    <Handle type="target" position={Position.Top} id="top" className={`${HandleStyle} -mt-[2px]`} />
-    <Handle type="source" position={Position.Bottom} id="bottom" className={`${HandleStyle} -mb-[2px]`} />
-    <Handle type="source" position={Position.Right} id="right" className={`${HandleStyle} -mr-[2px]`} />
-    <Handle type="target" position={Position.Left} id="left" className={`${HandleStyle} -ml-[2px]`} />
+    <AnyHandle type="source" position={Position.Top} id="top" className={`${HandleStyle} -mt-[2px]`} />
+    <AnyHandle type="source" position={Position.Bottom} id="bottom" className={`${HandleStyle} -mb-[2px]`} />
+    <AnyHandle type="source" position={Position.Right} id="right" className={`${HandleStyle} -mr-[2px]`} />
+    <AnyHandle type="source" position={Position.Left} id="left" className={`${HandleStyle} -ml-[2px]`} />
   </div>
 );
 
@@ -62,10 +69,10 @@ const DecisionNode = ({ data, selected }: NodeProps) => (
     <div className="relative z-10 p-2 text-[10px] text-content font-bold text-center leading-tight max-w-[70%]">
       {data.label}
     </div>
-    <Handle type="target" position={Position.Top} id="top" className={`${HandleStyle} -mt-1`} />
-    <Handle type="source" position={Position.Bottom} id="bottom" className={`${HandleStyle} -mb-1`} />
-    <Handle type="source" position={Position.Right} id="right" className={`${HandleStyle} -mr-1`} />
-    <Handle type="source" position={Position.Left} id="left" className={`${HandleStyle} -ml-1`} />
+    <AnyHandle type="source" position={Position.Top} id="top" className={`${HandleStyle} -mt-1`} />
+    <AnyHandle type="source" position={Position.Bottom} id="bottom" className={`${HandleStyle} -mb-1`} />
+    <AnyHandle type="source" position={Position.Right} id="right" className={`${HandleStyle} -mr-1`} />
+    <AnyHandle type="source" position={Position.Left} id="left" className={`${HandleStyle} -ml-1`} />
   </div>
 );
 
@@ -79,10 +86,10 @@ const InputOutputNode = ({ data, selected }: NodeProps) => (
             {data.label}
         </div>
     </div>
-    <Handle type="target" position={Position.Top} id="top" className={`${HandleStyle} top-0`} />
-    <Handle type="source" position={Position.Bottom} id="bottom" className={`${HandleStyle} bottom-0`} />
-    <Handle type="source" position={Position.Right} id="right" className={`${HandleStyle} right-1`} />
-    <Handle type="target" position={Position.Left} id="left" className={`${HandleStyle} left-1`} />
+    <AnyHandle type="source" position={Position.Top} id="top" className={`${HandleStyle} top-0`} />
+    <AnyHandle type="source" position={Position.Bottom} id="bottom" className={`${HandleStyle} bottom-0`} />
+    <AnyHandle type="source" position={Position.Right} id="right" className={`${HandleStyle} right-1`} />
+    <AnyHandle type="source" position={Position.Left} id="left" className={`${HandleStyle} left-1`} />
   </div>
 );
 
@@ -92,10 +99,10 @@ const DatabaseNode = ({ data, selected }: NodeProps) => (
     <div className="absolute top-0 w-full h-6 bg-surface-raised border-2 border-border-strong rounded-[50%] -mt-3 z-10"></div>
     <div className="text-[10px] text-content text-center px-1 z-0 mt-2 font-mono">{data.label}</div>
     <div className="absolute bottom-0 w-full h-6 bg-surface border-b-2 border-x-2 border-border-strong rounded-[50%] -mb-3 z-0"></div>
-    <Handle type="target" position={Position.Top} id="top" className={`${HandleStyle} -mt-3`} />
-    <Handle type="source" position={Position.Bottom} id="bottom" className={`${HandleStyle} -mb-3`} />
-    <Handle type="source" position={Position.Right} id="right" className={`${HandleStyle} -mr-[2px]`} />
-    <Handle type="target" position={Position.Left} id="left" className={`${HandleStyle} -ml-[2px]`} />
+    <AnyHandle type="source" position={Position.Top} id="top" className={`${HandleStyle} -mt-3`} />
+    <AnyHandle type="source" position={Position.Bottom} id="bottom" className={`${HandleStyle} -mb-3`} />
+    <AnyHandle type="source" position={Position.Right} id="right" className={`${HandleStyle} -mr-[2px]`} />
+    <AnyHandle type="source" position={Position.Left} id="left" className={`${HandleStyle} -ml-[2px]`} />
   </div>
 );
 
@@ -109,8 +116,10 @@ const EventNode = ({ data, selected }: NodeProps) => (
     <div className="relative z-10 text-[10px] uppercase tracking-wider font-bold text-yellow-500 text-center px-6">
       {data.label}
     </div>
-    <Handle type="target" position={Position.Top} id="top" className={`${HandleStyle} -mt-[2px]`} />
-    <Handle type="source" position={Position.Bottom} id="bottom" className={`${HandleStyle} -mb-[2px]`} />
+    <AnyHandle type="source" position={Position.Top} id="top" className={`${HandleStyle} -mt-[2px]`} />
+    <AnyHandle type="source" position={Position.Bottom} id="bottom" className={`${HandleStyle} -mb-[2px]`} />
+    <AnyHandle type="source" position={Position.Right} id="right" className={`${HandleStyle} -mr-[2px]`} />
+    <AnyHandle type="source" position={Position.Left} id="left" className={`${HandleStyle} -ml-[2px]`} />
   </div>
 );
 
@@ -119,7 +128,7 @@ const NoteNode = ({ data, selected }: NodeProps) => (
   <div className={`w-40 min-h-[80px] bg-yellow-100/10 border-l-4 border-yellow-400 rounded p-2 flex flex-col relative ${selected ? 'ring-1 ring-yellow-400' : ''}`}>
     <div className="text-[9px] text-yellow-500/80 font-bold uppercase mb-1">Note</div>
     <div className="text-xs text-content italic text-left whitespace-pre-wrap">{data.label}</div>
-    <Handle type="target" position={Position.Left} id="left" className="w-2 h-2 !bg-yellow-400/50 opacity-0 hover:opacity-100" />
+    <AnyHandle type="source" position={Position.Left} id="left" className="w-2 h-2 !bg-yellow-400/50 opacity-0 hover:opacity-100" />
   </div>
 );
 

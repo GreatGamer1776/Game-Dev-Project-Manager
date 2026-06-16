@@ -4,22 +4,30 @@
     <meta charset="UTF-8" />
     <meta name="viewport" content="width=device-width, initial-scale=1.0" />
     <title>DevArchitect - Project Planner</title>
-    <link href="https://fonts.googleapis.com/css2?family=Inter:wght@300;400;500;600;700&display=swap" rel="stylesheet">
+    <link rel="preconnect" href="https://fonts.googleapis.com">
+    <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+    <link href="https://fonts.googleapis.com/css2?family=Archivo:wght@500;600;700;800&family=Fraunces:opsz,wght@9..144,500;9..144,600&family=Inter:wght@300;400;500;600;700&family=JetBrains+Mono:wght@400;500;600&display=swap" rel="stylesheet">
     <script>
-      // Apply the persisted/system theme before paint to avoid a flash.
+      // Apply every persisted appearance axis before paint to avoid a flash.
       (function () {
+        var root = document.documentElement;
+        var get = function (key, fallback) {
+          try { return localStorage.getItem(key) || fallback; } catch (e) { return fallback; }
+        };
         try {
           var stored = localStorage.getItem('devarchitect-theme');
           var prefersDark = window.matchMedia('(prefers-color-scheme: dark)').matches;
           var dark = stored ? stored === 'dark' : true; // default to dark
           if (stored === 'system') dark = prefersDark;
-          document.documentElement.classList.toggle('dark', dark);
-          var scheme = localStorage.getItem('devarchitect-scheme') || 'indigo';
-          document.documentElement.setAttribute('data-scheme', scheme);
+          root.classList.toggle('dark', dark);
         } catch (e) {
-          document.documentElement.classList.add('dark');
-          document.documentElement.setAttribute('data-scheme', 'indigo');
+          root.classList.add('dark');
         }
+        root.setAttribute('data-scheme', get('devarchitect-scheme', 'indigo'));
+        root.setAttribute('data-tint', get('devarchitect-tint', 'neutral'));
+        root.setAttribute('data-corners', get('devarchitect-corners', 'precise'));
+        root.setAttribute('data-density', get('devarchitect-density', 'comfortable'));
+        root.setAttribute('data-type', get('devarchitect-typeface', 'technical'));
       })();
     </script>
   </head>

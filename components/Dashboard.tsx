@@ -1,10 +1,16 @@
 import React, { useState } from 'react';
 import { Project } from '../types';
-import { Plus, Code, Gamepad2, Globe, Clock, FileCode, Download, Trash2, HardDrive, Import, Pencil, BookOpen, Settings as SettingsIcon, Search } from 'lucide-react';
-import { Button, Card, Modal, Input, Textarea, Field, Select, cn } from './ui';
+import { Plus, Code, Gamepad2, Globe, FileCode, Download, Trash2, HardDrive, Import, Pencil, BookOpen, Settings as SettingsIcon, Search } from 'lucide-react';
+import { Button, Card, Modal, Input, Textarea, Field, Select, Eyebrow, TickFrame, cn } from './ui';
 import { useSettingsStore } from '../stores/useSettingsStore';
 
 type SortKey = 'recent' | 'name' | 'files';
+
+/** "16 JUN 26" — mono drafting-style date stamp. */
+const stampDate = (ts: number) =>
+  new Date(ts)
+    .toLocaleDateString('en-GB', { day: '2-digit', month: 'short', year: '2-digit' })
+    .toUpperCase();
 
 interface DashboardProps {
   projects: Project[];
@@ -108,10 +114,11 @@ const Dashboard: React.FC<DashboardProps> = ({
 
   return (
     <div className="p-8 max-w-7xl mx-auto w-full">
-      <div className="flex items-center justify-between mb-8 gap-4 flex-wrap">
+      <div className="flex items-end justify-between mb-8 gap-4 flex-wrap">
         <div>
-          <h1 className="text-3xl font-bold text-content tracking-tight">Projects</h1>
-          <p className="text-muted mt-2">Manage your development plans, specs, and architectures.</p>
+          <Eyebrow>Workspace / {String(projects.length).padStart(2, '0')}</Eyebrow>
+          <h1 className="font-display text-4xl font-bold text-content tracking-tight mt-1.5">Projects</h1>
+          <p className="text-muted mt-2">Plan, document, and architect your software and games.</p>
         </div>
 
         <div className="flex items-center gap-3 flex-wrap">
@@ -119,31 +126,31 @@ const Dashboard: React.FC<DashboardProps> = ({
               <SettingsIcon className="w-4 h-4" />
             </Button>
             <Button variant="secondary" icon={BookOpen} onClick={onOpenWhatsNew}>
-              What's New
+              What's new
             </Button>
             <Button variant="secondary" icon={Import} onClick={onImportFolder}>
-              Import Local Folder
+              Import folder
             </Button>
             <Button variant="primary" icon={Plus} onClick={() => setIsModalOpen(true)}>
-              New Project
+              New project
             </Button>
         </div>
       </div>
 
       {projects.length === 0 ? (
-        <div className="text-center py-20 border border-dashed border-border-strong rounded-2xl bg-surface/40">
-          <FileCode className="w-16 h-16 text-faint mx-auto mb-4" />
-          <h3 className="text-xl font-medium text-content">No projects yet</h3>
-          <p className="text-muted mt-2 max-w-sm mx-auto">Start planning by creating a new project or importing an existing folder.</p>
+        <TickFrame className="bg-blueprint text-center py-20 px-6 border border-dashed border-border-strong rounded-2xl">
+          <FileCode className="w-14 h-14 text-faint mx-auto mb-4" />
+          <h3 className="font-display text-2xl font-semibold text-content">Your drafting table is empty</h3>
+          <p className="text-muted mt-2 max-w-sm mx-auto">Create a project to start planning, or import a folder you already have on disk.</p>
           <div className="flex items-center justify-center gap-3 mt-6">
             <Button variant="primary" icon={Plus} onClick={() => setIsModalOpen(true)}>
-              New Project
+              New project
             </Button>
             <Button variant="secondary" icon={Import} onClick={onImportFolder}>
-              Import Local Folder
+              Import folder
             </Button>
           </div>
-        </div>
+        </TickFrame>
       ) : (
         <>
         <div className="flex items-center gap-3 mb-6 flex-wrap">
@@ -168,49 +175,50 @@ const Dashboard: React.FC<DashboardProps> = ({
               <option value="files">Most files</option>
             </Select>
           </div>
-          <span className="text-xs text-faint ml-auto">{visibleProjects.length} of {projects.length}</span>
+          <Eyebrow className="ml-auto">{String(visibleProjects.length).padStart(2, '0')} / {String(projects.length).padStart(2, '0')}</Eyebrow>
         </div>
         {visibleProjects.length === 0 ? (
-          <div className="text-center py-16 border border-dashed border-border rounded-2xl bg-surface/40">
+          <div className="bg-blueprint text-center py-16 border border-dashed border-border rounded-2xl">
             <Search className="w-10 h-10 text-faint mx-auto mb-3" />
-            <p className="text-muted">No projects match “{query}”.</p>
+            <p className="text-muted">No projects match “{query}”. Try a different search.</p>
           </div>
         ) : (
-        <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-6">
+        <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-[var(--grid-gap)]">
           {visibleProjects.map((project) => (
-            <Card key={project.id} className="group relative p-6 overflow-hidden flex flex-col">
+            <Card key={project.id} className="group relative p-[var(--card-pad)] overflow-hidden flex flex-col">
+              {/* Registration ticks reveal on hover — the drafting-sheet cue. */}
+              <span aria-hidden className="pointer-events-none absolute left-2 top-2 h-2.5 w-2.5 border-l border-t border-accent/0 group-hover:border-accent/60 transition-colors" />
+              <span aria-hidden className="pointer-events-none absolute right-2 top-2 h-2.5 w-2.5 border-r border-t border-accent/0 group-hover:border-accent/60 transition-colors" />
+
               {/* Main Clickable Area */}
               <div
                 className="cursor-pointer flex-1 relative z-10"
                 onClick={() => onSelectProject(project.id)}
               >
                 <div className="flex justify-between items-start mb-4">
-                    <div className="p-3 bg-surface-raised rounded-lg inline-block border border-border group-hover:border-accent/50 transition-colors">
+                    <div className="p-2.5 bg-surface-raised rounded-lg inline-block border border-border group-hover:border-accent/50 transition-colors">
                       {getTypeIcon(project.type)}
                     </div>
 
                     {/* Local Indicator */}
                     {project.isLocal && (
-                        <div className="flex items-center gap-1 bg-accent/10 border border-accent/20 px-2 py-1 rounded text-[10px] text-accent font-bold uppercase tracking-wider">
+                        <div className="flex items-center gap-1 bg-accent/10 border border-accent/30 px-2 py-1 rounded font-mono text-[10px] text-accent font-semibold uppercase tracking-wider">
                             <HardDrive className="w-3 h-3" />
                             Local
                         </div>
                     )}
                 </div>
 
-                <h3 className="text-xl font-semibold text-content mb-2 group-hover:text-accent transition-colors">{project.name}</h3>
-                <p className="text-muted text-sm line-clamp-2 mb-4 h-10">{project.description || "No description yet."}</p>
-                <div className="text-xs text-faint mb-4">
-                  {project.files.length} files
-                </div>
+                <Eyebrow className="block mb-1.5">{project.type}</Eyebrow>
+                <h3 className="font-display text-xl font-semibold text-content mb-2 group-hover:text-accent transition-colors">{project.name}</h3>
+                <p className="text-muted text-sm line-clamp-2 h-10">{project.description || "No description yet."}</p>
               </div>
 
               {/* Footer Actions */}
-              <div className="flex items-center justify-between pt-4 border-t border-border mt-auto relative z-20">
-                 <div className="flex items-center text-xs text-faint">
-                    <Clock className="w-3.5 h-3.5 mr-1.5" />
-                    {new Date(project.lastModified).toLocaleDateString()}
-                 </div>
+              <div className="flex items-center justify-between pt-4 border-t border-border mt-4 relative z-20">
+                 <span className="font-mono text-[11px] tracking-wide text-faint">
+                    {String(project.files.length).padStart(2, '0')} FILES · {stampDate(project.lastModified)}
+                 </span>
                  <div className="flex items-center gap-1 opacity-0 group-hover:opacity-100 focus-within:opacity-100 transition-opacity">
                     <IconAction title="Edit Project" hoverClass="hover:text-warning"
                       onClick={(e) => { e.preventDefault(); e.stopPropagation(); openEditModal(project); }}>
@@ -241,7 +249,7 @@ const Dashboard: React.FC<DashboardProps> = ({
       <Modal
         open={isModalOpen}
         onClose={closeCreateModal}
-        title="Create New Project"
+        title="New project"
         footer={
           <>
             <Button variant="ghost" type="button" onClick={closeCreateModal}>Cancel</Button>
@@ -296,7 +304,7 @@ const Dashboard: React.FC<DashboardProps> = ({
       <Modal
         open={isEditModalOpen}
         onClose={closeEditModal}
-        title="Edit Project"
+        title="Edit project"
         footer={
           <>
             <Button variant="ghost" type="button" onClick={closeEditModal}>Cancel</Button>

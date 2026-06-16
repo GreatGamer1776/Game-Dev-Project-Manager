@@ -10,7 +10,7 @@ export interface ModalProps {
   children: React.ReactNode;
   footer?: React.ReactNode;
   /** Max-width utility class for the panel. */
-  size?: 'sm' | 'md' | 'lg';
+  size?: 'sm' | 'md' | 'lg' | 'xl';
   className?: string;
 }
 
@@ -18,6 +18,7 @@ const sizeClass = {
   sm: 'max-w-sm',
   md: 'max-w-md',
   lg: 'max-w-2xl',
+  xl: 'max-w-4xl',
 };
 
 export const Modal: React.FC<ModalProps> = ({
@@ -64,7 +65,7 @@ export const Modal: React.FC<ModalProps> = ({
         {(title || description) && (
           <div className="flex items-start justify-between gap-4 px-5 pt-5 pb-3">
             <div>
-              {title && <h2 className="text-base font-semibold text-content">{title}</h2>}
+              {title && <h2 className="font-display text-lg font-semibold text-content">{title}</h2>}
               {description && <p className="mt-1 text-sm text-muted">{description}</p>}
             </div>
             <button

@@ -1,10 +1,10 @@
 
 /** @type {import('tailwindcss').Config} */
 
-// Semantic color tokens are driven by CSS variables (see index.css) so a single
-// set of class names (`bg-surface`, `text-muted`, `border-accent`, ...) renders
-// correctly in both light and dark themes. Variables hold space-separated RGB
-// channels so Tailwind's `/<alpha>` opacity modifiers keep working.
+// Semantic tokens are driven by CSS variables (see index.css) so a single set of
+// class names renders correctly across every theme axis: light/dark, accent
+// scheme, surface tint, corner style, density, and typeface. Color variables
+// hold space-separated RGB channels so Tailwind's `/<alpha>` modifiers work.
 const withOpacity = (variable) => `rgb(var(${variable}) / <alpha-value>)`;
 
 export default {
@@ -22,7 +22,11 @@ export default {
   theme: {
     extend: {
       fontFamily: {
-        sans: ['Inter', 'sans-serif'],
+        // Typeface axis swaps --font-display; body + mono stay constant.
+        display: ['var(--font-display)'],
+        sans: ['var(--font-body)'],
+        body: ['var(--font-body)'],
+        mono: ['var(--font-mono)'],
       },
       colors: {
         // App surfaces
@@ -49,10 +53,18 @@ export default {
         danger: withOpacity('--color-danger'),
         info: withOpacity('--color-info'),
       },
+      // Corner-style axis: radii resolve through CSS vars so one toggle reshapes
+      // the whole app. `full` stays fixed for pills/avatars.
       borderRadius: {
-        lg: '0.625rem',
-        xl: '0.875rem',
-        '2xl': '1.125rem',
+        none: '0px',
+        sm: 'var(--r-sm)',
+        DEFAULT: 'var(--r)',
+        md: 'var(--r-md)',
+        lg: 'var(--r-lg)',
+        xl: 'var(--r-xl)',
+        '2xl': 'var(--r-2xl)',
+        '3xl': 'var(--r-3xl)',
+        full: '9999px',
       },
       boxShadow: {
         soft: '0 1px 2px 0 rgb(0 0 0 / 0.05), 0 1px 3px 0 rgb(0 0 0 / 0.08)',

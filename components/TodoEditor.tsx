@@ -106,9 +106,9 @@ const TagInputSection: React.FC<{
       {selectedTags.length > 0 && (
         <div className="mt-2 flex flex-wrap gap-1.5">
           {selectedTags.map(tag => (
-            <span key={tag} className="inline-flex items-center gap-1 rounded-full border border-zinc-700 bg-zinc-950 px-2 py-1 text-[11px] text-zinc-300">
+            <span key={tag} className="inline-flex items-center gap-1 rounded-full border border-border-strong bg-bg px-2 py-1 text-[11px] text-content">
               #{tag}
-              <button type="button" onClick={() => removeTag(tag)} className="text-zinc-500 transition-colors hover:text-white" title={`Remove ${tag}`}>
+              <button type="button" onClick={() => removeTag(tag)} className="text-faint transition-colors hover:text-content" title={`Remove ${tag}`}>
                 <X className="h-3 w-3" />
               </button>
             </span>
@@ -117,14 +117,14 @@ const TagInputSection: React.FC<{
       )}
       {availableTags.length > 0 && (
         <div className="mt-2">
-          <p className="text-[10px] uppercase tracking-wide text-zinc-500">Existing Tags</p>
+          <p className="text-[10px] uppercase tracking-wide text-faint">Existing Tags</p>
           <div className="mt-1 flex flex-wrap gap-1.5">
             {availableTags.map(tag => (
               <button
                 key={tag}
                 type="button"
                 onClick={() => addTag(tag)}
-                className="rounded-full border border-zinc-700 bg-zinc-900 px-2 py-1 text-[11px] text-zinc-300 transition-colors hover:border-zinc-500 hover:text-white"
+                className="rounded-full border border-border-strong bg-surface px-2 py-1 text-[11px] text-content transition-colors hover:border-accent hover:text-content"
               >
                 #{tag}
               </button>
@@ -151,15 +151,15 @@ const StyledSelect: React.FC<{
         value={value}
         onChange={(e) => onChange(e.target.value)}
         disabled={disabled}
-        className={`w-full appearance-none rounded-md border border-zinc-700 bg-zinc-900 px-2 py-1.5 pr-7 text-xs text-zinc-200 transition focus:border-zinc-500 focus:outline-none disabled:cursor-not-allowed disabled:opacity-50 ${selectClassName}`}
+        className={`w-full appearance-none rounded-md border border-border-strong bg-surface px-2 py-1.5 pr-7 text-xs text-content transition focus:border-accent focus:outline-none disabled:cursor-not-allowed disabled:opacity-50 ${selectClassName}`}
       >
         {options.map(option => (
-          <option key={option.value} value={option.value} className="bg-zinc-900 text-zinc-200">
+          <option key={option.value} value={option.value} className="bg-surface text-content">
             {option.label}
           </option>
         ))}
       </select>
-      <ChevronDown className="pointer-events-none absolute right-2 top-1/2 h-3.5 w-3.5 -translate-y-1/2 text-zinc-500" />
+      <ChevronDown className="pointer-events-none absolute right-2 top-1/2 h-3.5 w-3.5 -translate-y-1/2 text-faint" />
     </div>
   );
 };
@@ -599,7 +599,7 @@ const TodoEditor: React.FC<EditorProps> = ({ initialContent, onSave, fileName, p
             e.stopPropagation();
             onOpenFile?.(fileId);
           }}
-          className={`underline underline-offset-2 ${exists ? 'text-cyan-400 hover:text-cyan-300' : 'text-zinc-500 line-through'}`}
+          className={`underline underline-offset-2 ${exists ? 'text-cyan-400 hover:text-cyan-300' : 'text-faint line-through'}`}
           title={exists ? `Open ${fileLookup.get(fileId)}` : 'Linked file not found'}
         >
           {match[1]}
@@ -752,7 +752,7 @@ const TodoEditor: React.FC<EditorProps> = ({ initialContent, onSave, fileName, p
   const getStatusColor = (s: TodoStatus) => {
       switch(s) {
           case 'Backlog': return 'border-t-violet-500';
-          case 'To Do': return 'border-t-zinc-600';
+          case 'To Do': return 'border-t-border-strong';
           case 'In Progress': return 'border-t-blue-500';
           case 'Review': return 'border-t-amber-500';
           case 'Done': return 'border-t-emerald-500';
@@ -813,54 +813,54 @@ const TodoEditor: React.FC<EditorProps> = ({ initialContent, onSave, fileName, p
   const boardMinWidth = visibleColumns.length === 1 ? 320 : visibleColumns.length * 300 + (visibleColumns.length - 1) * 24;
 
   return (
-    <div className="h-full flex flex-col bg-zinc-900">
+    <div className="h-full flex flex-col bg-surface">
       {/* Header */}
-      <div className="h-16 border-b border-zinc-800 flex items-center justify-between px-6 bg-zinc-900/50 backdrop-blur-sm sticky top-0 z-10 shrink-0">
-        <h3 className="text-zinc-200 font-medium">{fileName}</h3>
+      <div className="h-16 border-b border-border flex items-center justify-between px-6 bg-surface/60 backdrop-blur-sm sticky top-0 z-10 shrink-0">
+        <h3 className="text-content font-medium">{fileName}</h3>
         <div className="flex items-center gap-3">
             <div className="flex items-center gap-0.5 mr-1">
-              <button onClick={() => { const prev = undoRedo.undo(); if (prev !== undefined) setItems(prev); }} disabled={!undoRedo.canUndo} className="p-1.5 rounded text-zinc-500 hover:text-white hover:bg-zinc-800 disabled:opacity-30 disabled:pointer-events-none transition-colors" title="Undo (Ctrl+Z)"><Undo2 className="w-4 h-4" /></button>
-              <button onClick={() => { const next = undoRedo.redo(); if (next !== undefined) setItems(next); }} disabled={!undoRedo.canRedo} className="p-1.5 rounded text-zinc-500 hover:text-white hover:bg-zinc-800 disabled:opacity-30 disabled:pointer-events-none transition-colors" title="Redo (Ctrl+Y)"><Redo2 className="w-4 h-4" /></button>
+              <button onClick={() => { const prev = undoRedo.undo(); if (prev !== undefined) setItems(prev); }} disabled={!undoRedo.canUndo} className="p-1.5 rounded text-faint hover:text-content hover:bg-surface-hover disabled:opacity-30 disabled:pointer-events-none transition-colors" title="Undo (Ctrl+Z)"><Undo2 className="w-4 h-4" /></button>
+              <button onClick={() => { const next = undoRedo.redo(); if (next !== undefined) setItems(next); }} disabled={!undoRedo.canRedo} className="p-1.5 rounded text-faint hover:text-content hover:bg-surface-hover disabled:opacity-30 disabled:pointer-events-none transition-colors" title="Redo (Ctrl+Y)"><Redo2 className="w-4 h-4" /></button>
             </div>
             <div className="flex items-center mr-2">
-                {saveStatus === 'saving' && <span className="text-xs text-zinc-500 flex items-center gap-1"><Loader2 className="w-3 h-3 animate-spin" /> Saving...</span>}
-                {saveStatus === 'saved' && <span className="text-xs text-zinc-500 flex items-center gap-1 opacity-50"><Check className="w-3 h-3" /> Saved</span>}
+                {saveStatus === 'saving' && <span className="text-xs text-faint flex items-center gap-1"><Loader2 className="w-3 h-3 animate-spin" /> Saving...</span>}
+                {saveStatus === 'saved' && <span className="text-xs text-faint flex items-center gap-1 opacity-50"><Check className="w-3 h-3" /> Saved</span>}
                 {saveStatus === 'unsaved' && <span className="text-xs text-orange-400 flex items-center gap-1"><AlertCircle className="w-3 h-3" /> Unsaved</span>}
             </div>
             <button
               onClick={handleTopAddTaskClick}
-              className="flex items-center gap-2 px-4 py-2 rounded-md text-sm font-medium transition-colors border border-zinc-700 bg-zinc-800 hover:bg-zinc-700 text-zinc-200"
+              className="flex items-center gap-2 px-4 py-2 rounded-md text-sm font-medium transition-colors border border-border-strong bg-surface-raised hover:bg-surface-hover text-content"
             >
               <Plus className="w-4 h-4" /> Add Task
             </button>
-            <button onClick={handleManualSave} className={`flex items-center gap-2 px-4 py-2 rounded-md text-sm font-medium transition-colors shadow-lg ${saveStatus === 'unsaved' ? 'bg-emerald-600 hover:bg-emerald-700 text-white shadow-emerald-900/20' : 'bg-zinc-700 hover:bg-zinc-600 text-zinc-200'}`}>
+            <button onClick={handleManualSave} className={`flex items-center gap-2 px-4 py-2 rounded-md text-sm font-medium transition-colors shadow-lg ${saveStatus === 'unsaved' ? 'bg-emerald-600 hover:bg-emerald-700 text-content shadow-emerald-900/20' : 'bg-surface-raised hover:bg-surface-hover text-content'}`}>
               <Save className="w-4 h-4" /> Save
             </button>
         </div>
       </div>
 
-      <div className="border-b border-zinc-800 bg-zinc-900 px-6 py-4">
+      <div className="border-b border-border bg-surface px-6 py-4">
         <div className="flex flex-wrap items-center gap-3">
           <div className="relative w-full max-w-xs">
-            <Search className="pointer-events-none absolute left-3 top-1/2 h-4 w-4 -translate-y-1/2 text-zinc-500" />
+            <Search className="pointer-events-none absolute left-3 top-1/2 h-4 w-4 -translate-y-1/2 text-faint" />
             <input
               type="text"
               value={searchQuery}
               onChange={(e) => setSearchQuery(e.target.value)}
               placeholder="Search name, notes, or tags..."
-              className="w-full rounded-md border border-zinc-800 bg-zinc-950 py-1.5 pl-9 pr-3 text-sm text-zinc-200 focus:border-zinc-600 focus:outline-none"
+              className="w-full rounded-md border border-border bg-bg py-1.5 pl-9 pr-3 text-sm text-content focus:border-border-strong focus:outline-none"
             />
           </div>
 
-          <div className="hidden h-6 w-px bg-zinc-800 lg:block"></div>
+          <div className="hidden h-6 w-px bg-surface-raised lg:block"></div>
 
-          <div className="flex items-center gap-2 bg-zinc-950 border border-zinc-800 rounded-md px-2 py-1.5 text-xs text-zinc-300">
-            <Filter className="h-3.5 w-3.5 text-zinc-500" />
+          <div className="flex items-center gap-2 bg-bg border border-border rounded-md px-2 py-1.5 text-xs text-content">
+            <Filter className="h-3.5 w-3.5 text-faint" />
             <span>Priority</span>
             <select
               value={filterPriority}
               onChange={(e) => setFilterPriority(e.target.value as 'All' | Priority)}
-              className="bg-transparent text-xs text-zinc-200 focus:outline-none"
+              className="bg-transparent text-xs text-content focus:outline-none"
             >
               <option value="All">All</option>
               <option value="High">High</option>
@@ -869,12 +869,12 @@ const TodoEditor: React.FC<EditorProps> = ({ initialContent, onSave, fileName, p
             </select>
           </div>
 
-          <div className="flex items-center gap-2 bg-zinc-950 border border-zinc-800 rounded-md px-2 py-1.5 text-xs text-zinc-300">
+          <div className="flex items-center gap-2 bg-bg border border-border rounded-md px-2 py-1.5 text-xs text-content">
             <span>Bucket</span>
             <select
               value={filterStatus}
               onChange={(e) => setFilterStatus(e.target.value as 'All' | TodoStatus)}
-              className="bg-transparent text-xs text-zinc-200 focus:outline-none"
+              className="bg-transparent text-xs text-content focus:outline-none"
             >
               <option value="All">All</option>
               {TODO_COLUMNS.map(status => (
@@ -883,12 +883,12 @@ const TodoEditor: React.FC<EditorProps> = ({ initialContent, onSave, fileName, p
             </select>
           </div>
 
-          <div className="flex items-center gap-2 bg-zinc-950 border border-zinc-800 rounded-md px-2 py-1.5 text-xs text-zinc-300">
-            <ArrowUpDown className="h-3.5 w-3.5 text-zinc-500" />
+          <div className="flex items-center gap-2 bg-bg border border-border rounded-md px-2 py-1.5 text-xs text-content">
+            <ArrowUpDown className="h-3.5 w-3.5 text-faint" />
             <select
               value={sortBy}
               onChange={(e) => setSortBy(e.target.value as 'Newest' | 'Oldest' | 'Priority' | 'Due Date' | 'Alphabetical' | 'Effort')}
-              className="bg-transparent text-xs text-zinc-200 focus:outline-none"
+              className="bg-transparent text-xs text-content focus:outline-none"
             >
               <option value="Newest">Newest</option>
               <option value="Oldest">Oldest</option>
@@ -901,12 +901,12 @@ const TodoEditor: React.FC<EditorProps> = ({ initialContent, onSave, fileName, p
 
           <button
             onClick={resetTaskFilters}
-            className="rounded-md border border-zinc-800 bg-zinc-950 px-2.5 py-1.5 text-xs text-zinc-300 hover:text-white"
+            className="rounded-md border border-border bg-bg px-2.5 py-1.5 text-xs text-content hover:text-content"
           >
             Reset Filters
           </button>
 
-          <div className="ml-auto text-xs text-zinc-500">
+          <div className="ml-auto text-xs text-faint">
             Showing {filteredItems.length} of {items.length} tasks
           </div>
         </div>
@@ -918,7 +918,7 @@ const TodoEditor: React.FC<EditorProps> = ({ initialContent, onSave, fileName, p
             </span>
             <button
               onClick={clearItemSelection}
-              className="rounded-md border border-zinc-700 bg-zinc-950 px-2.5 py-1 text-[11px] text-zinc-300 hover:text-white"
+              className="rounded-md border border-border-strong bg-bg px-2.5 py-1 text-[11px] text-content hover:text-content"
             >
               Clear Selection
             </button>
@@ -933,7 +933,7 @@ const TodoEditor: React.FC<EditorProps> = ({ initialContent, onSave, fileName, p
 
         {allTags.length > 0 && (
           <div className="mt-3 flex flex-wrap items-center gap-2">
-            <div className="mr-1 flex items-center gap-1.5 text-xs text-zinc-500">
+            <div className="mr-1 flex items-center gap-1.5 text-xs text-faint">
               <Tags className="h-3.5 w-3.5" />
               <span>Tags</span>
             </div>
@@ -946,7 +946,7 @@ const TodoEditor: React.FC<EditorProps> = ({ initialContent, onSave, fileName, p
                   className={`rounded-full border px-2 py-1 text-[11px] transition-colors ${
                     isSelected
                       ? 'border-blue-500/50 bg-blue-500/10 text-blue-300'
-                      : 'border-zinc-800 bg-zinc-950 text-zinc-400 hover:text-white'
+                      : 'border-border bg-bg text-muted hover:text-content'
                   }`}
                 >
                   #{tag}
@@ -958,7 +958,7 @@ const TodoEditor: React.FC<EditorProps> = ({ initialContent, onSave, fileName, p
       </div>
 
       {/* Kanban Board */}
-      <div className="flex-1 overflow-x-auto p-6 bg-zinc-900">
+      <div className="flex-1 overflow-x-auto p-6 bg-surface">
         <div className="flex h-full gap-6" style={{ minWidth: `${boardMinWidth}px` }}>
           {visibleColumns.map(column => {
              const colItems = filteredItems.filter(i => i.status === column);
@@ -969,12 +969,12 @@ const TodoEditor: React.FC<EditorProps> = ({ initialContent, onSave, fileName, p
                   key={column} 
                   onDragOver={(e) => handleDragOver(e, column)}
                   onDrop={(e) => handleDrop(e, column)}
-                  className={`flex-1 flex flex-col min-w-[280px] bg-zinc-950/50 rounded-xl border transition-colors ${isDropActive ? 'border-blue-500/50 bg-zinc-900' : 'border-zinc-800'}`}
+                  className={`flex-1 flex flex-col min-w-[280px] bg-bg/60 rounded-xl border transition-colors ${isDropActive ? 'border-blue-500/50 bg-surface' : 'border-border'}`}
                >
                  {/* Column Header */}
-                 <div className={`p-4 border-b border-zinc-800 flex justify-between items-center rounded-t-xl border-t-4 ${getStatusColor(column)} bg-zinc-900`}>
-                    <h4 className="font-semibold text-zinc-300 text-sm tracking-wide">{column}</h4>
-                    <span className="bg-zinc-800 text-zinc-500 text-xs px-2 py-0.5 rounded-full font-medium">{colItems.length}</span>
+                 <div className={`p-4 border-b border-border flex justify-between items-center rounded-t-xl border-t-4 ${getStatusColor(column)} bg-surface`}>
+                    <h4 className="font-semibold text-content text-sm tracking-wide">{column}</h4>
+                    <span className="bg-surface-raised text-faint text-xs px-2 py-0.5 rounded-full font-medium">{colItems.length}</span>
                  </div>
 
                  {/* Drop Area */}
@@ -997,13 +997,13 @@ const TodoEditor: React.FC<EditorProps> = ({ initialContent, onSave, fileName, p
                               onDragStart={(e) => handleDragStart(e, item.id)}
                               onDragEnd={handleDragEnd}
                               data-task-id={item.id}
-                              className={`group rounded-lg border bg-zinc-900 p-3 shadow-sm transition-all cursor-grab active:cursor-grabbing ${draggedItemIds.includes(item.id) ? 'opacity-50 grayscale' : 'opacity-100'} ${isHighlighted ? 'border-cyan-400/60 ring-2 ring-cyan-400/30 shadow-[0_0_0_1px_rgba(34,211,238,0.2)]' : isSelected ? 'border-blue-500/60 ring-2 ring-blue-500/20 shadow-[0_0_0_1px_rgba(59,130,246,0.15)]' : 'border-zinc-800 hover:border-zinc-700 hover:shadow-md'}`}
+                              className={`group rounded-lg border bg-surface p-3 shadow-sm transition-all cursor-grab active:cursor-grabbing ${draggedItemIds.includes(item.id) ? 'opacity-50 grayscale' : 'opacity-100'} ${isHighlighted ? 'border-cyan-400/60 ring-2 ring-cyan-400/30 shadow-[0_0_0_1px_rgba(34,211,238,0.2)]' : isSelected ? 'border-blue-500/60 ring-2 ring-blue-500/20 shadow-[0_0_0_1px_rgba(59,130,246,0.15)]' : 'border-border hover:border-border-strong hover:shadow-md'}`}
                             >
                               {/* Card Header */}
                               <div className="flex items-start gap-3 mb-2">
                                   <button 
                                     onClick={() => updateItemStatus(item.id, item.status === 'Done' ? 'To Do' : 'Done')}
-                                    className={`mt-0.5 shrink-0 transition-colors ${item.status === 'Done' ? 'text-emerald-500' : 'text-zinc-600 hover:text-emerald-500'}`}
+                                    className={`mt-0.5 shrink-0 transition-colors ${item.status === 'Done' ? 'text-emerald-500' : 'text-faint hover:text-emerald-500'}`}
                                   >
                                      {item.status === 'Done' ? <CheckSquare className="w-5 h-5" /> : <Square className="w-5 h-5" />}
                                   </button>
@@ -1018,13 +1018,13 @@ const TodoEditor: React.FC<EditorProps> = ({ initialContent, onSave, fileName, p
                                             if (e.key === 'Enter') commitTaskTitleEdit();
                                             if (e.key === 'Escape') cancelTaskTitleEdit();
                                           }}
-                                          className="w-full bg-zinc-950 border border-zinc-700 rounded px-2 py-1 text-sm text-zinc-100 focus:outline-none"
+                                          className="w-full bg-bg border border-border-strong rounded px-2 py-1 text-sm text-content focus:outline-none"
                                         />
                                       ) : (
                                         <p
                                           onDoubleClick={() => beginTaskTitleEdit(item)}
                                           title="Double-click to rename task"
-                                          className={`text-sm font-medium leading-snug break-words cursor-text ${item.status === 'Done' ? 'text-zinc-500 line-through' : 'text-zinc-200'}`}
+                                          className={`text-sm font-medium leading-snug break-words cursor-text ${item.status === 'Done' ? 'text-faint line-through' : 'text-content'}`}
                                         >
                                           {item.text}
                                         </p>
@@ -1036,14 +1036,14 @@ const TodoEditor: React.FC<EditorProps> = ({ initialContent, onSave, fileName, p
                                          e.stopPropagation();
                                          toggleItemSelection(item.id);
                                        }}
-                                       className="rounded-md p-1 text-zinc-500 transition-colors hover:bg-zinc-800 hover:text-white"
+                                       className="rounded-md p-1 text-faint transition-colors hover:bg-surface-hover hover:text-content"
                                        title={isSelected ? 'Deselect task' : 'Select task'}
                                      >
-                                       <span className={`flex h-4 w-4 items-center justify-center rounded border ${isSelected ? 'border-blue-400 bg-blue-500 text-white' : 'border-zinc-700 bg-zinc-950 text-transparent group-hover:text-zinc-400'}`}>
+                                       <span className={`flex h-4 w-4 items-center justify-center rounded border ${isSelected ? 'border-blue-400 bg-blue-500 text-content' : 'border-border-strong bg-bg text-transparent group-hover:text-muted'}`}>
                                          <Check className="h-3 w-3" />
                                        </span>
                                      </button>
-                                     <button onClick={() => setExpandedId(isExpanded ? null : item.id)} className="text-zinc-600 hover:text-white transition-colors">
+                                     <button onClick={() => setExpandedId(isExpanded ? null : item.id)} className="text-faint hover:text-content transition-colors">
                                         {isExpanded ? <ChevronUp className="w-4 h-4" /> : <MoreHorizontal className="w-4 h-4" />}
                                      </button>
                                    </div>
@@ -1053,55 +1053,55 @@ const TodoEditor: React.FC<EditorProps> = ({ initialContent, onSave, fileName, p
                                <div className="flex flex-wrap items-center gap-2 mt-2">
                                    <span className={`text-[10px] uppercase font-bold px-1.5 py-0.5 rounded border ${getPriorityColor(item.priority)}`}>{item.priority}</span>
                                    {item.dueDate && (
-                                      <span className="flex items-center gap-1 text-[10px] text-zinc-500 bg-zinc-950 border border-zinc-800 px-1.5 py-0.5 rounded">
+                                      <span className="flex items-center gap-1 text-[10px] text-faint bg-bg border border-border px-1.5 py-0.5 rounded">
                                          <Calendar className="w-3 h-3" /> {new Date(item.dueDate).toLocaleDateString(undefined, { month: 'short', day: 'numeric' })}
                                      </span>
                                   )}
                                   {typeof item.estimateHours === 'number' && (
-                                     <span className="text-[10px] text-zinc-500 bg-zinc-950 border border-zinc-800 px-1.5 py-0.5 rounded">
+                                     <span className="text-[10px] text-faint bg-bg border border-border px-1.5 py-0.5 rounded">
                                         {item.estimateHours}h
                                      </span>
                                   )}
                                    {item.tags && item.tags.length > 0 && (
                                       <div className="flex items-center gap-1">
                                          {item.tags.slice(0, 2).map(tag => (
-                                          <span key={`${item.id}-${tag}`} className="text-[10px] text-zinc-400 bg-zinc-800 px-1.5 py-0.5 rounded">
+                                          <span key={`${item.id}-${tag}`} className="text-[10px] text-muted bg-surface-raised px-1.5 py-0.5 rounded">
                                             #{tag}
                                           </span>
                                         ))}
-                                         {item.tags.length > 2 && <span className="text-[10px] text-zinc-500">+{item.tags.length - 2}</span>}
+                                         {item.tags.length > 2 && <span className="text-[10px] text-faint">+{item.tags.length - 2}</span>}
                                       </div>
                                    )}
                                    {subTasks.length > 0 && (
                                      <div className="flex items-center gap-1.5 ml-auto">
-                                        <ListChecks className="w-3 h-3 text-zinc-500" />
-                                        <span className="text-[10px] text-zinc-500 font-medium">{completedSub}/{subTasks.length}</span>
-                                        <div className="w-8 h-1 bg-zinc-800 rounded-full overflow-hidden">
+                                        <ListChecks className="w-3 h-3 text-faint" />
+                                        <span className="text-[10px] text-faint font-medium">{completedSub}/{subTasks.length}</span>
+                                        <div className="w-8 h-1 bg-surface-raised rounded-full overflow-hidden">
                                             <div className="h-full bg-blue-500/80" style={{ width: `${progress}%` }}></div>
                                         </div>
                                        </div>
                                    )}
                                </div>
-                               <p className="mt-2 text-xs text-zinc-500 line-clamp-2 break-words">
+                               <p className="mt-2 text-xs text-faint line-clamp-2 break-words">
                                  {getDescriptionPreviewText(item.description)}
                                </p>
 
                                {/* Expanded Details */}
                                {isExpanded && (
-                                  <div className="mt-3 pt-3 border-t border-zinc-800/50 space-y-3 animate-in fade-in slide-in-from-top-1 duration-200">
+                                  <div className="mt-3 pt-3 border-t border-border/50 space-y-3 animate-in fade-in slide-in-from-top-1 duration-200">
                                       <div className="grid grid-cols-1 sm:grid-cols-3 gap-2">
-                                          <div className="bg-zinc-950 border border-zinc-800 rounded p-2">
-                                              <label className="text-[10px] uppercase tracking-wide text-zinc-500">Status</label>
+                                          <div className="bg-bg border border-border rounded p-2">
+                                              <label className="text-[10px] uppercase tracking-wide text-faint">Status</label>
                                                <StyledSelect
                                                  value={item.status}
                                                  onChange={(value) => updateItemStatus(item.id, value as TodoStatus)}
                                                  options={TODO_STATUS_OPTIONS}
                                                  className="mt-1"
-                                                 selectClassName="w-full border-zinc-800 bg-zinc-900"
+                                                 selectClassName="w-full border-border bg-surface"
                                                />
                                           </div>
-                                          <div className="bg-zinc-950 border border-zinc-800 rounded p-2">
-                                              <label className="text-[10px] uppercase tracking-wide text-zinc-500">Priority</label>
+                                          <div className="bg-bg border border-border rounded p-2">
+                                              <label className="text-[10px] uppercase tracking-wide text-faint">Priority</label>
                                               <StyledSelect
                                                 value={item.priority}
                                                 onChange={(value) => updateItemField(item.id, { priority: value as Priority })}
@@ -1111,21 +1111,21 @@ const TodoEditor: React.FC<EditorProps> = ({ initialContent, onSave, fileName, p
                                                   { value: 'Low', label: 'Low' }
                                                 ]}
                                                 className="mt-1"
-                                                selectClassName="w-full border-zinc-800 bg-zinc-900"
+                                                selectClassName="w-full border-border bg-surface"
                                               />
                                           </div>
-                                          <div className="bg-zinc-950 border border-zinc-800 rounded p-2">
-                                              <label className="text-[10px] uppercase tracking-wide text-zinc-500">Due Date</label>
+                                          <div className="bg-bg border border-border rounded p-2">
+                                              <label className="text-[10px] uppercase tracking-wide text-faint">Due Date</label>
                                               <input
                                                 type="date"
                                                 value={item.dueDate || ''}
                                                 onChange={(e) => updateItemField(item.id, { dueDate: e.target.value || undefined })}
-                                                className="mt-1 w-full bg-transparent text-xs text-zinc-200 focus:outline-none [color-scheme:dark]"
+                                                className="mt-1 w-full bg-transparent text-xs text-content focus:outline-none [color-scheme:dark]"
                                               />
                                           </div>
                                       </div>
-                                      <div className="bg-zinc-950 border border-zinc-800 rounded p-2">
-                                          <label className="text-[10px] uppercase tracking-wide text-zinc-500">Effort (Hours)</label>
+                                      <div className="bg-bg border border-border rounded p-2">
+                                          <label className="text-[10px] uppercase tracking-wide text-faint">Effort (Hours)</label>
                                           <input
                                             type="number"
                                             min="0.5"
@@ -1136,11 +1136,11 @@ const TodoEditor: React.FC<EditorProps> = ({ initialContent, onSave, fileName, p
                                               updateItemField(item.id, { estimateHours: value ? Number(value) : undefined });
                                             }}
                                             placeholder="e.g. 2"
-                                            className="mt-1 w-full bg-transparent text-xs text-zinc-200 focus:outline-none"
+                                            className="mt-1 w-full bg-transparent text-xs text-content focus:outline-none"
                                           />
                                       </div>
-                                       <div className="bg-zinc-950 border border-zinc-800 rounded p-2">
-                                           <label className="text-[10px] uppercase tracking-wide text-zinc-500">Tags</label>
+                                       <div className="bg-bg border border-border rounded p-2">
+                                           <label className="text-[10px] uppercase tracking-wide text-faint">Tags</label>
                                            <TagInputSection
                                              value={(item.tags || []).join(', ')}
                                              onChange={(value) => {
@@ -1149,20 +1149,20 @@ const TodoEditor: React.FC<EditorProps> = ({ initialContent, onSave, fileName, p
                                              }}
                                              allTags={allTags}
                                              placeholder="bugfix, polish, ui"
-                                             inputClassName="mt-1 w-full bg-transparent text-xs text-zinc-200 focus:outline-none"
-                                             helperTextClassName="mt-1 text-[10px] text-zinc-500"
+                                             inputClassName="mt-1 w-full bg-transparent text-xs text-content focus:outline-none"
+                                             helperTextClassName="mt-1 text-[10px] text-faint"
                                              helperText="Type comma-separated tags, pick an existing tag, or create a new one."
                                            />
                                        </div>
                                       {/* Description */}
                                       <div className="space-y-2">
                                           <div className="relative flex items-center justify-between gap-2">
-                                              <span className="text-[10px] uppercase tracking-wide text-zinc-500">Notes</span>
+                                              <span className="text-[10px] uppercase tracking-wide text-faint">Notes</span>
                                               <button
                                                 onClick={() => toggleLinkPicker(item.id)}
                                                 data-link-picker-toggle="true"
                                                 disabled={linkableFiles.length === 0}
-                                                className="text-[10px] text-cyan-400 hover:text-cyan-300 flex items-center gap-1 disabled:text-zinc-600 disabled:cursor-not-allowed"
+                                                className="text-[10px] text-cyan-400 hover:text-cyan-300 flex items-center gap-1 disabled:text-faint disabled:cursor-not-allowed"
                                                 title={linkableFiles.length === 0 ? 'No files available to link' : 'Insert file link'}
                                               >
                                                 <LinkIcon className="w-3 h-3" /> Link File
@@ -1170,29 +1170,29 @@ const TodoEditor: React.FC<EditorProps> = ({ initialContent, onSave, fileName, p
                                               {linkPickerTaskId === item.id && (
                                                 <div
                                                   ref={linkPickerRef}
-                                                  className="absolute right-0 top-5 z-20 w-[280px] rounded-md border border-zinc-700 bg-zinc-900 p-2 shadow-lg"
+                                                  className="absolute right-0 top-5 z-20 w-[280px] rounded-md border border-border-strong bg-surface p-2 shadow-lg"
                                                 >
                                                   <input
                                                     type="text"
                                                     value={linkPickerQuery}
                                                     onChange={(e) => setLinkPickerQuery(e.target.value)}
                                                     placeholder="Search files..."
-                                                    className="mb-2 w-full rounded border border-zinc-700 bg-zinc-950 px-2 py-1.5 text-xs text-zinc-200 focus:outline-none focus:border-zinc-500"
+                                                    className="mb-2 w-full rounded border border-border-strong bg-bg px-2 py-1.5 text-xs text-content focus:outline-none focus:border-accent"
                                                     autoFocus
                                                   />
                                                   <div className="max-h-44 overflow-y-auto space-y-1 custom-scrollbar">
                                                     {filteredLinkableFiles.length === 0 ? (
-                                                      <p className="px-2 py-2 text-[11px] text-zinc-500">No matching files.</p>
+                                                      <p className="px-2 py-2 text-[11px] text-faint">No matching files.</p>
                                                     ) : (
                                                       filteredLinkableFiles.map(file => (
                                                         <button
                                                           key={file.id}
                                                           onClick={() => appendFileLinkToDescription(item.id, file.id)}
-                                                          className="flex w-full items-center justify-between rounded px-2 py-1.5 text-left text-xs text-zinc-300 transition hover:bg-zinc-800 hover:text-white"
+                                                          className="flex w-full items-center justify-between rounded px-2 py-1.5 text-left text-xs text-content transition hover:bg-surface-hover hover:text-content"
                                                           title={file.id}
                                                         >
                                                           <span className="truncate pr-2">{file.name}</span>
-                                                          <span className="text-[10px] text-zinc-500">{file.id.slice(0, 8)}</span>
+                                                          <span className="text-[10px] text-faint">{file.id.slice(0, 8)}</span>
                                                         </button>
                                                       ))
                                                     )}
@@ -1206,17 +1206,17 @@ const TodoEditor: React.FC<EditorProps> = ({ initialContent, onSave, fileName, p
                                             onDragOver={handleDescriptionDragOver}
                                             onDrop={(e) => handleDescriptionDrop(e, item.id)}
                                             placeholder="Add notes..."
-                                            className="w-full bg-zinc-950 border border-zinc-800 rounded p-2 text-xs text-zinc-300 focus:outline-none focus:border-zinc-700 min-h-[60px] resize-y"
+                                            className="w-full bg-bg border border-border rounded p-2 text-xs text-content focus:outline-none focus:border-border-strong min-h-[60px] resize-y"
                                           />
                                           {item.description && item.description.includes('file://') && (
-                                              <div className="text-xs text-zinc-400 bg-zinc-950 border border-zinc-800 rounded p-2 break-words">
+                                              <div className="text-xs text-muted bg-bg border border-border rounded p-2 break-words">
                                                 {renderTextWithFileLinks(item.description)}
                                               </div>
                                           )}
                                       </div>
                                       
                                       {/* Subtasks */}
-                                      <div className="bg-zinc-950 border border-zinc-800 rounded p-2">
+                                      <div className="bg-bg border border-border rounded p-2">
                                           <div className="flex gap-2 mb-2">
                                               <input
                                                 type="text"
@@ -1224,18 +1224,18 @@ const TodoEditor: React.FC<EditorProps> = ({ initialContent, onSave, fileName, p
                                                 onChange={(e) => setNewSubTaskText(e.target.value)}
                                                 onKeyDown={(e) => { if(e.key==='Enter') addSubTask(item.id); }}
                                                 placeholder="Sub-task..."
-                                                className="flex-1 bg-transparent text-xs text-white focus:outline-none"
+                                                className="flex-1 bg-transparent text-xs text-content focus:outline-none"
                                               />
-                                              <button onClick={() => addSubTask(item.id)} disabled={!newSubTaskText.trim()} className="text-zinc-400 hover:text-white disabled:opacity-30"><Plus className="w-3 h-3" /></button>
+                                              <button onClick={() => addSubTask(item.id)} disabled={!newSubTaskText.trim()} className="text-muted hover:text-content disabled:opacity-30"><Plus className="w-3 h-3" /></button>
                                           </div>
                                           <div className="space-y-1">
                                               {subTasks.map(sub => (
                                                   <div key={sub.id} className="flex items-center gap-2 group/sub">
-                                                      <button onClick={() => toggleSubTask(item.id, sub.id)} className={`text-zinc-600 hover:text-blue-500 ${sub.completed ? 'text-blue-500' : ''}`}>
+                                                      <button onClick={() => toggleSubTask(item.id, sub.id)} className={`text-faint hover:text-blue-500 ${sub.completed ? 'text-blue-500' : ''}`}>
                                                           {sub.completed ? <CheckSquare className="w-3 h-3" /> : <Square className="w-3 h-3" />}
                                                       </button>
-                                                      <span className={`text-xs flex-1 truncate ${sub.completed ? 'line-through text-zinc-600' : 'text-zinc-400'}`}>{sub.text}</span>
-                                                      <button onClick={() => deleteSubTask(item.id, sub.id)} className="text-zinc-700 hover:text-red-400 opacity-0 group-hover/sub:opacity-100 transition-opacity"><Trash2 className="w-3 h-3" /></button>
+                                                      <span className={`text-xs flex-1 truncate ${sub.completed ? 'line-through text-faint' : 'text-muted'}`}>{sub.text}</span>
+                                                      <button onClick={() => deleteSubTask(item.id, sub.id)} className="text-faint hover:text-red-400 opacity-0 group-hover/sub:opacity-100 transition-opacity"><Trash2 className="w-3 h-3" /></button>
                                                   </div>
                                               ))}
                                           </div>
@@ -1243,7 +1243,7 @@ const TodoEditor: React.FC<EditorProps> = ({ initialContent, onSave, fileName, p
 
                                       {/* Actions */}
                                       <div className="flex justify-end gap-2 pt-2">
-                                          <button onClick={() => duplicateItem(item.id)} className="flex items-center gap-1 text-xs text-zinc-300 hover:text-white px-2 py-1 rounded hover:bg-zinc-800 transition-colors">
+                                          <button onClick={() => duplicateItem(item.id)} className="flex items-center gap-1 text-xs text-content hover:text-content px-2 py-1 rounded hover:bg-surface-hover transition-colors">
                                               <Plus className="w-3 h-3" /> Duplicate
                                           </button>
                                           <button onClick={(e) => deleteItem(e, item.id)} className="flex items-center gap-1 text-xs text-red-400 hover:text-red-300 px-2 py-1 rounded hover:bg-red-900/20 transition-colors">
@@ -1256,7 +1256,7 @@ const TodoEditor: React.FC<EditorProps> = ({ initialContent, onSave, fileName, p
                         );
                     })}
                     {colItems.length === 0 && (
-                        <div className="text-center py-10 opacity-30 text-zinc-500 select-none">
+                        <div className="text-center py-10 opacity-30 text-faint select-none">
                             <p className="text-xs italic">No tasks here</p>
                             <p className="text-[11px] mt-1">Use Add Task or drag one into this column.</p>
                         </div>
@@ -1270,38 +1270,38 @@ const TodoEditor: React.FC<EditorProps> = ({ initialContent, onSave, fileName, p
 
       {isCreateModalOpen && (
         <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/80 backdrop-blur-sm p-4">
-          <div className="bg-zinc-900 border border-zinc-800 rounded-xl w-full max-w-2xl p-6 shadow-2xl">
+          <div className="bg-surface border border-border rounded-xl w-full max-w-2xl p-6 shadow-2xl">
             <div className="flex justify-between items-center mb-6">
-              <h2 className="text-xl font-bold text-white">Create Task</h2>
-              <button onClick={handleCloseCreateModal} className="text-zinc-500 hover:text-white">
+              <h2 className="text-xl font-bold text-content">Create Task</h2>
+              <button onClick={handleCloseCreateModal} className="text-faint hover:text-content">
                 <X className="w-5 h-5" />
               </button>
             </div>
             <form onSubmit={handleAddItem} className="space-y-4">
               <div>
-                <label className="block text-sm font-medium text-zinc-400 mb-1">Task Title</label>
+                <label className="block text-sm font-medium text-muted mb-1">Task Title</label>
                 <input
                   autoFocus
                   type="text"
                   required
                   value={newItemText}
                   onChange={(e) => setNewItemText(e.target.value)}
-                  className="w-full bg-zinc-950 border border-zinc-800 rounded-lg p-2.5 text-white focus:ring-2 focus:ring-blue-600 focus:border-transparent outline-none transition-all"
+                  className="w-full bg-bg border border-border rounded-lg p-2.5 text-content focus:ring-2 focus:ring-accent focus:border-transparent outline-none transition-all"
                   placeholder="What needs to be done?"
                 />
               </div>
               <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
                 <div>
-                  <label className="block text-sm font-medium text-zinc-400 mb-1">Status</label>
+                  <label className="block text-sm font-medium text-muted mb-1">Status</label>
                   <StyledSelect
                     value={newItemStatus}
                     onChange={(value) => setNewItemStatus(value as TodoStatus)}
                     options={TODO_STATUS_OPTIONS}
-                    selectClassName="w-full bg-zinc-950 border-zinc-800 p-2.5 text-sm"
+                    selectClassName="w-full bg-bg border-border p-2.5 text-sm"
                   />
                 </div>
                 <div>
-                  <label className="block text-sm font-medium text-zinc-400 mb-1">Priority</label>
+                  <label className="block text-sm font-medium text-muted mb-1">Priority</label>
                   <StyledSelect
                     value={newItemPriority}
                     onChange={(value) => setNewItemPriority(value as Priority)}
@@ -1310,57 +1310,57 @@ const TodoEditor: React.FC<EditorProps> = ({ initialContent, onSave, fileName, p
                       { value: 'Medium', label: 'Medium' },
                       { value: 'High', label: 'High' }
                     ]}
-                    selectClassName="w-full bg-zinc-950 border-zinc-800 p-2.5 text-sm"
+                    selectClassName="w-full bg-bg border-border p-2.5 text-sm"
                   />
                 </div>
               </div>
               <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
                 <div>
-                  <label className="block text-sm font-medium text-zinc-400 mb-1">Due Date</label>
+                  <label className="block text-sm font-medium text-muted mb-1">Due Date</label>
                   <input
                     type="date"
                     value={newItemDate}
                     onChange={(e) => setNewItemDate(e.target.value)}
-                    className="w-full bg-zinc-950 border border-zinc-800 rounded-lg p-2.5 text-white focus:ring-2 focus:ring-blue-600 focus:border-transparent outline-none transition-all [color-scheme:dark]"
+                    className="w-full bg-bg border border-border rounded-lg p-2.5 text-content focus:ring-2 focus:ring-accent focus:border-transparent outline-none transition-all [color-scheme:dark]"
                   />
                 </div>
                 <div>
-                  <label className="block text-sm font-medium text-zinc-400 mb-1">Effort (Hours)</label>
+                  <label className="block text-sm font-medium text-muted mb-1">Effort (Hours)</label>
                   <input
                     type="number"
                     min="0.5"
                     step="0.5"
                     value={newItemEstimate}
                     onChange={(e) => setNewItemEstimate(e.target.value)}
-                    className="w-full bg-zinc-950 border border-zinc-800 rounded-lg p-2.5 text-white focus:ring-2 focus:ring-blue-600 focus:border-transparent outline-none transition-all"
+                    className="w-full bg-bg border border-border rounded-lg p-2.5 text-content focus:ring-2 focus:ring-accent focus:border-transparent outline-none transition-all"
                     placeholder="e.g. 2"
                   />
                 </div>
               </div>
               <div>
-                <label className="block text-sm font-medium text-zinc-400 mb-1">Tags</label>
+                <label className="block text-sm font-medium text-muted mb-1">Tags</label>
                 <TagInputSection
                   value={newItemTags}
                   onChange={setNewItemTags}
                   allTags={allTags}
                   placeholder="ui, polish, animation"
-                  inputClassName="w-full bg-zinc-950 border border-zinc-800 rounded-lg p-2.5 text-white focus:ring-2 focus:ring-blue-600 focus:border-transparent outline-none transition-all"
-                  helperTextClassName="mt-2 text-xs text-zinc-500"
+                  inputClassName="w-full bg-bg border border-border rounded-lg p-2.5 text-content focus:ring-2 focus:ring-accent focus:border-transparent outline-none transition-all"
+                  helperTextClassName="mt-2 text-xs text-faint"
                   helperText="Select existing tags below or type comma-separated tags, up to 8 total."
                 />
               </div>
               <div>
-                <label className="block text-sm font-medium text-zinc-400 mb-1">Description</label>
+                <label className="block text-sm font-medium text-muted mb-1">Description</label>
                 <textarea
                   value={newItemDescription}
                   onChange={(e) => setNewItemDescription(e.target.value)}
-                  className="w-full bg-zinc-950 border border-zinc-800 rounded-lg p-3 text-white focus:ring-2 focus:ring-blue-600 focus:border-transparent outline-none transition-all min-h-[100px]"
+                  className="w-full bg-bg border border-border rounded-lg p-3 text-content focus:ring-2 focus:ring-accent focus:border-transparent outline-none transition-all min-h-[100px]"
                   placeholder="Add notes or implementation details..."
                 />
               </div>
               <div>
-                <label className="block text-sm font-medium text-zinc-400 mb-1">Subtasks</label>
-                <div className="bg-zinc-950 border border-zinc-800 rounded-lg p-2">
+                <label className="block text-sm font-medium text-muted mb-1">Subtasks</label>
+                <div className="bg-bg border border-border rounded-lg p-2">
                   <div className="flex gap-2 mb-2">
                     <input
                       type="text"
@@ -1368,28 +1368,28 @@ const TodoEditor: React.FC<EditorProps> = ({ initialContent, onSave, fileName, p
                       onChange={(e) => setNewItemSubTaskText(e.target.value)}
                       onKeyDown={(e) => { if (e.key === 'Enter') { e.preventDefault(); addCreateSubTask(); } }}
                       placeholder="Add subtask..."
-                      className="flex-1 bg-transparent text-sm text-white focus:outline-none"
+                      className="flex-1 bg-transparent text-sm text-content focus:outline-none"
                     />
                     <button
                       type="button"
                       onClick={addCreateSubTask}
                       disabled={!newItemSubTaskText.trim()}
-                      className="px-2.5 py-1 rounded bg-zinc-800 hover:bg-zinc-700 text-xs text-zinc-200 disabled:opacity-40"
+                      className="px-2.5 py-1 rounded bg-surface-raised hover:bg-surface-hover text-xs text-content disabled:opacity-40"
                     >
                       Add
                     </button>
                   </div>
                   <div className="space-y-1 max-h-28 overflow-y-auto custom-scrollbar">
                     {newItemSubTasks.length === 0 ? (
-                      <p className="text-xs text-zinc-500">No subtasks yet.</p>
+                      <p className="text-xs text-faint">No subtasks yet.</p>
                     ) : (
                       newItemSubTasks.map(sub => (
-                        <div key={sub.id} className="flex items-center gap-2 text-xs text-zinc-300">
-                          <button type="button" onClick={() => toggleCreateSubTask(sub.id)} className={`text-zinc-500 hover:text-blue-400 ${sub.completed ? 'text-blue-400' : ''}`}>
+                        <div key={sub.id} className="flex items-center gap-2 text-xs text-content">
+                          <button type="button" onClick={() => toggleCreateSubTask(sub.id)} className={`text-faint hover:text-blue-400 ${sub.completed ? 'text-blue-400' : ''}`}>
                             {sub.completed ? <CheckSquare className="w-3 h-3" /> : <Square className="w-3 h-3" />}
                           </button>
-                          <span className={`flex-1 ${sub.completed ? 'line-through text-zinc-500' : 'text-zinc-300'}`}>{sub.text}</span>
-                          <button type="button" onClick={() => deleteCreateSubTask(sub.id)} className="text-zinc-600 hover:text-red-400">
+                          <span className={`flex-1 ${sub.completed ? 'line-through text-faint' : 'text-content'}`}>{sub.text}</span>
+                          <button type="button" onClick={() => deleteCreateSubTask(sub.id)} className="text-faint hover:text-red-400">
                             <Trash2 className="w-3 h-3" />
                           </button>
                         </div>
@@ -1398,17 +1398,17 @@ const TodoEditor: React.FC<EditorProps> = ({ initialContent, onSave, fileName, p
                   </div>
                 </div>
               </div>
-              <div className="pt-4 border-t border-zinc-800 flex justify-end gap-2">
+              <div className="pt-4 border-t border-border flex justify-end gap-2">
                 <button
                   type="button"
                   onClick={handleCloseCreateModal}
-                  className="px-4 py-2 text-zinc-400 hover:text-white"
+                  className="px-4 py-2 text-muted hover:text-content"
                 >
                   Cancel
                 </button>
                 <button
                   type="submit"
-                  className="bg-blue-600 hover:bg-blue-700 text-white px-5 py-2 rounded-lg text-sm font-medium transition-colors"
+                  className="bg-accent hover:bg-accent-hover text-accent-content px-5 py-2 rounded-lg text-sm font-medium transition-colors"
                 >
                   Create Task
                 </button>

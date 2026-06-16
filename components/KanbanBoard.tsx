@@ -317,8 +317,8 @@ const KanbanBoard: React.FC<EditorProps> = ({ initialContent, onSave, fileName, 
 
   const getSeverityColor = (s: BugSeverity) => {
     switch (s) {
-      case 'Critical': return 'bg-red-500 text-white border-red-600';
-      case 'High': return 'bg-orange-500 text-white border-orange-600';
+      case 'Critical': return 'bg-red-500 text-content border-red-600';
+      case 'High': return 'bg-orange-500 text-content border-orange-600';
       case 'Medium': return 'bg-yellow-500/20 text-yellow-500 border-yellow-500/40';
       case 'Low': return 'bg-blue-500/20 text-blue-500 border-blue-500/40';
     }
@@ -404,7 +404,7 @@ const KanbanBoard: React.FC<EditorProps> = ({ initialContent, onSave, fileName, 
             e.stopPropagation();
             onOpenFile?.(fileId);
           }}
-          className={`underline underline-offset-2 ${linkedName ? 'text-cyan-400 hover:text-cyan-300' : 'text-zinc-500 line-through'}`}
+          className={`underline underline-offset-2 ${linkedName ? 'text-cyan-400 hover:text-cyan-300' : 'text-faint line-through'}`}
           title={linkedName ? `Open ${linkedName}` : 'Linked file not found'}
         >
           {label}
@@ -538,36 +538,36 @@ const KanbanBoard: React.FC<EditorProps> = ({ initialContent, onSave, fileName, 
   };
 
   return (
-    <div className="h-full flex flex-col bg-zinc-900">
-      <div className="h-16 border-b border-zinc-800 flex items-center justify-between px-6 bg-zinc-900/50 backdrop-blur-sm sticky top-0 z-10 shrink-0">
+    <div className="h-full flex flex-col bg-surface">
+      <div className="h-16 border-b border-border flex items-center justify-between px-6 bg-surface/60 backdrop-blur-sm sticky top-0 z-10 shrink-0">
         <div className="flex items-center gap-3">
           <div className="p-2 bg-red-500/10 rounded-lg">
              <BugIcon className="w-5 h-5 text-red-500" />
           </div>
-          <h3 className="text-zinc-200 font-medium">{fileName}</h3>
+          <h3 className="text-content font-medium">{fileName}</h3>
         </div>
         <div className="flex gap-3">
           <div className="flex items-center gap-3">
             <div className="flex items-center gap-0.5 mr-1">
-              <button onClick={() => { const prev = undoRedo.undo(); if (prev !== undefined) setBugs(prev); }} disabled={!undoRedo.canUndo} className="p-1.5 rounded text-zinc-500 hover:text-white hover:bg-zinc-800 disabled:opacity-30 disabled:pointer-events-none transition-colors" title="Undo (Ctrl+Z)"><Undo2 className="w-4 h-4" /></button>
-              <button onClick={() => { const next = undoRedo.redo(); if (next !== undefined) setBugs(next); }} disabled={!undoRedo.canRedo} className="p-1.5 rounded text-zinc-500 hover:text-white hover:bg-zinc-800 disabled:opacity-30 disabled:pointer-events-none transition-colors" title="Redo (Ctrl+Y)"><Redo2 className="w-4 h-4" /></button>
+              <button onClick={() => { const prev = undoRedo.undo(); if (prev !== undefined) setBugs(prev); }} disabled={!undoRedo.canUndo} className="p-1.5 rounded text-faint hover:text-content hover:bg-surface-hover disabled:opacity-30 disabled:pointer-events-none transition-colors" title="Undo (Ctrl+Z)"><Undo2 className="w-4 h-4" /></button>
+              <button onClick={() => { const next = undoRedo.redo(); if (next !== undefined) setBugs(next); }} disabled={!undoRedo.canRedo} className="p-1.5 rounded text-faint hover:text-content hover:bg-surface-hover disabled:opacity-30 disabled:pointer-events-none transition-colors" title="Redo (Ctrl+Y)"><Redo2 className="w-4 h-4" /></button>
             </div>
             <div className="flex items-center mr-2">
-                {saveStatus === 'saving' && <span className="text-xs text-zinc-500 flex items-center gap-1"><Loader2 className="w-3 h-3 animate-spin" /> Saving...</span>}
-                {saveStatus === 'saved' && <span className="text-xs text-zinc-500 flex items-center gap-1 opacity-50"><Check className="w-3 h-3" /> Saved</span>}
+                {saveStatus === 'saving' && <span className="text-xs text-faint flex items-center gap-1"><Loader2 className="w-3 h-3 animate-spin" /> Saving...</span>}
+                {saveStatus === 'saved' && <span className="text-xs text-faint flex items-center gap-1 opacity-50"><Check className="w-3 h-3" /> Saved</span>}
                 {saveStatus === 'unsaved' && <span className="text-xs text-orange-400 flex items-center gap-1"><AlertCircle className="w-3 h-3" /> Unsaved</span>}
             </div>
 
             <button
                 onClick={handleOpenCreate}
-                className="flex items-center gap-2 bg-zinc-800 hover:bg-zinc-700 text-zinc-200 px-4 py-2 rounded-md text-sm font-medium transition-colors border border-zinc-700"
+                className="flex items-center gap-2 bg-surface-raised hover:bg-surface-hover text-content px-4 py-2 rounded-md text-sm font-medium transition-colors border border-border-strong"
             >
                 <Plus className="w-4 h-4" />
                 Report Bug
             </button>
             <button
                 onClick={handleManualSave}
-                className={`flex items-center gap-2 px-4 py-2 rounded-md text-sm font-medium transition-colors shadow-lg ${saveStatus === 'unsaved' ? 'bg-blue-600 hover:bg-blue-700 text-white shadow-blue-900/20' : 'bg-zinc-700 hover:bg-zinc-600 text-zinc-200'}`}
+                className={`flex items-center gap-2 px-4 py-2 rounded-md text-sm font-medium transition-colors shadow-lg ${saveStatus === 'unsaved' ? 'bg-accent hover:bg-accent-hover text-accent-content shadow-blue-900/20' : 'bg-surface-raised hover:bg-surface-hover text-content'}`}
             >
                 <Save className="w-4 h-4" />
                 Save Board
@@ -576,30 +576,30 @@ const KanbanBoard: React.FC<EditorProps> = ({ initialContent, onSave, fileName, 
         </div>
       </div>
 
-      <div className="px-6 py-4 border-b border-zinc-800 flex flex-wrap gap-3 items-center bg-zinc-900">
+      <div className="px-6 py-4 border-b border-border flex flex-wrap gap-3 items-center bg-surface">
          <div className="relative w-56">
-              <Search className="w-4 h-4 text-zinc-500 absolute left-3 top-1/2 -translate-y-1/2" />
+              <Search className="w-4 h-4 text-faint absolute left-3 top-1/2 -translate-y-1/2" />
               <input
                 type="text"
                 value={searchQuery}
                 onChange={(e) => setSearchQuery(e.target.value)}
                 placeholder="Search bugs..."
-                className="w-full bg-zinc-950 border border-zinc-800 rounded-md py-1.5 pl-9 pr-3 text-sm text-zinc-200 focus:outline-none focus:border-zinc-600"
+                className="w-full bg-bg border border-border rounded-md py-1.5 pl-9 pr-3 text-sm text-content focus:outline-none focus:border-border-strong"
               />
          </div>
-         <div className="h-6 w-px bg-zinc-800 hidden lg:block"></div>
-         <div className="flex items-center gap-2 text-sm text-zinc-400">
+         <div className="h-6 w-px bg-surface-raised hidden lg:block"></div>
+         <div className="flex items-center gap-2 text-sm text-muted">
             <Filter className="w-4 h-4" />
             <span>Severity:</span>
-            <div className="flex gap-1 bg-zinc-950 p-1 rounded-lg border border-zinc-800">
+            <div className="flex gap-1 bg-bg p-1 rounded-lg border border-border">
                {(['All', 'Low', 'Medium', 'High', 'Critical'] as const).map(sev => (
                  <button
                    key={sev}
                    onClick={() => setFilterSeverity(sev)}
                    className={`px-2 py-0.5 rounded text-xs font-medium transition-all ${
                      filterSeverity === sev 
-                       ? 'bg-zinc-800 text-white shadow-sm' 
-                       : 'text-zinc-500 hover:text-zinc-300'
+                       ? 'bg-surface-raised text-content shadow-sm' 
+                       : 'text-faint hover:text-content'
                    }`}
                  >
                    {sev}
@@ -607,12 +607,12 @@ const KanbanBoard: React.FC<EditorProps> = ({ initialContent, onSave, fileName, 
                ))}
             </div>
          </div>
-          <div className="flex items-center gap-2 bg-zinc-950 border border-zinc-800 rounded-md px-2 py-1.5 text-xs text-zinc-300">
+          <div className="flex items-center gap-2 bg-bg border border-border rounded-md px-2 py-1.5 text-xs text-content">
              <span>Status</span>
              <select
                value={filterStatus}
               onChange={(e) => setFilterStatus(e.target.value as 'All' | BugStatus)}
-              className="bg-transparent focus:outline-none text-xs text-zinc-200"
+              className="bg-transparent focus:outline-none text-xs text-content"
             >
               <option value="All">All</option>
               {BUG_COLUMNS.map(status => (
@@ -620,12 +620,12 @@ const KanbanBoard: React.FC<EditorProps> = ({ initialContent, onSave, fileName, 
                ))}
              </select>
           </div>
-          <div className="flex items-center gap-2 bg-zinc-950 border border-zinc-800 rounded-md px-2 py-1.5 text-xs text-zinc-300">
-             <ArrowUpDown className="w-3.5 h-3.5 text-zinc-500" />
+          <div className="flex items-center gap-2 bg-bg border border-border rounded-md px-2 py-1.5 text-xs text-content">
+             <ArrowUpDown className="w-3.5 h-3.5 text-faint" />
              <select
               value={sortBy}
               onChange={(e) => setSortBy(e.target.value as BugSort)}
-              className="bg-transparent focus:outline-none text-xs text-zinc-200"
+              className="bg-transparent focus:outline-none text-xs text-content"
             >
               <option value="Newest">Newest</option>
               <option value="Oldest">Oldest</option>
@@ -635,24 +635,24 @@ const KanbanBoard: React.FC<EditorProps> = ({ initialContent, onSave, fileName, 
          </div>
          <button
            onClick={resetBoardFilters}
-           className="px-2.5 py-1.5 rounded-md border border-zinc-800 bg-zinc-950 text-xs text-zinc-300 hover:text-white"
+           className="px-2.5 py-1.5 rounded-md border border-border bg-bg text-xs text-content hover:text-content"
          >
            Reset Filters
          </button>
-          <div className="ml-auto text-xs text-zinc-500">
+          <div className="ml-auto text-xs text-faint">
              Showing {filteredBugs.length} of {bugs.length} bugs
           </div>
        </div>
 
       {selectedBugIds.length > 0 && (
-        <div className="border-b border-zinc-800 bg-zinc-900 px-6 py-3">
+        <div className="border-b border-border bg-surface px-6 py-3">
           <div className="flex flex-wrap items-center gap-2 rounded-lg border border-blue-500/30 bg-blue-500/5 p-3">
             <span className="text-xs font-medium text-blue-200">
               {selectedBugIds.length} selected
             </span>
             <button
               onClick={clearBugSelection}
-              className="rounded-md border border-zinc-700 bg-zinc-950 px-2.5 py-1 text-[11px] text-zinc-300 hover:text-white"
+              className="rounded-md border border-border-strong bg-bg px-2.5 py-1 text-[11px] text-content hover:text-content"
             >
               Clear Selection
             </button>
@@ -689,13 +689,13 @@ const KanbanBoard: React.FC<EditorProps> = ({ initialContent, onSave, fileName, 
                   className={`
                     flex-1 flex flex-col min-w-[300px] h-full rounded-xl overflow-hidden transition-all duration-200
                     ${isActiveDrop 
-                       ? 'bg-zinc-900 border-2 border-blue-500/50 shadow-[0_0_30px_-5px_rgba(59,130,246,0.2)]' 
-                       : 'bg-zinc-950/50 border border-zinc-800'}
+                       ? 'bg-surface border-2 border-blue-500/50 shadow-[0_0_30px_-5px_rgba(59,130,246,0.2)]' 
+                       : 'bg-bg/60 border border-border'}
                   `}
                >
-                 <div className={`p-4 border-b flex justify-between items-center sticky top-0 ${isActiveDrop ? 'bg-zinc-900 border-zinc-800' : 'bg-zinc-900 border-zinc-800'}`}>
-                    <h4 className={`font-semibold transition-colors ${isActiveDrop ? 'text-blue-400' : 'text-zinc-300'}`}>{status}</h4>
-                    <span className="text-xs bg-zinc-800 text-zinc-400 px-2 py-1 rounded-full">{colBugs.length}</span>
+                 <div className={`p-4 border-b flex justify-between items-center sticky top-0 ${isActiveDrop ? 'bg-surface border-border' : 'bg-surface border-border'}`}>
+                    <h4 className={`font-semibold transition-colors ${isActiveDrop ? 'text-blue-400' : 'text-content'}`}>{status}</h4>
+                    <span className="text-xs bg-surface-raised text-muted px-2 py-1 rounded-full">{colBugs.length}</span>
                  </div>
                  
                  <div
@@ -713,7 +713,7 @@ const KanbanBoard: React.FC<EditorProps> = ({ initialContent, onSave, fileName, 
                           draggable
                           onDragStart={(e) => handleDragStart(e, bug.id)}
                           onDragEnd={handleDragEnd}
-                          className={`border bg-zinc-900 p-4 rounded-lg shadow-sm transition-colors group cursor-grab active:cursor-grabbing ${draggedBugIds.includes(bug.id) ? 'opacity-40 grayscale border-dashed border-zinc-600' : 'opacity-100'} ${isSelected ? 'border-blue-500/60 ring-2 ring-blue-500/20 shadow-[0_0_0_1px_rgba(59,130,246,0.15)]' : 'border-zinc-800 hover:border-zinc-700'}`}
+                          className={`border bg-surface p-4 rounded-lg shadow-sm transition-colors group cursor-grab active:cursor-grabbing ${draggedBugIds.includes(bug.id) ? 'opacity-40 grayscale border-dashed border-border-strong' : 'opacity-100'} ${isSelected ? 'border-blue-500/60 ring-2 ring-blue-500/20 shadow-[0_0_0_1px_rgba(59,130,246,0.15)]' : 'border-border hover:border-border-strong'}`}
                         >
                          <div className="flex justify-between items-start mb-2 relative">
                             <span className={`text-[10px] font-bold px-2 py-0.5 rounded border flex items-center gap-1 pointer-events-none ${getSeverityColor(bug.severity)}`}>
@@ -727,17 +727,17 @@ const KanbanBoard: React.FC<EditorProps> = ({ initialContent, onSave, fileName, 
                                       e.stopPropagation();
                                       toggleBugSelection(bug.id);
                                     }}
-                                    className="rounded-md p-1 text-zinc-500 transition-colors hover:bg-zinc-800 hover:text-white"
+                                    className="rounded-md p-1 text-faint transition-colors hover:bg-surface-hover hover:text-content"
                                     title={isSelected ? 'Deselect bug' : 'Select bug'}
                                 >
-                                    <span className={`flex h-4 w-4 items-center justify-center rounded border ${isSelected ? 'border-blue-400 bg-blue-500 text-white' : 'border-zinc-700 bg-zinc-950 text-transparent group-hover:text-zinc-400'}`}>
+                                    <span className={`flex h-4 w-4 items-center justify-center rounded border ${isSelected ? 'border-blue-400 bg-blue-500 text-content' : 'border-border-strong bg-bg text-transparent group-hover:text-muted'}`}>
                                       <Check className="h-3 w-3" />
                                     </span>
                                 </button>
                                 <div className="flex gap-1 opacity-0 group-hover:opacity-100 transition-opacity">
                                  <button 
                                      onClick={(e) => handleOpenEdit(e, bug)}
-                                     className="p-1 text-zinc-500 hover:text-blue-400 hover:bg-zinc-800 rounded cursor-pointer"
+                                     className="p-1 text-faint hover:text-blue-400 hover:bg-surface-hover rounded cursor-pointer"
                                     title="Edit Bug"
                                 >
                                     <Pencil className="w-4 h-4" />
@@ -748,7 +748,7 @@ const KanbanBoard: React.FC<EditorProps> = ({ initialContent, onSave, fileName, 
                                         e.stopPropagation();
                                         deleteBug(bug.id);
                                     }} 
-                                    className="p-1 text-zinc-500 hover:text-red-400 hover:bg-zinc-800 rounded cursor-pointer"
+                                    className="p-1 text-faint hover:text-red-400 hover:bg-surface-hover rounded cursor-pointer"
                                     title="Delete Bug"
                                  >
                                      <Trash2 className="w-4 h-4" />
@@ -756,35 +756,35 @@ const KanbanBoard: React.FC<EditorProps> = ({ initialContent, onSave, fileName, 
                                 </div>
                             </div>
                          </div>
-                         <h5 className="text-sm font-medium text-zinc-200 mb-1 pointer-events-none">{bug.title}</h5>
-                          <div className="mb-2 flex flex-wrap items-center gap-1.5 text-[10px] text-zinc-500">
+                         <h5 className="text-sm font-medium text-content mb-1 pointer-events-none">{bug.title}</h5>
+                          <div className="mb-2 flex flex-wrap items-center gap-1.5 text-[10px] text-faint">
                             {bug.dueDate && (
-                              <span className="inline-flex items-center gap-1 rounded border border-zinc-700 bg-zinc-950 px-1.5 py-0.5">
+                              <span className="inline-flex items-center gap-1 rounded border border-border-strong bg-bg px-1.5 py-0.5">
                                 <Calendar className="h-3 w-3" /> {new Date(bug.dueDate).toLocaleDateString()}
                              </span>
                            )}
                            {bug.reproducible === false && (
-                             <span className="rounded border border-zinc-700 bg-zinc-950 px-1.5 py-0.5 text-zinc-400">Intermittent</span>
+                             <span className="rounded border border-border-strong bg-bg px-1.5 py-0.5 text-muted">Intermittent</span>
                            )}
                          </div>
                          {bug.tags && bug.tags.length > 0 && (
                            <div className="mb-2 flex flex-wrap gap-1">
                              {bug.tags.map(tag => (
-                               <span key={`${bug.id}-${tag}`} className="rounded bg-zinc-800/80 px-1.5 py-0.5 text-[10px] text-zinc-300">
+                               <span key={`${bug.id}-${tag}`} className="rounded bg-surface-raised/80 px-1.5 py-0.5 text-[10px] text-content">
                                  #{tag}
                                </span>
                              ))}
                            </div>
                          )}
-                         <p className="text-xs text-zinc-500 line-clamp-2 mb-3 break-words">
+                         <p className="text-xs text-faint line-clamp-2 mb-3 break-words">
                            {bug.description ? renderDescriptionWithLinks(bug.description) : "No description provided."}
                          </p>
                          
-                         <div className="flex justify-between items-center mt-3 pt-3 border-t border-zinc-800 pointer-events-auto relative z-10">
+                         <div className="flex justify-between items-center mt-3 pt-3 border-t border-border pointer-events-auto relative z-10">
                            {status !== 'Open' ? (
                              <button 
                                onClick={() => updateStatus(bug.id, BUG_COLUMNS[BUG_COLUMNS.indexOf(status) - 1])}
-                               className="text-xs text-zinc-500 hover:text-zinc-300 flex items-center gap-1 hover:bg-zinc-800 px-2 py-1 rounded transition-colors"
+                               className="text-xs text-faint hover:text-content flex items-center gap-1 hover:bg-surface-hover px-2 py-1 rounded transition-colors"
                              >
                                <ChevronLeft className="w-3 h-3" /> Prev
                              </button>
@@ -793,7 +793,7 @@ const KanbanBoard: React.FC<EditorProps> = ({ initialContent, onSave, fileName, 
                            {status !== 'Closed' ? (
                              <button 
                                onClick={() => updateStatus(bug.id, BUG_COLUMNS[BUG_COLUMNS.indexOf(status) + 1])}
-                               className="text-xs text-zinc-500 hover:text-zinc-300 flex items-center gap-1 hover:bg-zinc-800 px-2 py-1 rounded transition-colors"
+                               className="text-xs text-faint hover:text-content flex items-center gap-1 hover:bg-surface-hover px-2 py-1 rounded transition-colors"
                              >
                                Next <ChevronRight className="w-3 h-3" />
                              </button>
@@ -803,7 +803,7 @@ const KanbanBoard: React.FC<EditorProps> = ({ initialContent, onSave, fileName, 
                      )})}
                     {bottomSpacerHeight > 0 && <div style={{ height: bottomSpacerHeight }} />}
                     {colBugs.length === 0 && (
-                      <div className={`text-center py-8 pointer-events-none transition-opacity ${isActiveDrop ? 'opacity-50 text-blue-400' : 'opacity-30 text-zinc-500'}`}>
+                      <div className={`text-center py-8 pointer-events-none transition-opacity ${isActiveDrop ? 'opacity-50 text-blue-400' : 'opacity-30 text-faint'}`}>
                         <div className="text-sm italic">{isActiveDrop ? 'Drop to move here' : 'Drop items here'}</div>
                       </div>
                     )}
@@ -816,28 +816,28 @@ const KanbanBoard: React.FC<EditorProps> = ({ initialContent, onSave, fileName, 
 
       {isModalOpen && (
         <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/80 backdrop-blur-sm p-4">
-          <div className="bg-zinc-900 border border-zinc-800 rounded-xl w-full max-w-2xl p-6 shadow-2xl">
+          <div className="bg-surface border border-border rounded-xl w-full max-w-2xl p-6 shadow-2xl">
             <div className="flex justify-between items-center mb-6">
-              <h2 className="text-xl font-bold text-white">{editingBug ? 'Edit Bug Report' : 'Report Bug'}</h2>
-              <button onClick={resetForm} className="text-zinc-500 hover:text-white">
+              <h2 className="text-xl font-bold text-content">{editingBug ? 'Edit Bug Report' : 'Report Bug'}</h2>
+              <button onClick={resetForm} className="text-faint hover:text-content">
                 <X className="w-5 h-5" />
               </button>
             </div>
             <form onSubmit={handleSubmit} className="space-y-4">
               <div>
-                <label className="block text-sm font-medium text-zinc-400 mb-1">Title</label>
+                <label className="block text-sm font-medium text-muted mb-1">Title</label>
                 <input
                   autoFocus
                   type="text"
                   required
                   value={newTitle}
                   onChange={(e) => setNewTitle(e.target.value)}
-                  className="w-full bg-zinc-950 border border-zinc-800 rounded-lg p-2.5 text-white focus:ring-2 focus:ring-red-600 focus:border-transparent outline-none transition-all"
+                  className="w-full bg-bg border border-border rounded-lg p-2.5 text-content focus:ring-2 focus:ring-red-600 focus:border-transparent outline-none transition-all"
                   placeholder="e.g., Crash on startup"
                 />
               </div>
               <div>
-                <label className="block text-sm font-medium text-zinc-400 mb-1">Severity</label>
+                <label className="block text-sm font-medium text-muted mb-1">Severity</label>
                 <div className="grid grid-cols-4 gap-2">
                   {(['Low', 'Medium', 'High', 'Critical'] as const).map((sev) => (
                     <button
@@ -846,8 +846,8 @@ const KanbanBoard: React.FC<EditorProps> = ({ initialContent, onSave, fileName, 
                       onClick={() => setNewSeverity(sev)}
                       className={`py-2 px-1 rounded-lg text-xs font-medium border transition-all ${
                         newSeverity === sev
-                          ? 'bg-zinc-800 border-zinc-600 text-white ring-1 ring-zinc-500'
-                          : 'bg-zinc-950 border-zinc-800 text-zinc-400 hover:bg-zinc-800'
+                          ? 'bg-surface-raised border-border-strong text-content ring-1 ring-accent'
+                          : 'bg-bg border-border text-muted hover:bg-surface-hover'
                       }`}
                     >
                       {sev}
@@ -857,11 +857,11 @@ const KanbanBoard: React.FC<EditorProps> = ({ initialContent, onSave, fileName, 
               </div>
               <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
                 <div>
-                  <label className="block text-sm font-medium text-zinc-400 mb-1">Status</label>
+                  <label className="block text-sm font-medium text-muted mb-1">Status</label>
                   <select
                     value={newStatus}
                     onChange={(e) => setNewStatus(e.target.value as BugStatus)}
-                    className="w-full bg-zinc-950 border border-zinc-800 rounded-lg p-2.5 text-white focus:ring-2 focus:ring-red-600 focus:border-transparent outline-none transition-all"
+                    className="w-full bg-bg border border-border rounded-lg p-2.5 text-content focus:ring-2 focus:ring-red-600 focus:border-transparent outline-none transition-all"
                   >
                       {BUG_COLUMNS.map(status => (
                         <option key={status} value={status}>{status}</option>
@@ -869,34 +869,34 @@ const KanbanBoard: React.FC<EditorProps> = ({ initialContent, onSave, fileName, 
                     </select>
                 </div>
                 <div>
-                  <label className="block text-sm font-medium text-zinc-400 mb-1">Target Date</label>
+                  <label className="block text-sm font-medium text-muted mb-1">Target Date</label>
                   <input
                     type="date"
                     value={newDueDate}
                     onChange={(e) => setNewDueDate(e.target.value)}
-                    className="w-full bg-zinc-950 border border-zinc-800 rounded-lg p-2.5 text-white focus:ring-2 focus:ring-red-600 focus:border-transparent outline-none transition-all [color-scheme:dark]"
+                    className="w-full bg-bg border border-border rounded-lg p-2.5 text-content focus:ring-2 focus:ring-red-600 focus:border-transparent outline-none transition-all [color-scheme:dark]"
                   />
                 </div>
               </div>
               <div>
-                <label className="block text-sm font-medium text-zinc-400 mb-1">Tags</label>
+                <label className="block text-sm font-medium text-muted mb-1">Tags</label>
                 <input
                   type="text"
                   value={newTags}
                   onChange={(e) => setNewTags(e.target.value)}
-                  className="w-full bg-zinc-950 border border-zinc-800 rounded-lg p-2.5 text-white focus:ring-2 focus:ring-red-600 focus:border-transparent outline-none transition-all"
+                  className="w-full bg-bg border border-border rounded-lg p-2.5 text-content focus:ring-2 focus:ring-red-600 focus:border-transparent outline-none transition-all"
                   placeholder="rendering, crash, multiplayer"
                 />
-                <p className="mt-1 text-[11px] text-zinc-500">Comma-separated. Up to 8 tags.</p>
+                <p className="mt-1 text-[11px] text-faint">Comma-separated. Up to 8 tags.</p>
               </div>
               <div>
-                <label className="block text-sm font-medium text-zinc-400 mb-1">Reproducibility</label>
+                <label className="block text-sm font-medium text-muted mb-1">Reproducibility</label>
                 <div className="grid grid-cols-2 gap-2">
                   <button
                     type="button"
                     onClick={() => setNewReproducible(true)}
                     className={`rounded-lg border px-3 py-2 text-xs font-medium transition ${
-                      newReproducible ? 'border-zinc-600 bg-zinc-800 text-white' : 'border-zinc-800 bg-zinc-950 text-zinc-400 hover:bg-zinc-800'
+                      newReproducible ? 'border-border-strong bg-surface-raised text-content' : 'border-border bg-bg text-muted hover:bg-surface-hover'
                     }`}
                   >
                     Always Reproducible
@@ -905,7 +905,7 @@ const KanbanBoard: React.FC<EditorProps> = ({ initialContent, onSave, fileName, 
                     type="button"
                     onClick={() => setNewReproducible(false)}
                     className={`rounded-lg border px-3 py-2 text-xs font-medium transition ${
-                      !newReproducible ? 'border-zinc-600 bg-zinc-800 text-white' : 'border-zinc-800 bg-zinc-950 text-zinc-400 hover:bg-zinc-800'
+                      !newReproducible ? 'border-border-strong bg-surface-raised text-content' : 'border-border bg-bg text-muted hover:bg-surface-hover'
                     }`}
                   >
                     Intermittent
@@ -914,41 +914,41 @@ const KanbanBoard: React.FC<EditorProps> = ({ initialContent, onSave, fileName, 
               </div>
               <div>
                 <div className="flex items-center justify-between mb-1">
-                  <label className="block text-sm font-medium text-zinc-400">Description</label>
+                  <label className="block text-sm font-medium text-muted">Description</label>
                   <div className="relative" ref={linkPickerRef}>
                     <button
                       type="button"
                       onClick={toggleLinkPicker}
                       disabled={linkableFiles.length === 0}
-                      className="text-xs text-cyan-400 hover:text-cyan-300 disabled:text-zinc-600 disabled:cursor-not-allowed flex items-center gap-1"
+                      className="text-xs text-cyan-400 hover:text-cyan-300 disabled:text-faint disabled:cursor-not-allowed flex items-center gap-1"
                       title={linkableFiles.length === 0 ? 'No files available to link' : 'Insert File Link'}
                     >
                       <LinkIcon className="w-3 h-3" /> Link File
                     </button>
                     {linkPickerOpen && (
-                      <div className="absolute right-0 top-5 z-30 w-72 rounded-md border border-zinc-700 bg-zinc-900 p-2 shadow-lg">
+                      <div className="absolute right-0 top-5 z-30 w-72 rounded-md border border-border-strong bg-surface p-2 shadow-lg">
                         <input
                           type="text"
                           value={linkPickerQuery}
                           onChange={(e) => setLinkPickerQuery(e.target.value)}
                           placeholder="Search files..."
-                          className="mb-2 w-full rounded border border-zinc-700 bg-zinc-950 px-2 py-1.5 text-xs text-zinc-200 focus:outline-none focus:border-zinc-500"
+                          className="mb-2 w-full rounded border border-border-strong bg-bg px-2 py-1.5 text-xs text-content focus:outline-none focus:border-accent"
                           autoFocus
                         />
                         <div className="max-h-44 overflow-y-auto space-y-1 custom-scrollbar">
                           {filteredLinkableFiles.length === 0 ? (
-                            <p className="px-2 py-2 text-xs text-zinc-500">No matching files.</p>
+                            <p className="px-2 py-2 text-xs text-faint">No matching files.</p>
                           ) : (
                             filteredLinkableFiles.map(file => (
                               <button
                                 key={file.id}
                                 type="button"
                                 onClick={() => appendFileLinkToDescription(file.id)}
-                                className="flex w-full items-center justify-between rounded px-2 py-1.5 text-left text-xs text-zinc-300 transition hover:bg-zinc-800 hover:text-white"
+                                className="flex w-full items-center justify-between rounded px-2 py-1.5 text-left text-xs text-content transition hover:bg-surface-hover hover:text-content"
                                 title={file.id}
                               >
                                 <span className="truncate pr-2">{file.name}</span>
-                                <span className="text-[10px] text-zinc-500">{file.id.slice(0, 8)}</span>
+                                <span className="text-[10px] text-faint">{file.id.slice(0, 8)}</span>
                               </button>
                             ))
                           )}
@@ -962,15 +962,15 @@ const KanbanBoard: React.FC<EditorProps> = ({ initialContent, onSave, fileName, 
                   onChange={(e) => setNewDesc(e.target.value)}
                   onDragOver={handleDescriptionDragOver}
                   onDrop={handleDescriptionDrop}
-                  className="w-full bg-zinc-950 border border-zinc-800 rounded-lg p-3 text-white focus:ring-2 focus:ring-red-600 focus:border-transparent outline-none transition-all min-h-[100px]"
+                  className="w-full bg-bg border border-border rounded-lg p-3 text-content focus:ring-2 focus:ring-red-600 focus:border-transparent outline-none transition-all min-h-[100px]"
                   placeholder="Steps to reproduce..."
                 />
               </div>
               
-              <div className="pt-4 border-t border-zinc-800">
+              <div className="pt-4 border-t border-border">
                 <button
                   type="submit"
-                  className="w-full bg-red-600 hover:bg-red-700 text-white px-4 py-2.5 rounded-lg text-sm font-medium transition-colors"
+                  className="w-full bg-red-600 hover:bg-red-700 text-content px-4 py-2.5 rounded-lg text-sm font-medium transition-colors"
                 >
                   {editingBug ? 'Save Changes' : 'Create Ticket'}
                 </button>

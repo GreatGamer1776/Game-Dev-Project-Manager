@@ -62,58 +62,58 @@ const HelpModal: React.FC<HelpModalProps> = ({ isOpen, onClose }) => {
 
   return (
     <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/80 backdrop-blur-sm p-4 animate-in fade-in duration-200">
-      <div className="bg-zinc-900 border border-zinc-800 rounded-2xl w-full max-w-4xl max-h-[90vh] flex flex-col shadow-2xl">
+      <div className="bg-surface border border-border rounded-2xl w-full max-w-4xl max-h-[90vh] flex flex-col shadow-2xl">
         
         {/* Header */}
-        <div className="flex items-center justify-between p-6 border-b border-zinc-800 bg-zinc-950/50 rounded-t-2xl">
+        <div className="flex items-center justify-between p-6 border-b border-border bg-bg/60 rounded-t-2xl">
           <div className="flex items-center gap-3">
-            <div className="p-2 bg-blue-600/20 rounded-lg">
+            <div className="p-2 bg-accent/20 rounded-lg">
                 <Box className="w-6 h-6 text-blue-500" />
             </div>
             <div>
-                <h2 className="text-xl font-bold text-white">DevArchitect Guide</h2>
-                <p className="text-sm text-zinc-400">Project management suite for game developers</p>
+                <h2 className="text-xl font-bold text-content">DevArchitect Guide</h2>
+                <p className="text-sm text-muted">Project management suite for game developers</p>
             </div>
           </div>
           <button 
             onClick={onClose}
-            className="p-2 text-zinc-500 hover:text-white hover:bg-zinc-800 rounded-full transition-colors"
+            className="p-2 text-faint hover:text-content hover:bg-surface-hover rounded-full transition-colors"
           >
             <X className="w-6 h-6" />
           </button>
         </div>
 
         {/* Content */}
-        <div className="flex-1 overflow-y-auto p-6 custom-scrollbar bg-zinc-900/50">
+        <div className="flex-1 overflow-y-auto p-6 custom-scrollbar bg-surface/60">
           
           {/* Intro Section */}
-          <div className="mb-10 bg-zinc-800/30 border border-zinc-700/50 rounded-xl p-6">
-            <h3 className="text-lg font-semibold text-zinc-100 mb-2">What is this tool?</h3>
-            <p className="text-zinc-400 leading-relaxed">
+          <div className="mb-10 bg-surface-raised/40 border border-border rounded-xl p-6">
+            <h3 className="text-lg font-semibold text-content mb-2">What is this tool?</h3>
+            <p className="text-muted leading-relaxed">
               DevArchitect is an offline-capable workspace designed to centralize the messy process of game development planning. 
               Instead of scattering your GDDs in Word, tasks in Trello, and stats in Excel, this tool keeps everything in one project file 
               that can be saved locally to your disk or version control system.
             </p>
           </div>
 
-          <h3 className="text-sm font-bold text-zinc-500 uppercase tracking-wider mb-4 px-2">Available Tools</h3>
+          <h3 className="text-sm font-bold text-faint uppercase tracking-wider mb-4 px-2">Available Tools</h3>
           
           <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
             {tools.map((tool) => (
-              <div key={tool.title} className="flex gap-4 p-4 rounded-xl border border-zinc-800 bg-zinc-950 hover:border-zinc-700 transition-colors">
-                <div className={`shrink-0 p-3 rounded-lg bg-zinc-900 h-fit ${tool.color}`}>
+              <div key={tool.title} className="flex gap-4 p-4 rounded-xl border border-border bg-bg hover:border-border-strong transition-colors">
+                <div className={`shrink-0 p-3 rounded-lg bg-surface h-fit ${tool.color}`}>
                    <tool.icon className="w-6 h-6" />
                 </div>
                 <div>
-                  <h4 className="font-semibold text-zinc-200 mb-1">{tool.title}</h4>
-                  <p className="text-sm text-zinc-500 leading-snug">{tool.desc}</p>
+                  <h4 className="font-semibold text-content mb-1">{tool.title}</h4>
+                  <p className="text-sm text-faint leading-snug">{tool.desc}</p>
                 </div>
               </div>
             ))}
           </div>
 
-          <div className="mt-10 p-4 border-t border-zinc-800 text-center text-xs text-zinc-600">
-             <p>Use <span className="font-mono bg-zinc-800 px-1 rounded text-zinc-400">Ctrl + K</span> to open the Command Palette anywhere.</p>
+          <div className="mt-10 p-4 border-t border-border text-center text-xs text-faint">
+             <p>Use <span className="font-mono bg-surface-raised px-1 rounded text-muted">Ctrl + K</span> to open the Command Palette anywhere.</p>
           </div>
         </div>
       </div>

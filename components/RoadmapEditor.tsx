@@ -37,11 +37,11 @@ interface CalendarWeekSegment {
 }
 
 const STATUS_META: Record<RoadmapStatus, { label: string; badge: string }> = {
-  planned: { label: 'Planned', badge: 'bg-zinc-800 text-zinc-300 border-zinc-700' },
+  planned: { label: 'Planned', badge: 'bg-surface-raised text-content border-border-strong' },
   'in-progress': { label: 'In Progress', badge: 'bg-blue-500/15 text-blue-300 border-blue-500/40' },
   completed: { label: 'Completed', badge: 'bg-emerald-500/15 text-emerald-300 border-emerald-500/40' },
   delayed: { label: 'Delayed', badge: 'bg-red-500/15 text-red-300 border-red-500/40' },
-  dropped: { label: 'Dropped', badge: 'bg-zinc-700/80 text-zinc-300 border-zinc-600' }
+  dropped: { label: 'Dropped', badge: 'bg-surface-raised/80 text-content border-border-strong' }
 };
 
 const todayIso = () => new Date().toISOString().split('T')[0];
@@ -435,27 +435,27 @@ const RoadmapEditor: React.FC<EditorProps> = ({ initialContent, onSave, fileName
   };
 
   return (
-    <div className="h-full flex flex-col bg-zinc-900">
-      <div className="border-b border-zinc-800 bg-zinc-900/60 backdrop-blur-sm px-6 py-3 space-y-3 shrink-0">
+    <div className="h-full flex flex-col bg-surface">
+      <div className="border-b border-border bg-surface/60 backdrop-blur-sm px-6 py-3 space-y-3 shrink-0">
         <div className="flex items-center justify-between gap-3">
           <div className="flex items-center gap-2">
             <Calendar className="w-4 h-4 text-cyan-400" />
-            <h3 className="text-zinc-100 font-semibold">{fileName}</h3>
+            <h3 className="text-content font-semibold">{fileName}</h3>
           </div>
           <div className="flex items-center gap-2">
             <div className="flex items-center gap-0.5 mr-1">
-              <button onClick={() => { const prev = undoRedo.undo(); if (prev !== undefined) setItems(prev); }} disabled={!undoRedo.canUndo} className="p-1.5 rounded text-zinc-500 hover:text-white hover:bg-zinc-800 disabled:opacity-30 disabled:pointer-events-none transition-colors" title="Undo (Ctrl+Z)"><Undo2 className="w-4 h-4" /></button>
-              <button onClick={() => { const next = undoRedo.redo(); if (next !== undefined) setItems(next); }} disabled={!undoRedo.canRedo} className="p-1.5 rounded text-zinc-500 hover:text-white hover:bg-zinc-800 disabled:opacity-30 disabled:pointer-events-none transition-colors" title="Redo (Ctrl+Y)"><Redo2 className="w-4 h-4" /></button>
+              <button onClick={() => { const prev = undoRedo.undo(); if (prev !== undefined) setItems(prev); }} disabled={!undoRedo.canUndo} className="p-1.5 rounded text-faint hover:text-content hover:bg-surface-hover disabled:opacity-30 disabled:pointer-events-none transition-colors" title="Undo (Ctrl+Z)"><Undo2 className="w-4 h-4" /></button>
+              <button onClick={() => { const next = undoRedo.redo(); if (next !== undefined) setItems(next); }} disabled={!undoRedo.canRedo} className="p-1.5 rounded text-faint hover:text-content hover:bg-surface-hover disabled:opacity-30 disabled:pointer-events-none transition-colors" title="Redo (Ctrl+Y)"><Redo2 className="w-4 h-4" /></button>
             </div>
             <div className="text-xs">
               {saveStatus === 'saving' && (
-                <span className="text-zinc-400 flex items-center gap-1">
+                <span className="text-muted flex items-center gap-1">
                   <Loader2 className="w-3 h-3 animate-spin" />
                   Saving...
                 </span>
               )}
               {saveStatus === 'saved' && (
-                <span className="text-zinc-500 flex items-center gap-1">
+                <span className="text-faint flex items-center gap-1">
                   <Check className="w-3 h-3" />
                   Saved
                 </span>
@@ -467,18 +467,18 @@ const RoadmapEditor: React.FC<EditorProps> = ({ initialContent, onSave, fileName
                 </span>
               )}
             </div>
-            <button onClick={() => openCreate('phase')} className="px-3 py-2 rounded-md bg-blue-600 hover:bg-blue-700 text-white text-sm font-medium flex items-center gap-2">
+            <button onClick={() => openCreate('phase')} className="px-3 py-2 rounded-md bg-accent hover:bg-accent-hover text-accent-content text-sm font-medium flex items-center gap-2">
               <Plus className="w-4 h-4" />
               New Phase
             </button>
             <button
               onClick={() => openCreate('milestone')}
-              className="px-3 py-2 rounded-md bg-zinc-800 hover:bg-zinc-700 text-zinc-200 text-sm font-medium flex items-center gap-2 border border-zinc-700"
+              className="px-3 py-2 rounded-md bg-surface-raised hover:bg-surface-hover text-content text-sm font-medium flex items-center gap-2 border border-border-strong"
             >
               <Flag className="w-4 h-4" />
               New Milestone
             </button>
-            <button onClick={saveNow} className="px-3 py-2 rounded-md bg-emerald-600 hover:bg-emerald-700 text-white text-sm font-medium flex items-center gap-2">
+            <button onClick={saveNow} className="px-3 py-2 rounded-md bg-emerald-600 hover:bg-emerald-700 text-content text-sm font-medium flex items-center gap-2">
               <Save className="w-4 h-4" />
               Save
             </button>
@@ -487,23 +487,23 @@ const RoadmapEditor: React.FC<EditorProps> = ({ initialContent, onSave, fileName
 
         <div className="flex flex-wrap items-center gap-3">
           <div className="relative w-64 max-w-full">
-            <Search className="w-4 h-4 text-zinc-500 absolute left-3 top-1/2 -translate-y-1/2" />
+            <Search className="w-4 h-4 text-faint absolute left-3 top-1/2 -translate-y-1/2" />
             <input
               type="text"
               value={searchQuery}
               onChange={(event) => setSearchQuery(event.target.value)}
               placeholder="Search title or description..."
-              className="w-full bg-zinc-950 border border-zinc-800 rounded-md py-2 pl-9 pr-3 text-sm text-zinc-200 focus:outline-none focus:border-zinc-600"
+              className="w-full bg-bg border border-border rounded-md py-2 pl-9 pr-3 text-sm text-content focus:outline-none focus:border-border-strong"
             />
           </div>
 
-          <div className="flex items-center gap-2 bg-zinc-950 border border-zinc-800 rounded-md px-2 py-1.5 text-xs text-zinc-300">
-            <Filter className="w-3.5 h-3.5 text-zinc-500" />
+          <div className="flex items-center gap-2 bg-bg border border-border rounded-md px-2 py-1.5 text-xs text-content">
+            <Filter className="w-3.5 h-3.5 text-faint" />
             <span>Status</span>
             <select
               value={statusFilter}
               onChange={(event) => setStatusFilter(event.target.value as 'All' | RoadmapStatus)}
-              className="bg-transparent text-xs text-zinc-200 focus:outline-none"
+              className="bg-transparent text-xs text-content focus:outline-none"
             >
               <option value="All">All</option>
               {ROADMAP_STATUS_OPTIONS.map(status => (
@@ -514,12 +514,12 @@ const RoadmapEditor: React.FC<EditorProps> = ({ initialContent, onSave, fileName
             </select>
           </div>
 
-          <div className="flex items-center gap-2 bg-zinc-950 border border-zinc-800 rounded-md px-2 py-1.5 text-xs text-zinc-300">
+          <div className="flex items-center gap-2 bg-bg border border-border rounded-md px-2 py-1.5 text-xs text-content">
             <span>Type</span>
             <select
               value={typeFilter}
               onChange={(event) => setTypeFilter(event.target.value as 'All' | RoadmapItemType)}
-              className="bg-transparent text-xs text-zinc-200 focus:outline-none"
+              className="bg-transparent text-xs text-content focus:outline-none"
             >
               <option value="All">All</option>
               {ROADMAP_TYPE_OPTIONS.map(type => (
@@ -532,30 +532,30 @@ const RoadmapEditor: React.FC<EditorProps> = ({ initialContent, onSave, fileName
 
           <span className="px-3 py-1.5 rounded-md border border-cyan-500/40 bg-cyan-500/15 text-cyan-300 text-xs font-medium">Single Calendar</span>
 
-          <button onClick={resetFilters} className="px-2.5 py-1.5 rounded-md border border-zinc-800 bg-zinc-950 text-xs text-zinc-300 hover:text-white flex items-center gap-1">
+          <button onClick={resetFilters} className="px-2.5 py-1.5 rounded-md border border-border bg-bg text-xs text-content hover:text-content flex items-center gap-1">
             <RotateCcw className="w-3.5 h-3.5" />
             Reset
           </button>
 
-          <div className="ml-auto flex items-center gap-2 text-[11px] text-zinc-500">
-            <span className="rounded border border-zinc-800 bg-zinc-950 px-2 py-1">Total {stats.total}</span>
-            <span className="rounded border border-zinc-800 bg-zinc-950 px-2 py-1">Active {stats.active}</span>
-            <span className="rounded border border-zinc-800 bg-zinc-950 px-2 py-1">Delayed {stats.delayed}</span>
-            <span className="rounded border border-zinc-800 bg-zinc-950 px-2 py-1">Done {stats.done}</span>
+          <div className="ml-auto flex items-center gap-2 text-[11px] text-faint">
+            <span className="rounded border border-border bg-bg px-2 py-1">Total {stats.total}</span>
+            <span className="rounded border border-border bg-bg px-2 py-1">Active {stats.active}</span>
+            <span className="rounded border border-border bg-bg px-2 py-1">Delayed {stats.delayed}</span>
+            <span className="rounded border border-border bg-bg px-2 py-1">Done {stats.done}</span>
           </div>
         </div>
       </div>
 
       <div className="flex-1 min-h-0 overflow-hidden px-4 pt-4 pb-0">
-        <div className="h-full min-h-0 min-w-[1220px] border border-zinc-800 rounded-xl overflow-hidden bg-zinc-950 grid grid-cols-[minmax(360px,40%)_1fr]">
-          <section className="min-h-0 border-r border-zinc-800 flex flex-col">
-            <div className="h-10 px-3 flex items-center justify-between text-[11px] uppercase tracking-wide text-zinc-500 border-b border-zinc-800 bg-zinc-900">
+        <div className="h-full min-h-0 min-w-[1220px] border border-border rounded-xl overflow-hidden bg-bg grid grid-cols-[minmax(360px,40%)_1fr]">
+          <section className="min-h-0 border-r border-border flex flex-col">
+            <div className="h-10 px-3 flex items-center justify-between text-[11px] uppercase tracking-wide text-faint border-b border-border bg-surface">
               <span>Roadmap Items</span>
               <span>{visibleItems.length}</span>
             </div>
 
             <div className="flex-1 min-h-0 overflow-auto custom-scrollbar p-2">
-              {visibleItems.length === 0 && <div className="p-8 text-center text-sm text-zinc-500">No roadmap items match your current filters.</div>}
+              {visibleItems.length === 0 && <div className="p-8 text-center text-sm text-faint">No roadmap items match your current filters.</div>}
 
               {visibleItems.map((item, index) => {
                 const meta = STATUS_META[item.status];
@@ -568,32 +568,32 @@ const RoadmapEditor: React.FC<EditorProps> = ({ initialContent, onSave, fileName
                 return (
                   <div
                     key={item.id}
-                    className={`group relative rounded-lg border mb-2 ${isSelected ? 'bg-zinc-900 border-zinc-700' : index % 2 === 0 ? 'bg-zinc-950 border-zinc-800' : 'bg-zinc-900/60 border-zinc-800'}`}
+                    className={`group relative rounded-lg border mb-2 ${isSelected ? 'bg-surface border-border-strong' : index % 2 === 0 ? 'bg-bg border-border' : 'bg-surface/60 border-border'}`}
                   >
                     <button
                       onClick={() => {
                         setSelectedId(item.id);
                         setCalendarMonthTs(firstOfMonthTs(dateToTs(item.startDate)));
                       }}
-                      className="w-full px-3 py-2.5 text-left hover:bg-zinc-900/60 rounded-lg transition-colors"
+                      className="w-full px-3 py-2.5 text-left hover:bg-surface-hover/60 rounded-lg transition-colors"
                     >
                       <div className="flex items-center gap-1.5 min-w-0">
                         {item.type === 'milestone' ? <Flag className="w-3.5 h-3.5 text-amber-400 shrink-0" /> : <Calendar className="w-3.5 h-3.5 text-cyan-400 shrink-0" />}
-                        <span className="truncate text-sm text-zinc-100">{item.title}</span>
+                        <span className="truncate text-sm text-content">{item.title}</span>
                         <span className={`text-[10px] px-1.5 py-0.5 rounded border shrink-0 ${meta.badge}`}>{meta.label}</span>
                       </div>
-                      <div className="mt-1.5 flex items-center gap-2 text-[11px] text-zinc-500">
+                      <div className="mt-1.5 flex items-center gap-2 text-[11px] text-faint">
                         <span className="inline-block w-2 h-2 rounded-full" style={{ backgroundColor: colors.solid }} />
                         <span className="truncate">{formatDisplayDate(item.startDate)} - {formatDisplayDate(endDateText)} • {duration} day{duration === 1 ? '' : 's'} • {item.progress}%</span>
                       </div>
-                      <p className="mt-1 text-[11px] text-zinc-600 truncate">{shortDescription || 'No description provided.'}</p>
+                      <p className="mt-1 text-[11px] text-faint truncate">{shortDescription || 'No description provided.'}</p>
                     </button>
 
                     <div className="absolute right-2 top-2 z-20 flex items-center gap-1 opacity-0 group-hover:opacity-100 transition-opacity">
-                      <button onClick={() => openEdit(item)} className="p-1.5 rounded text-zinc-300 bg-zinc-900/90 border border-zinc-700 hover:text-blue-300 hover:border-blue-500/50" title="Edit">
+                      <button onClick={() => openEdit(item)} className="p-1.5 rounded text-content bg-surface/90 border border-border-strong hover:text-blue-300 hover:border-blue-500/50" title="Edit">
                         <Pencil className="w-3.5 h-3.5" />
                       </button>
-                      <button onClick={() => handleDelete(item.id)} className="p-1.5 rounded text-zinc-300 bg-zinc-900/90 border border-zinc-700 hover:text-red-400 hover:border-red-500/50" title="Delete">
+                      <button onClick={() => handleDelete(item.id)} className="p-1.5 rounded text-content bg-surface/90 border border-border-strong hover:text-red-400 hover:border-red-500/50" title="Delete">
                         <Trash2 className="w-3.5 h-3.5" />
                       </button>
                     </div>
@@ -604,26 +604,26 @@ const RoadmapEditor: React.FC<EditorProps> = ({ initialContent, onSave, fileName
           </section>
 
           <section className="min-h-0 flex flex-col">
-            <div className="shrink-0 border-b border-zinc-800 bg-zinc-900">
-              <div className="h-10 px-3 flex items-center justify-between border-b border-zinc-800">
+            <div className="shrink-0 border-b border-border bg-surface">
+              <div className="h-10 px-3 flex items-center justify-between border-b border-border">
                 <div className="flex items-center gap-2">
-                  <button onClick={() => shiftCalendarMonth(-1)} className="p-1.5 rounded border border-zinc-700 text-zinc-300 hover:text-white hover:bg-zinc-800" title="Previous Month">
+                  <button onClick={() => shiftCalendarMonth(-1)} className="p-1.5 rounded border border-border-strong text-content hover:text-content hover:bg-surface-hover" title="Previous Month">
                     <ChevronLeft className="w-4 h-4" />
                   </button>
-                  <button onClick={jumpToCurrentMonth} className="px-2.5 py-1.5 rounded border border-zinc-700 text-xs text-zinc-300 hover:text-white hover:bg-zinc-800">
+                  <button onClick={jumpToCurrentMonth} className="px-2.5 py-1.5 rounded border border-border-strong text-xs text-content hover:text-content hover:bg-surface-hover">
                     Today
                   </button>
-                  <button onClick={() => shiftCalendarMonth(1)} className="p-1.5 rounded border border-zinc-700 text-zinc-300 hover:text-white hover:bg-zinc-800" title="Next Month">
+                  <button onClick={() => shiftCalendarMonth(1)} className="p-1.5 rounded border border-border-strong text-content hover:text-content hover:bg-surface-hover" title="Next Month">
                     <ChevronRight className="w-4 h-4" />
                   </button>
                 </div>
-                <div className="text-sm font-semibold text-zinc-100">{calendarMonthLabel}</div>
-                <div className="text-[11px] text-zinc-500">Single Calendar</div>
+                <div className="text-sm font-semibold text-content">{calendarMonthLabel}</div>
+                <div className="text-[11px] text-faint">Single Calendar</div>
               </div>
 
               <div className="grid grid-cols-7">
                 {DAY_LABELS.map(label => (
-                  <div key={label} className="h-8 border-r border-zinc-800 last:border-r-0 flex items-center justify-center text-[11px] uppercase tracking-wide text-zinc-500">
+                  <div key={label} className="h-8 border-r border-border last:border-r-0 flex items-center justify-center text-[11px] uppercase tracking-wide text-faint">
                     {label}
                   </div>
                 ))}
@@ -631,21 +631,21 @@ const RoadmapEditor: React.FC<EditorProps> = ({ initialContent, onSave, fileName
             </div>
 
             <div className="flex-1 min-h-0 p-2">
-              <div className="h-full min-h-[580px] border border-zinc-800 rounded-lg overflow-auto custom-scrollbar">
+              <div className="h-full min-h-[580px] border border-border rounded-lg overflow-auto custom-scrollbar">
                 {calendarWeeks.map((week, weekIndex) => {
                   const laneHeight = 24;
                   const laneOffset = 24;
                   const weekHeight = Math.max(92, laneOffset + Math.max(1, week.laneCount) * laneHeight + 8);
 
                   return (
-                    <div key={`week-${weekIndex}`} className="relative border-b border-zinc-800 last:border-b-0" style={{ height: `${weekHeight}px` }}>
+                    <div key={`week-${weekIndex}`} className="relative border-b border-border last:border-b-0" style={{ height: `${weekHeight}px` }}>
                       <div className="absolute inset-0 grid grid-cols-7">
                         {week.days.map((day, dayIndex) => (
                           <div
                             key={day.iso}
-                            className={`relative p-1.5 ${dayIndex < 6 ? 'border-r border-zinc-800' : ''} ${day.isCurrentMonth ? 'bg-zinc-950' : 'bg-zinc-900/55'} ${day.isToday ? 'ring-1 ring-inset ring-cyan-500/50' : ''}`}
+                            className={`relative p-1.5 ${dayIndex < 6 ? 'border-r border-border' : ''} ${day.isCurrentMonth ? 'bg-bg' : 'bg-surface/55'} ${day.isToday ? 'ring-1 ring-inset ring-cyan-500/50' : ''}`}
                           >
-                            <div className={`text-[11px] font-medium ${day.isToday ? 'text-cyan-300' : day.isCurrentMonth ? 'text-zinc-300' : 'text-zinc-600'}`}>
+                            <div className={`text-[11px] font-medium ${day.isToday ? 'text-cyan-300' : day.isCurrentMonth ? 'text-content' : 'text-faint'}`}>
                               {day.dayNumber}
                             </div>
                           </div>
@@ -671,22 +671,22 @@ const RoadmapEditor: React.FC<EditorProps> = ({ initialContent, onSave, fileName
                                     setSelectedId(item.id);
                                     openEdit(item);
                                   }}
-                                  className={`h-5 w-full border text-left text-[10px] text-zinc-100 px-1 flex items-center gap-1 hover:brightness-110 ${segment.isStart ? 'rounded-l-md' : 'rounded-l-sm'} ${segment.isEnd ? 'rounded-r-md' : 'rounded-r-sm'} ${isSelected ? 'ring-1 ring-cyan-400/60' : ''}`}
+                                  className={`h-5 w-full border text-left text-[10px] text-content px-1 flex items-center gap-1 hover:brightness-110 ${segment.isStart ? 'rounded-l-md' : 'rounded-l-sm'} ${segment.isEnd ? 'rounded-r-md' : 'rounded-r-sm'} ${isSelected ? 'ring-1 ring-cyan-400/60' : ''}`}
                                   style={{ backgroundColor: colors.soft, borderColor: colors.border }}
                                   title={item.title}
                                 >
-                                  {!segment.isStart && <span className="text-[9px] text-zinc-300/80">...</span>}
+                                  {!segment.isStart && <span className="text-[9px] text-content/80">...</span>}
                                   <span className="truncate flex-1">{item.title}</span>
                                   {item.type === 'milestone' && <span className="text-[9px] text-amber-300">M</span>}
-                                  {!segment.isEnd && <span className="text-[9px] text-zinc-300/80">...</span>}
+                                  {!segment.isEnd && <span className="text-[9px] text-content/80">...</span>}
                                 </button>
-                                <div className="absolute left-0 top-full mt-1 w-64 rounded-md border border-zinc-700 bg-black/95 px-2.5 py-2 text-left opacity-0 group-hover:opacity-100 transition-opacity pointer-events-none z-30">
-                                  <p className="text-xs font-semibold text-white mb-1">{item.title}</p>
-                                  <p className="text-[11px] text-zinc-300 mb-1">{meta.label} • {item.type === 'milestone' ? 'Milestone' : 'Phase'}</p>
-                                  <p className="text-[11px] text-zinc-400 mb-1">
+                                <div className="absolute left-0 top-full mt-1 w-64 rounded-md border border-border-strong bg-black/95 px-2.5 py-2 text-left opacity-0 group-hover:opacity-100 transition-opacity pointer-events-none z-30">
+                                  <p className="text-xs font-semibold text-content mb-1">{item.title}</p>
+                                  <p className="text-[11px] text-content mb-1">{meta.label} • {item.type === 'milestone' ? 'Milestone' : 'Phase'}</p>
+                                  <p className="text-[11px] text-muted mb-1">
                                     {formatDisplayDate(item.startDate)} - {formatDisplayDate(item.type === 'milestone' ? item.startDate : item.endDate)}
                                   </p>
-                                  <p className="text-[11px] text-zinc-500 break-words">{overview}</p>
+                                  <p className="text-[11px] text-faint break-words">{overview}</p>
                                 </div>
                               </div>
                             </div>
@@ -704,24 +704,24 @@ const RoadmapEditor: React.FC<EditorProps> = ({ initialContent, onSave, fileName
 
       {isModalOpen && (
         <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/80 backdrop-blur-sm p-4">
-          <div className="bg-zinc-900 border border-zinc-800 rounded-xl w-full max-w-2xl p-6 shadow-2xl">
-            <h2 className="text-xl font-bold text-white mb-5">{editingId ? 'Edit Roadmap Item' : 'Create Roadmap Item'}</h2>
+          <div className="bg-surface border border-border rounded-xl w-full max-w-2xl p-6 shadow-2xl">
+            <h2 className="text-xl font-bold text-content mb-5">{editingId ? 'Edit Roadmap Item' : 'Create Roadmap Item'}</h2>
             <form onSubmit={handleSubmit} className="space-y-4">
               <div>
-                <label className="block text-sm text-zinc-400 mb-1">Title</label>
+                <label className="block text-sm text-muted mb-1">Title</label>
                 <input
                   autoFocus
                   type="text"
                   value={formData.title}
                   onChange={(event) => setFormData(prev => ({ ...prev, title: event.target.value }))}
-                  className="w-full bg-zinc-950 border border-zinc-800 rounded p-2.5 text-white focus:border-cyan-500 outline-none"
+                  className="w-full bg-bg border border-border rounded p-2.5 text-content focus:border-cyan-500 outline-none"
                   required
                 />
               </div>
 
               <div className="grid grid-cols-1 sm:grid-cols-3 gap-4">
                 <div>
-                  <label className="block text-sm text-zinc-400 mb-1">Type</label>
+                  <label className="block text-sm text-muted mb-1">Type</label>
                   <select
                     value={formData.type}
                     onChange={(event) => {
@@ -732,7 +732,7 @@ const RoadmapEditor: React.FC<EditorProps> = ({ initialContent, onSave, fileName
                         endDate: nextType === 'milestone' ? prev.startDate : prev.endDate
                       }));
                     }}
-                    className="w-full bg-zinc-950 border border-zinc-800 rounded p-2.5 text-white focus:border-cyan-500 outline-none"
+                    className="w-full bg-bg border border-border rounded p-2.5 text-content focus:border-cyan-500 outline-none"
                   >
                     {ROADMAP_TYPE_OPTIONS.map(type => (
                       <option key={type} value={type}>
@@ -742,11 +742,11 @@ const RoadmapEditor: React.FC<EditorProps> = ({ initialContent, onSave, fileName
                   </select>
                 </div>
                 <div>
-                  <label className="block text-sm text-zinc-400 mb-1">Status</label>
+                  <label className="block text-sm text-muted mb-1">Status</label>
                   <select
                     value={formData.status}
                     onChange={(event) => setFormData(prev => ({ ...prev, status: event.target.value as RoadmapStatus }))}
-                    className="w-full bg-zinc-950 border border-zinc-800 rounded p-2.5 text-white focus:border-cyan-500 outline-none"
+                    className="w-full bg-bg border border-border rounded p-2.5 text-content focus:border-cyan-500 outline-none"
                   >
                     {ROADMAP_STATUS_OPTIONS.map(status => (
                       <option key={status} value={status}>
@@ -756,7 +756,7 @@ const RoadmapEditor: React.FC<EditorProps> = ({ initialContent, onSave, fileName
                   </select>
                 </div>
                 <div>
-                  <label className="block text-sm text-zinc-400 mb-1">Progress ({formData.progress}%)</label>
+                  <label className="block text-sm text-muted mb-1">Progress ({formData.progress}%)</label>
                   <input
                     type="range"
                     min={0}
@@ -772,7 +772,7 @@ const RoadmapEditor: React.FC<EditorProps> = ({ initialContent, onSave, fileName
 
               <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
                 <div>
-                  <label className="block text-sm text-zinc-400 mb-1">{formData.type === 'milestone' ? 'Date' : 'Start Date'}</label>
+                  <label className="block text-sm text-muted mb-1">{formData.type === 'milestone' ? 'Date' : 'Start Date'}</label>
                   <input
                     type="date"
                     value={formData.startDate}
@@ -783,18 +783,18 @@ const RoadmapEditor: React.FC<EditorProps> = ({ initialContent, onSave, fileName
                         endDate: prev.type === 'milestone' ? event.target.value : prev.endDate
                       }))
                     }
-                    className="w-full bg-zinc-950 border border-zinc-800 rounded p-2.5 text-white focus:border-cyan-500 outline-none [color-scheme:dark]"
+                    className="w-full bg-bg border border-border rounded p-2.5 text-content focus:border-cyan-500 outline-none [color-scheme:dark]"
                     required
                   />
                 </div>
                 {formData.type === 'phase' && (
                   <div>
-                    <label className="block text-sm text-zinc-400 mb-1">End Date</label>
+                    <label className="block text-sm text-muted mb-1">End Date</label>
                     <input
                       type="date"
                       value={formData.endDate}
                       onChange={(event) => setFormData(prev => ({ ...prev, endDate: event.target.value }))}
-                      className="w-full bg-zinc-950 border border-zinc-800 rounded p-2.5 text-white focus:border-cyan-500 outline-none [color-scheme:dark]"
+                      className="w-full bg-bg border border-border rounded p-2.5 text-content focus:border-cyan-500 outline-none [color-scheme:dark]"
                       required
                     />
                   </div>
@@ -802,26 +802,26 @@ const RoadmapEditor: React.FC<EditorProps> = ({ initialContent, onSave, fileName
               </div>
 
               <div>
-                <label className="block text-sm text-zinc-400 mb-1">Description</label>
+                <label className="block text-sm text-muted mb-1">Description</label>
                 <textarea
                   value={formData.description}
                   onChange={(event) => setFormData(prev => ({ ...prev, description: event.target.value }))}
-                  className="w-full bg-zinc-950 border border-zinc-800 rounded p-2.5 text-white focus:border-cyan-500 outline-none min-h-[110px]"
+                  className="w-full bg-bg border border-border rounded p-2.5 text-content focus:border-cyan-500 outline-none min-h-[110px]"
                   placeholder="Context, risks, dependencies..."
                 />
               </div>
 
-              <div className="flex items-center gap-3 pt-3 border-t border-zinc-800">
+              <div className="flex items-center gap-3 pt-3 border-t border-border">
                 {editingId && (
                   <button type="button" onClick={() => handleDelete(editingId)} className="px-4 py-2 rounded-md border border-red-500/40 bg-red-500/10 text-red-300 text-sm font-medium">
                     Delete
                   </button>
                 )}
                 <div className="flex-1" />
-                <button type="button" onClick={closeModal} className="px-4 py-2 text-sm font-medium text-zinc-400 hover:text-white">
+                <button type="button" onClick={closeModal} className="px-4 py-2 text-sm font-medium text-muted hover:text-content">
                   Cancel
                 </button>
-                <button type="submit" className="px-5 py-2 rounded-md bg-cyan-600 hover:bg-cyan-700 text-white text-sm font-medium">
+                <button type="submit" className="px-5 py-2 rounded-md bg-cyan-600 hover:bg-cyan-700 text-content text-sm font-medium">
                   {editingId ? 'Save Changes' : 'Create Item'}
                 </button>
               </div>

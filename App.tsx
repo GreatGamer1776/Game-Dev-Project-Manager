@@ -1,5 +1,5 @@
 import React, { useState, useEffect } from 'react';
-import { LayoutDashboard, FileText, Network, ArrowLeft, Plus, Folder, File, CheckSquare, Bug as BugIcon, Trash2, HardDrive, Download, Upload, Map as MapIcon, Table, PenTool, Image as ImageIcon, HelpCircle, ChevronRight, ChevronDown, FolderPlus, FilePlus, X, Copy as CopyIcon, Pencil, PanelLeftClose, PanelLeftOpen, BookOpen } from 'lucide-react';
+import { LayoutDashboard, FileText, Network, ArrowLeft, Folder, File, CheckSquare, Bug as BugIcon, Trash2, HardDrive, Download, Map as MapIcon, Table, PenTool, Image as ImageIcon, HelpCircle, ChevronRight, ChevronDown, FolderPlus, FilePlus, Copy as CopyIcon, Pencil, PanelLeftClose, PanelLeftOpen, BookOpen, Settings as SettingsIcon, X, Pin } from 'lucide-react';
 import JSZip from 'jszip';
 import Dashboard from './components/Dashboard';
 import CommandPalette from './components/CommandPalette';
@@ -8,6 +8,9 @@ import GuideView, { GuideSectionId } from './components/GuideView';
 import { Project, ViewState, ProjectFile, FileType, EditorProps, ProjectFolder, TaskNavigationTarget } from './types';
 import { useProjectStore } from './stores/useProjectStore';
 import { getAssetExtensionFromMime, getAssetMimeType } from './services/assetUtils';
+import { Button, Modal, Input, Select, Field, Eyebrow } from './components/ui';
+import { SettingsModal } from './components/SettingsModal';
+import { useSettingsStore } from './stores/useSettingsStore';
 
 const DocEditor = React.lazy(() => import('./components/DocEditor'));
 const FlowchartEditor = React.lazy(() => import('./components/FlowchartEditor'));
@@ -430,9 +433,9 @@ const MOCK_PROJECTS: Project[] = [{
 }];
 
 const EditorLoadingFallback = ({ fileName }: { fileName: string }) => (
-  <div className="h-full flex items-center justify-center bg-zinc-950 p-6">
-    <div className="flex items-center gap-3 rounded-lg border border-zinc-800 bg-zinc-900 px-4 py-3 text-sm text-zinc-400 shadow-xl">
-      <File className="h-4 w-4 text-zinc-500" />
+  <div className="h-full flex items-center justify-center bg-bg p-6">
+    <div className="flex items-center gap-3 rounded-lg border border-border bg-surface px-4 py-3 text-sm text-muted shadow-raised">
+      <File className="h-4 w-4 text-faint" />
       <span className="truncate">Loading {fileName}...</span>
     </div>
   </div>
@@ -450,6 +453,8 @@ const App: React.FC = () => {
   const setActiveProjectId = useProjectStore(state => state.setActiveProjectId);
   const setActiveFileId = useProjectStore(state => state.setActiveFileId);
   
+  const openSettings = useSettingsStore(state => state.openSettings);
+
   const [isPaletteOpen, setIsPaletteOpen] = useState(false);
   const [isHelpOpen, setIsHelpOpen] = useState(false);
   const [isSidebarCollapsed, setIsSidebarCollapsed] = useState(false);
@@ -465,6 +470,10 @@ const App: React.FC = () => {
   const [draggedFileId, setDraggedFileId] = useState<string | null>(null);
   const [activeDropFolderId, setActiveDropFolderId] = useState<string | 'root' | null>(null);
   const [taskNavigationTarget, setTaskNavigationTarget] = useState<TaskNavigationTarget | null>(null);
+  // IDE-style open-file tabs (ordered). Kept in sync with activeFileId below.
+  const [openFileIds, setOpenFileIds] = useState<string[]>([]);
+  const [pinnedFileIds, setPinnedFileIds] = useState<string[]>([]);
+  const [draggingTabId, setDraggingTabId] = useState<string | null>(null);
 
   const isSavingRef = React.useRef(false);
   const saveQueueRef = React.useRef<Project | null>(null);
@@ -580,6 +589,64 @@ const App: React.FC = () => {
   useEffect(() => {
     setTaskNavigationTarget(null);
   }, [activeProjectId]);
+
+  // When the project changes, drop tabs for files not in the new project.
+  useEffect(() => {
+    const project = projects.find(p => p.id === activeProjectId);
+    if (!project) { setOpenFileIds([]); setPinnedFileIds([]); return; }
+    const exists = (id: string) => project.files.some(f => f.id === id);
+    setOpenFileIds(prev => prev.filter(exists));
+    setPinnedFileIds(prev => prev.filter(exists));
+  }, [activeProjectId]);
+
+  // Pinned tabs are kept at the front of the order.
+  const normalizeTabOrder = (ids: string[], pinned: string[]): string[] => {
+    const pinnedSet = new Set(pinned);
+    return [...ids.filter(id => pinnedSet.has(id)), ...ids.filter(id => !pinnedSet.has(id))];
+  };
+
+  const togglePinTab = (fileId: string, e?: React.MouseEvent) => {
+    e?.stopPropagation();
+    const nextPinned = pinnedFileIds.includes(fileId)
+      ? pinnedFileIds.filter(id => id !== fileId)
+      : [...pinnedFileIds, fileId];
+    setPinnedFileIds(nextPinned);
+    setOpenFileIds(prev => normalizeTabOrder(prev, nextPinned));
+  };
+
+  const reorderTabs = (draggedId: string, targetId: string) => {
+    if (draggedId === targetId) return;
+    setOpenFileIds(prev => {
+      const from = prev.indexOf(draggedId);
+      const to = prev.indexOf(targetId);
+      if (from < 0 || to < 0) return prev;
+      const next = [...prev];
+      const [moved] = next.splice(from, 1);
+      next.splice(to, 0, moved);
+      return normalizeTabOrder(next, pinnedFileIds);
+    });
+  };
+
+  // Any file that becomes active is opened as a tab (covers every open path:
+  // sidebar, command palette, links, quick-open, file creation).
+  useEffect(() => {
+    if (!activeFileId) return;
+    setOpenFileIds(prev => (prev.includes(activeFileId) ? prev : [...prev, activeFileId]));
+  }, [activeFileId]);
+
+  const closeTab = (fileId: string, e?: React.MouseEvent) => {
+    e?.stopPropagation();
+    setPinnedFileIds(prev => prev.filter(id => id !== fileId));
+    setOpenFileIds(prev => {
+      const idx = prev.indexOf(fileId);
+      const next = prev.filter(id => id !== fileId);
+      if (activeFileId === fileId) {
+        const fallback = next[idx] ?? next[idx - 1] ?? null;
+        setActiveFileId(fallback);
+      }
+      return next;
+    });
+  };
 
   const openGuideSection = (section: GuideSectionId = 'overview') => {
     setGuideSection(section);
@@ -1074,6 +1141,12 @@ const App: React.FC = () => {
   const activeProject = projects.find(p => p.id === activeProjectId);
   const activeFile = activeProject?.files.find(f => f.id === activeFileId);
   const activeEditorPlugin = activeFile ? EDITOR_PLUGINS.find(p => p.type === activeFile.type) : null;
+  // Open tabs, in order, resolved to currently-existing project files.
+  const openTabs = activeProject
+    ? openFileIds
+        .map(id => activeProject.files.find(f => f.id === id))
+        .filter((f): f is ProjectFile => Boolean(f))
+    : [];
   const quickOpenFiles = activeProject
     ? activeProject.files
         .filter(f => f.type !== ASSET_LIBRARY_TYPE)
@@ -1255,20 +1328,20 @@ const App: React.FC = () => {
                             style={{ marginLeft: depth * 12 }}
                             onDragOver={(e) => handleFolderDragOver(e, folder.id)}
                             onDrop={(e) => handleFolderDrop(e, folder.id)}
-                            className={`group flex items-center justify-between rounded-lg pr-1 py-1 mb-0.5 transition-colors ${isDropActive ? 'bg-blue-500/10 ring-1 ring-blue-500/40' : 'hover:bg-zinc-900'}`}
+                            className={`group flex items-center justify-between rounded-lg pr-1 py-1 mb-0.5 transition-colors ${isDropActive ? 'bg-accent/10 ring-1 ring-accent/40' : 'hover:bg-surface-hover'}`}
                           >
-                              <button 
-                                onClick={() => toggleFolder(folder.id)} 
-                                className="flex-1 flex items-center gap-2 px-2 text-sm text-zinc-400 hover:text-zinc-200 truncate"
+                              <button
+                                onClick={() => toggleFolder(folder.id)}
+                                className="flex-1 flex items-center gap-2 px-2 text-sm text-muted hover:text-content truncate"
                               >
                                   {isExpanded ? <ChevronDown className="w-4 h-4" /> : <ChevronRight className="w-4 h-4" />}
-                                  <Folder className="w-4 h-4 text-blue-500/80" />
+                                  <Folder className="w-4 h-4 text-accent/80" />
                                   <span className="truncate">{folder.name}</span>
                               </button>
                               <div className="opacity-0 group-hover:opacity-100 flex items-center gap-1">
-                                  <button onClick={() => openCreateFileModal(folder.id)} className="p-1 hover:bg-zinc-800 text-zinc-500 hover:text-white rounded" title="New File"><FilePlus className="w-3.5 h-3.5" /></button>
-                                  <button onClick={() => handleCreateFolder(folder.id)} className="p-1 hover:bg-zinc-800 text-zinc-500 hover:text-white rounded" title="New Subfolder"><FolderPlus className="w-3.5 h-3.5" /></button>
-                                  <button onClick={() => handleDeleteFolder(folder.id)} className="p-1 hover:bg-zinc-800 text-zinc-500 hover:text-red-400 rounded" title="Delete Folder"><Trash2 className="w-3.5 h-3.5" /></button>
+                                  <button onClick={() => openCreateFileModal(folder.id)} className="p-1 hover:bg-surface-raised text-faint hover:text-content rounded" title="New File"><FilePlus className="w-3.5 h-3.5" /></button>
+                                  <button onClick={() => handleCreateFolder(folder.id)} className="p-1 hover:bg-surface-raised text-faint hover:text-content rounded" title="New Subfolder"><FolderPlus className="w-3.5 h-3.5" /></button>
+                                  <button onClick={() => handleDeleteFolder(folder.id)} className="p-1 hover:bg-surface-raised text-faint hover:text-danger rounded" title="Delete Folder"><Trash2 className="w-3.5 h-3.5" /></button>
                               </div>
                           </div>
                           {isExpanded && renderFileTree(folder.id, depth + 1)}
@@ -1286,37 +1359,37 @@ const App: React.FC = () => {
                         draggable
                         onDragStart={(e) => handleFileDragStart(e, file.id, file.name)}
                         onDragEnd={handleFileDragEnd}
-                        className={`group relative rounded-lg mb-0.5 transition-colors cursor-grab active:cursor-grabbing ${isDragging ? 'opacity-45 grayscale' : 'opacity-100 hover:bg-zinc-900'}`}
+                        className={`group relative rounded-lg mb-0.5 transition-colors cursor-grab active:cursor-grabbing ${isDragging ? 'opacity-45 grayscale' : 'opacity-100 hover:bg-surface-hover'}`}
                       >
-                          <button 
-                            onClick={() => setActiveFileId(file.id)} 
+                          <button
+                            onClick={() => setActiveFileId(file.id)}
                             draggable
                             onDragStart={(e) => handleFileDragStart(e, file.id, file.name)}
                             onDragEnd={handleFileDragEnd}
-                            className={`w-full flex items-start gap-2 pl-1.5 pr-2 py-1.5 text-sm text-left transition-[padding] duration-150 group-hover:pr-28 ${activeFileId === file.id ? 'bg-zinc-800 text-white' : 'text-zinc-400 hover:text-zinc-200'}`}
+                            className={`w-full flex items-start gap-2 pl-1.5 pr-2 py-[var(--row-py)] text-sm text-left transition-[padding] duration-150 group-hover:pr-28 ${activeFileId === file.id ? 'bg-accent/10 text-content' : 'text-muted hover:text-content'}`}
                             title={file.name}
                           >
-                             <Icon className={`w-4 h-4 shrink-0 mt-0.5 ${activeFileId === file.id ? 'text-blue-400' : 'text-zinc-500'}`} />
+                             <Icon className={`w-4 h-4 shrink-0 mt-0.5 ${activeFileId === file.id ? 'text-accent' : 'text-faint'}`} />
                              <span className="min-w-0 flex-1 break-words leading-snug">{file.name}</span>
                           </button>
-                          <div className="absolute right-1 top-1/2 -translate-y-1/2 flex items-center gap-1 rounded-md border border-zinc-700/80 bg-zinc-900/95 px-1 py-0.5 opacity-0 pointer-events-none group-hover:opacity-100 group-hover:pointer-events-auto transition-opacity">
+                          <div className="absolute right-1 top-1/2 -translate-y-1/2 flex items-center gap-1 rounded-md border border-border bg-surface/95 px-1 py-0.5 opacity-0 pointer-events-none group-hover:opacity-100 group-hover:pointer-events-auto transition-opacity">
                             <button
                               onClick={(e) => { e.stopPropagation(); handleCopyFileId(file.id); }}
-                              className="p-1 text-zinc-500 hover:text-cyan-300 hover:bg-zinc-800 rounded"
+                              className="p-1 text-faint hover:text-accent hover:bg-surface-hover rounded"
                               title="Copy File ID"
                             >
                               <CopyIcon className="w-3.5 h-3.5" />
                             </button>
                             <button
                               onClick={(e) => handleOpenRenameFileModal(e, file.id)}
-                              className="p-1 text-zinc-500 hover:text-amber-300 hover:bg-zinc-800 rounded"
+                              className="p-1 text-faint hover:text-warning hover:bg-surface-hover rounded"
                               title="Rename File"
                             >
                               <Pencil className="w-3.5 h-3.5" />
                             </button>
                             <button
                               onClick={(e) => handleDeleteFile(e, file.id)}
-                              className="p-1 text-zinc-500 hover:text-red-400 hover:bg-zinc-800 rounded"
+                              className="p-1 text-faint hover:text-danger hover:bg-surface-hover rounded"
                               title="Delete File"
                             >
                               <Trash2 className="w-3.5 h-3.5" />
@@ -1329,26 +1402,78 @@ const App: React.FC = () => {
       );
   };
 
+  const renderFileTabs = () => {
+    if (openTabs.length === 0) return null;
+    return (
+      <div className="flex items-stretch border-b border-border bg-surface overflow-x-auto custom-scrollbar shrink-0">
+        {openTabs.map(file => {
+          const plugin = EDITOR_PLUGINS.find(p => p.type === file.type);
+          const Icon = plugin?.icon || File;
+          const active = file.id === activeFileId;
+          const pinned = pinnedFileIds.includes(file.id);
+          const isDragging = draggingTabId === file.id;
+          return (
+            <button
+              key={file.id}
+              draggable
+              onDragStart={(e) => { setDraggingTabId(file.id); e.dataTransfer.effectAllowed = 'move'; }}
+              onDragOver={(e) => { e.preventDefault(); e.dataTransfer.dropEffect = 'move'; }}
+              onDrop={(e) => { e.preventDefault(); if (draggingTabId) reorderTabs(draggingTabId, file.id); setDraggingTabId(null); }}
+              onDragEnd={() => setDraggingTabId(null)}
+              onClick={() => setActiveFileId(file.id)}
+              onAuxClick={(e) => { if (e.button === 1 && !pinned) closeTab(file.id, e); }}
+              className={`group/tab relative flex items-center gap-2 pl-3 pr-2 py-[var(--tab-py)] text-sm border-r border-border max-w-[200px] shrink-0 cursor-pointer transition-colors ${active ? 'bg-bg text-content' : 'text-muted hover:text-content hover:bg-surface-hover'} ${isDragging ? 'opacity-50' : ''}`}
+              title={file.name}
+            >
+              {active && <span className="absolute inset-x-0 top-0 h-0.5 bg-accent" />}
+              <Icon className={`w-4 h-4 shrink-0 ${active ? 'text-accent' : 'text-faint'}`} />
+              <span className="truncate">{file.name}</span>
+              <span
+                role="button"
+                aria-label={pinned ? `Unpin ${file.name}` : `Pin ${file.name}`}
+                onClick={(e) => togglePinTab(file.id, e)}
+                className={`ml-1 shrink-0 rounded p-0.5 hover:bg-surface-hover transition-opacity ${pinned ? 'text-accent opacity-100' : 'text-faint hover:text-content opacity-0 group-hover/tab:opacity-100'}`}
+              >
+                <Pin className={`w-3.5 h-3.5 ${pinned ? 'fill-current' : ''}`} />
+              </span>
+              {!pinned && (
+                <span
+                  role="button"
+                  aria-label={`Close ${file.name}`}
+                  onClick={(e) => closeTab(file.id, e)}
+                  className={`shrink-0 rounded p-0.5 text-faint hover:text-content hover:bg-surface-hover transition-opacity ${active ? 'opacity-70 hover:opacity-100' : 'opacity-0 group-hover/tab:opacity-100'}`}
+                >
+                  <X className="w-3.5 h-3.5" />
+                </span>
+              )}
+            </button>
+          );
+        })}
+      </div>
+    );
+  };
+
   const renderSidebar = () => {
     if (currentView === ViewState.DASHBOARD || !activeProject) {
       return (
-        <aside className="w-16 md:w-20 bg-zinc-950 border-r border-zinc-800 flex flex-col items-center py-6 gap-6 z-20">
-          <div className="w-10 h-10 bg-gradient-to-br from-blue-500 to-purple-600 rounded-xl flex items-center justify-center shadow-lg shadow-blue-900/20 mb-4"><Folder className="w-6 h-6 text-white" /></div>
-          <button onClick={() => { setShowGuide(false); setGuideSection('overview'); }} className={`p-3 rounded-xl transition-colors ${!showGuide ? 'bg-zinc-800 text-white shadow-md' : 'text-zinc-500 hover:bg-zinc-800 hover:text-white'}`} title="Dashboard"><LayoutDashboard className="w-5 h-5" /></button>
-          <button onClick={() => openGuideSection('overview')} className={`p-3 rounded-xl transition-colors ${showGuide ? 'bg-zinc-800 text-white shadow-md' : 'text-zinc-500 hover:bg-zinc-800 hover:text-white'}`} title="Guide & Documentation"><BookOpen className="w-5 h-5" /></button>
+        <aside className="w-16 md:w-20 bg-surface border-r border-border flex flex-col items-center py-6 gap-6 z-20">
+          <div className="w-10 h-10 bg-accent-soft rounded-xl flex items-center justify-center shadow-soft mb-4" title="DevArchitect"><span className="font-display text-sm font-extrabold tracking-tight text-accent-content">DA</span></div>
+          <button onClick={() => { setShowGuide(false); setGuideSection('overview'); }} className={`p-3 rounded-xl transition-colors ${!showGuide ? 'bg-accent/15 text-accent shadow-soft' : 'text-faint hover:bg-surface-hover hover:text-content'}`} title="Dashboard"><LayoutDashboard className="w-5 h-5" /></button>
+          <button onClick={() => openGuideSection('overview')} className={`p-3 rounded-xl transition-colors ${showGuide ? 'bg-accent/15 text-accent shadow-soft' : 'text-faint hover:bg-surface-hover hover:text-content'}`} title="Guide & Documentation"><BookOpen className="w-5 h-5" /></button>
+          <button onClick={openSettings} className="mt-auto p-3 rounded-xl text-faint hover:bg-surface-hover hover:text-content transition-colors" title="Settings"><SettingsIcon className="w-5 h-5" /></button>
         </aside>
       );
     }
     if (isSidebarCollapsed) {
       return (
-        <aside className="w-14 bg-zinc-950 border-r border-zinc-800 flex flex-col items-center z-20 transition-all duration-200">
-          <div className="h-16 flex items-center justify-center border-b border-zinc-800 shrink-0 w-full">
-            <button onClick={() => setIsSidebarCollapsed(false)} className="p-2 hover:bg-zinc-900 rounded-lg text-zinc-400 hover:text-white transition-colors" title="Expand Sidebar (Ctrl+\\)">
+        <aside className="w-14 bg-surface border-r border-border flex flex-col items-center z-20 transition-all duration-200">
+          <div className="h-16 flex items-center justify-center border-b border-border shrink-0 w-full">
+            <button onClick={() => setIsSidebarCollapsed(false)} className="p-2 hover:bg-surface-hover rounded-lg text-muted hover:text-content transition-colors" title="Expand Sidebar (Ctrl+\\)">
               <PanelLeftOpen className="w-4 h-4" />
             </button>
           </div>
-          <div className="py-3 flex flex-col items-center gap-1 w-full border-b border-zinc-900">
-            <button onClick={() => { setActiveProjectId(null); setCurrentView(ViewState.DASHBOARD); }} className="p-2 hover:bg-zinc-900 rounded-lg text-zinc-400 hover:text-white transition-colors" title="Back to Dashboard">
+          <div className="py-3 flex flex-col items-center gap-1 w-full border-b border-border">
+            <button onClick={() => { setActiveProjectId(null); setCurrentView(ViewState.DASHBOARD); }} className="p-2 hover:bg-surface-hover rounded-lg text-muted hover:text-content transition-colors" title="Back to Dashboard">
               <ArrowLeft className="w-4 h-4" />
             </button>
           </div>
@@ -1361,7 +1486,7 @@ const App: React.FC = () => {
                   <button
                     key={file.id}
                     onClick={() => setActiveFileId(file.id)}
-                    className={`p-2 rounded-lg transition-colors ${activeFileId === file.id ? 'bg-zinc-800 text-blue-400' : 'text-zinc-500 hover:text-white hover:bg-zinc-900'}`}
+                    className={`p-2 rounded-lg transition-colors ${activeFileId === file.id ? 'bg-accent/15 text-accent' : 'text-faint hover:text-content hover:bg-surface-hover'}`}
                     title={file.name}
                   >
                     <Icon className="w-4 h-4" />
@@ -1371,7 +1496,10 @@ const App: React.FC = () => {
             </div>
           )}
           <div className="mt-auto pb-4 flex flex-col items-center gap-1">
-            <button onClick={() => setIsHelpOpen(true)} className="p-2 rounded-lg text-zinc-500 hover:bg-zinc-800 hover:text-white transition-colors" title="Help">
+            <button onClick={openSettings} className="p-2 rounded-lg text-faint hover:bg-surface-hover hover:text-content transition-colors" title="Settings">
+              <SettingsIcon className="w-4 h-4" />
+            </button>
+            <button onClick={() => setIsHelpOpen(true)} className="p-2 rounded-lg text-faint hover:bg-surface-hover hover:text-content transition-colors" title="Help">
               <HelpCircle className="w-4 h-4" />
             </button>
           </div>
@@ -1379,36 +1507,32 @@ const App: React.FC = () => {
       );
     }
     return (
-      <aside className="w-80 bg-zinc-950 border-r border-zinc-800 flex flex-col z-20 transition-all duration-200">
-        <div className="h-16 flex items-center px-4 border-b border-zinc-800 shrink-0 gap-2">
-          <button onClick={() => { setActiveProjectId(null); setCurrentView(ViewState.DASHBOARD); }} className="p-2 hover:bg-zinc-900 rounded-lg text-zinc-400 hover:text-white"><ArrowLeft className="w-4 h-4" /></button>
-          <span className="font-semibold text-zinc-200 truncate flex-1">{activeProject.name}</span>
-          <button onClick={() => setIsSidebarCollapsed(true)} className="p-2 hover:bg-zinc-900 rounded-lg text-zinc-400 hover:text-white transition-colors" title="Collapse Sidebar (Ctrl+\\)">
+      <aside className="w-80 bg-surface border-r border-border flex flex-col z-20 transition-all duration-200">
+        <div className="h-16 flex items-center px-4 border-b border-border shrink-0 gap-2">
+          <button onClick={() => { setActiveProjectId(null); setCurrentView(ViewState.DASHBOARD); }} className="p-2 hover:bg-surface-hover rounded-lg text-muted hover:text-content" title="Back to dashboard"><ArrowLeft className="w-4 h-4" /></button>
+          <div className="min-w-0 flex-1">
+            <Eyebrow className="block leading-none">Project</Eyebrow>
+            <span className="font-display font-semibold text-content truncate block leading-tight mt-0.5">{activeProject.name}</span>
+          </div>
+          <button onClick={() => setIsSidebarCollapsed(true)} className="p-2 hover:bg-surface-hover rounded-lg text-muted hover:text-content transition-colors" title="Collapse Sidebar (Ctrl+\\)">
             <PanelLeftClose className="w-4 h-4" />
           </button>
         </div>
-        
+
         {/* Actions Bar */}
-        <div className="px-3 py-3 border-b border-zinc-900 flex gap-2">
-            <button 
-                onClick={() => openCreateFileModal(null)} 
-                className="flex-1 flex items-center justify-center gap-2 bg-blue-600 hover:bg-blue-700 text-white py-1.5 rounded-md text-xs font-medium transition-colors"
-            >
-                <FilePlus className="w-3.5 h-3.5" /> New File
-            </button>
-            <button 
-                onClick={() => handleCreateFolder(null)} 
-                className="px-3 bg-zinc-800 hover:bg-zinc-700 text-zinc-300 py-1.5 rounded-md text-xs font-medium transition-colors"
-                title="New Folder"
-            >
+        <div className="px-3 py-3 border-b border-border flex gap-2">
+            <Button size="sm" icon={FilePlus} className="flex-1" onClick={() => openCreateFileModal(null)}>
+                New File
+            </Button>
+            <Button size="sm" variant="secondary" onClick={() => handleCreateFolder(null)} title="New Folder">
                 <FolderPlus className="w-3.5 h-3.5" />
-            </button>
+            </Button>
         </div>
 
         {/* Project Systems */}
         {systemFiles.length > 0 && (
           <div className="px-3 pt-3">
-            <div className="px-2 pb-1 text-[10px] uppercase tracking-wide text-zinc-500">Project Systems</div>
+            <Eyebrow className="block px-2 pb-1.5">Project systems</Eyebrow>
             <div className="space-y-1">
               {systemFiles.map(file => {
                 const plugin = EDITOR_PLUGINS.find(p => p.type === file.type);
@@ -1420,14 +1544,14 @@ const App: React.FC = () => {
                     draggable
                     onDragStart={(e) => handleFileDragStart(e, file.id, file.name)}
                     onDragEnd={handleFileDragEnd}
-                    className={`group relative w-full flex items-start gap-2 px-2 py-2 rounded-lg text-sm transition-colors border cursor-grab active:cursor-grabbing ${activeFileId === file.id ? 'bg-zinc-800 text-white border-blue-500/40' : 'text-zinc-300 hover:text-white hover:bg-zinc-900 border-zinc-800'}`}
+                    className={`group relative w-full flex items-start gap-2 px-2 py-2 rounded-lg text-sm transition-colors border cursor-grab active:cursor-grabbing ${activeFileId === file.id ? 'bg-accent/10 text-content border-accent/50' : 'text-content hover:text-content hover:bg-surface-hover border-border'}`}
                     title={`Drag to create link to ${file.name}`}
                   >
-                    <Icon className={`w-4 h-4 mt-0.5 shrink-0 ${activeFileId === file.id ? 'text-blue-400' : 'text-zinc-500'}`} />
+                    <Icon className={`w-4 h-4 mt-0.5 shrink-0 ${activeFileId === file.id ? 'text-accent' : 'text-faint'}`} />
                     <span className="min-w-0 flex-1 break-words leading-snug text-left">{file.name}</span>
                     <span
                       onClick={(e) => { e.stopPropagation(); handleCopyFileId(file.id); }}
-                      className="absolute right-1 top-1/2 -translate-y-1/2 p-1 text-zinc-500 hover:text-cyan-300 hover:bg-zinc-800 rounded border border-zinc-700/80 bg-zinc-900/95 opacity-0 pointer-events-none group-hover:opacity-100 group-hover:pointer-events-auto transition-opacity"
+                      className="absolute right-1 top-1/2 -translate-y-1/2 p-1 text-faint hover:text-accent hover:bg-surface-hover rounded border border-border bg-surface/95 opacity-0 pointer-events-none group-hover:opacity-100 group-hover:pointer-events-auto transition-opacity"
                       title="Copy File ID"
                     >
                       <CopyIcon className="w-3.5 h-3.5" />
@@ -1436,28 +1560,32 @@ const App: React.FC = () => {
                 );
               })}
             </div>
-            <div className="my-3 border-t border-zinc-800" />
-            <div className="px-2 pb-1 text-[10px] uppercase tracking-wide text-zinc-600">Project Files</div>
+            <div className="my-3 border-t border-border" />
+            <Eyebrow className="block px-2 pb-1.5">Project files</Eyebrow>
           </div>
         )}
 
         {/* Tree */}
         <div
-          className={`p-3 flex-1 overflow-y-auto custom-scrollbar transition-colors ${activeDropFolderId === 'root' ? 'bg-blue-500/5 ring-1 ring-inset ring-blue-500/30 rounded-lg' : ''}`}
+          className={`p-3 flex-1 overflow-y-auto custom-scrollbar transition-colors ${activeDropFolderId === 'root' ? 'bg-accent/5 ring-1 ring-inset ring-accent/30 rounded-lg' : ''}`}
           onDragOver={handleRootDragOver}
           onDrop={handleRootDrop}
         >
           {renderFileTree(null)}
-          
+
           {nonSystemFileCount === 0 && activeProject.folders.length === 0 && (
-              <div className="text-center py-8 text-zinc-600 text-xs italic">
+              <div className="text-center py-8 text-faint text-xs italic">
                   Project is empty. Create a file or folder to get started.
               </div>
           )}
         </div>
-        
-        <div className="p-4 border-t border-zinc-800">
-             <button onClick={() => setIsHelpOpen(true)} className="flex items-center gap-3 px-3 py-2 text-zinc-500 hover:text-white hover:bg-zinc-900 rounded-lg w-full transition-colors">
+
+        <div className="p-4 border-t border-border space-y-1">
+             <button onClick={openSettings} className="flex items-center gap-3 px-3 py-2 text-faint hover:text-content hover:bg-surface-hover rounded-lg w-full transition-colors">
+                <SettingsIcon className="w-4 h-4" />
+                <span className="text-sm">Settings</span>
+             </button>
+             <button onClick={() => setIsHelpOpen(true)} className="flex items-center gap-3 px-3 py-2 text-faint hover:text-content hover:bg-surface-hover rounded-lg w-full transition-colors">
                 <HelpCircle className="w-4 h-4" />
                 <span className="text-sm">Guide & Help</span>
              </button>
@@ -1467,9 +1595,9 @@ const App: React.FC = () => {
   };
 
   return (
-    <div className="flex h-screen bg-black text-zinc-100 font-sans overflow-hidden">
+    <div className="flex h-screen bg-bg text-content font-sans overflow-hidden">
       {renderSidebar()}
-      <main className="flex-1 flex flex-col min-w-0 bg-zinc-950">
+      <main className="flex-1 flex flex-col min-w-0 bg-bg">
         <div className="flex-1 overflow-hidden relative">
           {currentView === ViewState.DASHBOARD ? (
             showGuide ? (
@@ -1488,7 +1616,10 @@ const App: React.FC = () => {
             />
             )
           ) : (
-            activeProject && activeFile && activeEditorPlugin ? (
+            <div className="h-full flex flex-col">
+              {renderFileTabs()}
+              <div className="flex-1 min-h-0 overflow-hidden relative">
+            {activeProject && activeFile && activeEditorPlugin ? (
                 <React.Suspense fallback={<EditorLoadingFallback fileName={activeFile.name} />}>
                   {React.createElement(activeEditorPlugin.component, {
                     key: activeFile.id,
@@ -1508,50 +1639,53 @@ const App: React.FC = () => {
                 </React.Suspense>
             ) : (
               <div className="h-full flex items-center justify-center p-6">
-                <div className="w-full max-w-2xl bg-zinc-900 border border-zinc-800 rounded-xl p-6 shadow-xl">
-                  <div className="flex items-center gap-3 mb-4">
-                    <File className="w-7 h-7 text-zinc-500" />
+                <div className="w-full max-w-2xl bg-surface border border-border rounded-2xl p-6 shadow-raised">
+                  <Eyebrow className="block mb-2">No file open</Eyebrow>
+                  <div className="flex items-center gap-3 mb-5">
+                    <File className="w-7 h-7 text-faint" />
                     <div>
-                      <h3 className="text-lg font-semibold text-zinc-100">Start Working</h3>
-                      <p className="text-sm text-zinc-400">Open an existing file or create a new one.</p>
+                      <h3 className="font-display text-xl font-semibold text-content">Pick up where you left off</h3>
+                      <p className="text-sm text-muted">Open an existing file or start a new one.</p>
                     </div>
                   </div>
 
                   <div className="grid grid-cols-1 sm:grid-cols-3 gap-3 mb-5">
-                    <button onClick={() => openCreateFileModal(null, 'doc')} className="px-4 py-3 rounded-lg bg-zinc-950 border border-zinc-800 text-left hover:border-blue-500/40 hover:bg-zinc-900">
-                      <p className="text-sm font-medium text-zinc-100">New Document</p>
-                      <p className="text-xs text-zinc-500 mt-1">Write specs and notes.</p>
+                    <button onClick={() => openCreateFileModal(null, 'doc')} className="px-4 py-3 rounded-lg bg-surface-raised border border-border text-left hover:border-accent/40 hover:bg-surface-hover transition-colors">
+                      <p className="text-sm font-medium text-content">New Document</p>
+                      <p className="text-xs text-faint mt-1">Write specs and notes.</p>
                     </button>
-                    <button onClick={() => openCreateFileModal(null, 'whiteboard')} className="px-4 py-3 rounded-lg bg-zinc-950 border border-zinc-800 text-left hover:border-blue-500/40 hover:bg-zinc-900">
-                      <p className="text-sm font-medium text-zinc-100">New Whiteboard</p>
-                      <p className="text-xs text-zinc-500 mt-1">Sketch ideas visually.</p>
+                    <button onClick={() => openCreateFileModal(null, 'whiteboard')} className="px-4 py-3 rounded-lg bg-surface-raised border border-border text-left hover:border-accent/40 hover:bg-surface-hover transition-colors">
+                      <p className="text-sm font-medium text-content">New Whiteboard</p>
+                      <p className="text-xs text-faint mt-1">Sketch ideas visually.</p>
                     </button>
-                    <button onClick={() => openCreateFileModal(null, 'flowchart')} className="px-4 py-3 rounded-lg bg-zinc-950 border border-zinc-800 text-left hover:border-blue-500/40 hover:bg-zinc-900">
-                      <p className="text-sm font-medium text-zinc-100">New Flowchart</p>
-                      <p className="text-xs text-zinc-500 mt-1">Map systems and logic.</p>
+                    <button onClick={() => openCreateFileModal(null, 'flowchart')} className="px-4 py-3 rounded-lg bg-surface-raised border border-border text-left hover:border-accent/40 hover:bg-surface-hover transition-colors">
+                      <p className="text-sm font-medium text-content">New Flowchart</p>
+                      <p className="text-xs text-faint mt-1">Map systems and logic.</p>
                     </button>
                   </div>
 
-                  <div className="border-t border-zinc-800 pt-4">
-                    <p className="text-xs uppercase tracking-wide text-zinc-500 mb-2">Open Existing</p>
+                  <div className="border-t border-border pt-4">
+                    <Eyebrow className="block mb-2">Open existing</Eyebrow>
                     {quickOpenFiles.length > 0 ? (
                       <div className="grid grid-cols-1 sm:grid-cols-2 gap-2">
                         {quickOpenFiles.map(file => (
-                          <button key={file.id} onClick={() => setActiveFileId(file.id)} className="px-3 py-2 rounded-md bg-zinc-950 border border-zinc-800 text-zinc-300 hover:text-white hover:bg-zinc-900 text-left truncate">
+                          <button key={file.id} onClick={() => setActiveFileId(file.id)} className="px-3 py-2 rounded-md bg-surface-raised border border-border text-muted hover:text-content hover:bg-surface-hover text-left truncate transition-colors">
                             {file.name}
                           </button>
                         ))}
                       </div>
                     ) : (
-                      <p className="text-sm text-zinc-500">No files yet. Use one of the create actions above.</p>
+                      <p className="text-sm text-faint">No files yet. Use one of the create actions above.</p>
                     )}
                   </div>
                 </div>
               </div>
-            )
+            )}
+              </div>
+            </div>
           )}
         </div>
-        
+
         <CommandPalette 
             isOpen={isPaletteOpen} 
             onClose={() => setIsPaletteOpen(false)}
@@ -1564,85 +1698,72 @@ const App: React.FC = () => {
         
         <HelpModal isOpen={isHelpOpen} onClose={() => setIsHelpOpen(false)} />
 
+        <SettingsModal />
+
         {/* Rename File Modal */}
-        {renameFileModal.open && (
-            <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/80 backdrop-blur-sm p-4">
-                <div className="bg-zinc-900 border border-zinc-800 rounded-xl w-full max-w-sm p-6 shadow-2xl">
-                    <div className="flex justify-between items-center mb-4">
-                        <h3 className="text-lg font-bold text-white">Rename File</h3>
-                        <button onClick={closeRenameFileModal}><X className="w-5 h-5 text-zinc-500" /></button>
-                    </div>
-                    <form onSubmit={handleConfirmRenameFile} className="space-y-4">
-                        <div>
-                            <label className="block text-xs font-medium text-zinc-400 mb-1">File Name</label>
-                            <input
-                                autoFocus
-                                type="text"
-                                required
-                                value={renameFileModal.name}
-                                onChange={e => setRenameFileModal(prev => ({ ...prev, name: e.target.value }))}
-                                className="w-full bg-zinc-950 border border-zinc-800 rounded p-2 text-white focus:ring-2 focus:ring-blue-600 outline-none"
-                                placeholder="e.g. Combat Notes"
-                            />
-                        </div>
-                        <div className="flex gap-3 pt-2">
-                            <button
-                                type="button"
-                                onClick={closeRenameFileModal}
-                                className="flex-1 px-3 py-2 rounded-lg text-zinc-300 hover:bg-zinc-800 transition-colors text-sm font-medium"
-                            >
-                                Cancel
-                            </button>
-                            <button
-                                type="submit"
-                                className="flex-1 bg-blue-600 hover:bg-blue-700 text-white py-2 rounded-lg text-sm font-medium transition-colors"
-                            >
-                                Save
-                            </button>
-                        </div>
-                    </form>
-                </div>
-            </div>
-        )}
+        <Modal
+          open={renameFileModal.open}
+          onClose={closeRenameFileModal}
+          title="Rename file"
+          size="sm"
+          footer={
+            <>
+              <Button variant="ghost" type="button" onClick={closeRenameFileModal}>Cancel</Button>
+              <Button variant="primary" type="submit" form="rename-file-form">Save</Button>
+            </>
+          }
+        >
+          <form id="rename-file-form" onSubmit={handleConfirmRenameFile} className="space-y-4">
+            <Field label="File Name" htmlFor="rename-file-name">
+              <Input
+                id="rename-file-name"
+                autoFocus
+                required
+                value={renameFileModal.name}
+                onChange={e => setRenameFileModal(prev => ({ ...prev, name: e.target.value }))}
+                placeholder="e.g. Combat Notes"
+              />
+            </Field>
+          </form>
+        </Modal>
 
         {/* Create File Modal */}
-        {createFileModal.open && (
-            <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/80 backdrop-blur-sm p-4">
-                <div className="bg-zinc-900 border border-zinc-800 rounded-xl w-full max-w-sm p-6 shadow-2xl">
-                    <div className="flex justify-between items-center mb-4">
-                        <h3 className="text-lg font-bold text-white">Create New File</h3>
-                        <button onClick={() => setCreateFileModal({open:false, folderId:null})}><X className="w-5 h-5 text-zinc-500" /></button>
-                    </div>
-                    <form onSubmit={handleConfirmCreateFile} className="space-y-4">
-                        <div>
-                            <label className="block text-xs font-medium text-zinc-400 mb-1">Name</label>
-                            <input 
-                                autoFocus
-                                type="text" 
-                                required 
-                                value={newFileName} 
-                                onChange={e => setNewFileName(e.target.value)}
-                                className="w-full bg-zinc-950 border border-zinc-800 rounded p-2 text-white focus:ring-2 focus:ring-blue-600 outline-none"
-                                placeholder="e.g. Character Specs"
-                            />
-                        </div>
-                        <div>
-                            <label className="block text-xs font-medium text-zinc-400 mb-1">Type</label>
-                            <select 
-                                value={newFileType} 
-                                onChange={e => setNewFileType(e.target.value as FileType)}
-                                className="w-full bg-zinc-950 border border-zinc-800 rounded p-2 text-white focus:ring-2 focus:ring-blue-600 outline-none"
-                            >
-                                {EDITOR_PLUGINS.filter(p => canCreateFileType(p.type as FileType, activeProject)).map(p => (
-                                    <option key={p.type} value={p.type}>{p.label}</option>
-                                ))}
-                            </select>
-                        </div>
-                        <button type="submit" className="w-full bg-blue-600 hover:bg-blue-700 text-white py-2 rounded-lg font-medium transition-colors">Create File</button>
-                    </form>
-                </div>
-            </div>
-        )}
+        <Modal
+          open={createFileModal.open}
+          onClose={() => setCreateFileModal({ open: false, folderId: null })}
+          title="New file"
+          size="sm"
+          footer={
+            <>
+              <Button variant="ghost" type="button" onClick={() => setCreateFileModal({ open: false, folderId: null })}>Cancel</Button>
+              <Button variant="primary" type="submit" form="create-file-form">Create File</Button>
+            </>
+          }
+        >
+          <form id="create-file-form" onSubmit={handleConfirmCreateFile} className="space-y-4">
+            <Field label="Name" htmlFor="create-file-name">
+              <Input
+                id="create-file-name"
+                autoFocus
+                required
+                value={newFileName}
+                onChange={e => setNewFileName(e.target.value)}
+                placeholder="e.g. Character Specs"
+              />
+            </Field>
+            <Field label="Type" htmlFor="create-file-type">
+              <Select
+                id="create-file-type"
+                value={newFileType}
+                onChange={e => setNewFileType(e.target.value as FileType)}
+              >
+                {EDITOR_PLUGINS.filter(p => canCreateFileType(p.type as FileType, activeProject)).map(p => (
+                  <option key={p.type} value={p.type}>{p.label}</option>
+                ))}
+              </Select>
+            </Field>
+          </form>
+        </Modal>
       </main>
     </div>
   );

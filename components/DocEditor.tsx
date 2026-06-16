@@ -98,7 +98,7 @@ const parseDoc = (text: string, assets: Record<string, string>, fileLookup: Map<
         if (trimmed.startsWith('```')) {
             inCodeBlock = !inCodeBlock;
             html.push(inCodeBlock
-                ? '<div class="bg-zinc-950 p-4 rounded-lg my-4 border border-zinc-800 font-mono text-sm text-zinc-300 overflow-x-auto"><pre>' 
+                ? '<div class="bg-bg p-4 rounded-lg my-4 border border-border font-mono text-sm text-content overflow-x-auto"><pre>' 
                 : '</pre></div>');
             continue;
         }
@@ -109,33 +109,33 @@ const parseDoc = (text: string, assets: Record<string, string>, fileLookup: Map<
 
         // 2. Headers
         if (line.startsWith('# ')) {
-            html.push(`<h1 class="text-3xl font-bold text-zinc-100 mb-4 pb-2 border-b border-zinc-800 mt-6">${parseInline(line.slice(2), assets, fileLookup, taskLookup)}</h1>`);
+            html.push(`<h1 class="text-3xl font-bold text-content mb-4 pb-2 border-b border-border mt-6">${parseInline(line.slice(2), assets, fileLookup, taskLookup)}</h1>`);
             continue;
         }
         if (line.startsWith('## ')) {
-            html.push(`<h2 class="text-2xl font-semibold text-zinc-100 mb-3 mt-8">${parseInline(line.slice(3), assets, fileLookup, taskLookup)}</h2>`);
+            html.push(`<h2 class="text-2xl font-semibold text-content mb-3 mt-8">${parseInline(line.slice(3), assets, fileLookup, taskLookup)}</h2>`);
             continue;
         }
         if (line.startsWith('### ')) {
-            html.push(`<h3 class="text-xl font-medium text-zinc-200 mb-2 mt-6">${parseInline(line.slice(4), assets, fileLookup, taskLookup)}</h3>`);
+            html.push(`<h3 class="text-xl font-medium text-content mb-2 mt-6">${parseInline(line.slice(4), assets, fileLookup, taskLookup)}</h3>`);
             continue;
         }
 
         // 3. Blockquotes
         if (line.startsWith('> ')) {
-            html.push(`<blockquote class="border-l-4 border-blue-500 pl-4 py-2 my-4 text-zinc-400 italic bg-zinc-800/30 rounded-r">${parseInline(line.slice(2), assets, fileLookup, taskLookup)}</blockquote>`);
+            html.push(`<blockquote class="border-l-4 border-accent pl-4 py-2 my-4 text-muted italic bg-surface-raised/40 rounded-r">${parseInline(line.slice(2), assets, fileLookup, taskLookup)}</blockquote>`);
             continue;
         }
 
         // 4. Lists
         if (BULLET_PATTERN.test(line)) {
-            html.push(`<div class="flex gap-2 ml-4 mb-1 text-zinc-300"><span class="text-zinc-500">•</span><span>${parseInline(line.replace(BULLET_PATTERN, ''), assets, fileLookup, taskLookup)}</span></div>`);
+            html.push(`<div class="flex gap-2 ml-4 mb-1 text-content"><span class="text-faint">•</span><span>${parseInline(line.replace(BULLET_PATTERN, ''), assets, fileLookup, taskLookup)}</span></div>`);
             continue;
         }
         const orderedListMatch = line.match(ORDERED_LIST_PATTERN);
         if (orderedListMatch) {
             const num = orderedListMatch[1] || '1';
-            html.push(`<div class="flex gap-2 ml-4 mb-1 text-zinc-300"><span class="text-zinc-500 font-mono">${num}.</span><span>${parseInline(line.replace(ORDERED_LIST_PATTERN, ''), assets, fileLookup, taskLookup)}</span></div>`);
+            html.push(`<div class="flex gap-2 ml-4 mb-1 text-content"><span class="text-faint font-mono">${num}.</span><span>${parseInline(line.replace(ORDERED_LIST_PATTERN, ''), assets, fileLookup, taskLookup)}</span></div>`);
             continue;
         }
 
@@ -151,18 +151,18 @@ const parseDoc = (text: string, assets: Record<string, string>, fileLookup: Map<
             const isAudio = resolved.startsWith('data:audio') || /\.(mp3|wav|ogg)$/i.test(src);
 
             if (isVideo) {
-                html.push(`<div class="my-6"><video controls src="${safeSrc}" class="max-w-full rounded-lg shadow-lg border border-zinc-800 bg-black max-h-[500px]"></video><div class="text-xs text-zinc-500 mt-2 text-center italic">${safeAlt}</div></div>`);
+                html.push(`<div class="my-6"><video controls src="${safeSrc}" class="max-w-full rounded-lg shadow-lg border border-border bg-black max-h-[500px]"></video><div class="text-xs text-faint mt-2 text-center italic">${safeAlt}</div></div>`);
             } else if (isAudio) {
-                html.push(`<div class="my-4 p-4 bg-zinc-800/50 rounded-lg border border-zinc-800 flex flex-col gap-2"><div class="text-xs text-zinc-400 flex items-center gap-2 font-mono uppercase"><span class="w-2 h-2 rounded-full bg-purple-500"></span> ${safeAlt || 'Audio Track'}</div><audio controls src="${safeSrc}" class="w-full h-8"></audio></div>`);
+                html.push(`<div class="my-4 p-4 bg-surface-raised/60 rounded-lg border border-border flex flex-col gap-2"><div class="text-xs text-muted flex items-center gap-2 font-mono uppercase"><span class="w-2 h-2 rounded-full bg-purple-500"></span> ${safeAlt || 'Audio Track'}</div><audio controls src="${safeSrc}" class="w-full h-8"></audio></div>`);
             } else {
-                html.push(`<div class="my-6"><img src="${safeSrc}" alt="${safeAlt}" class="max-w-full rounded-lg shadow-lg border border-zinc-800" /><div class="text-xs text-zinc-500 mt-2 text-center italic">${safeAlt}</div></div>`);
+                html.push(`<div class="my-6"><img src="${safeSrc}" alt="${safeAlt}" class="max-w-full rounded-lg shadow-lg border border-border" /><div class="text-xs text-faint mt-2 text-center italic">${safeAlt}</div></div>`);
             }
             continue;
         }
 
         // 6. Horizontal Rule
         if (trimmed === '---' || trimmed === '***') {
-            html.push('<hr class="border-zinc-800 my-8" />');
+            html.push('<hr class="border-border my-8" />');
             continue;
         }
 
@@ -173,7 +173,7 @@ const parseDoc = (text: string, assets: Record<string, string>, fileLookup: Map<
         }
 
         // 8. Paragraphs
-        html.push(`<p class="mb-2 leading-relaxed text-zinc-300">${parseInline(line, assets, fileLookup, taskLookup)}</p>`);
+        html.push(`<p class="mb-2 leading-relaxed text-content">${parseInline(line, assets, fileLookup, taskLookup)}</p>`);
     }
     return html.join('');
 };
@@ -191,15 +191,15 @@ const parseInline = (text: string, assets: Record<string, string>, fileLookup: M
         }
 
         if (token.startsWith('`') && token.endsWith('`')) {
-            parts.push(`<code class="bg-zinc-800 text-red-400 px-1.5 py-0.5 rounded text-sm font-mono border border-zinc-700/50">${escapeHtml(token.slice(1, -1))}</code>`);
+            parts.push(`<code class="bg-surface-raised text-danger px-1.5 py-0.5 rounded text-sm font-mono border border-border">${escapeHtml(token.slice(1, -1))}</code>`);
         } else if (token.startsWith('**') && token.endsWith('**')) {
-            parts.push(`<strong class="text-zinc-100 font-bold">${parseInline(token.slice(2, -2), assets, fileLookup, taskLookup)}</strong>`);
+            parts.push(`<strong class="text-content font-bold">${parseInline(token.slice(2, -2), assets, fileLookup, taskLookup)}</strong>`);
         } else if (token.startsWith('*') && token.endsWith('*')) {
-            parts.push(`<em class="text-zinc-200 italic">${parseInline(token.slice(1, -1), assets, fileLookup, taskLookup)}</em>`);
+            parts.push(`<em class="text-content italic">${parseInline(token.slice(1, -1), assets, fileLookup, taskLookup)}</em>`);
         } else if (token.startsWith('~~') && token.endsWith('~~')) {
-            parts.push(`<s class="opacity-60 text-zinc-500 decoration-zinc-500">${parseInline(token.slice(2, -2), assets, fileLookup, taskLookup)}</s>`);
+            parts.push(`<s class="opacity-60 text-faint decoration-faint">${parseInline(token.slice(2, -2), assets, fileLookup, taskLookup)}</s>`);
         } else if (token.startsWith('<u>') && token.endsWith('</u>')) {
-            parts.push(`<u class="decoration-blue-500 decoration-2 underline-offset-4">${parseInline(token.slice(3, -4), assets, fileLookup, taskLookup)}</u>`);
+            parts.push(`<u class="decoration-accent decoration-2 underline-offset-4">${parseInline(token.slice(3, -4), assets, fileLookup, taskLookup)}</u>`);
         } else if (token.startsWith('<span style="color:')) {
             const spanMatch = token.match(/^<span style="color:\s*([^"]+)">(.*)<\/span>$/);
             const color = spanMatch?.[1]?.trim() || '';
@@ -221,18 +221,18 @@ const parseInline = (text: string, assets: Record<string, string>, fileLookup: M
                     const fileId = href.replace('file://', '');
                     const linkedName = fileLookup.get(fileId);
                     const display = label || linkedName || 'Open file';
-                    const existsClass = linkedName ? 'text-cyan-400 hover:text-cyan-300' : 'text-zinc-500 line-through';
+                    const existsClass = linkedName ? 'text-accent hover:text-accent' : 'text-faint line-through';
                     parts.push(`<a href="${safeHref}" data-file-id="${escapeAttribute(fileId)}" class="${existsClass} hover:underline cursor-pointer transition-colors">${escapeHtml(display)}</a>`);
                 } else if (href.startsWith('task://')) {
                     const taskTarget = parseTaskHref(href);
                     const linkedTask = taskTarget ? taskLookup.get(getTaskLookupKey(taskTarget.fileId, taskTarget.taskId)) : undefined;
                     const display = label || linkedTask?.taskName || 'Open task';
-                    const existsClass = linkedTask ? 'text-emerald-400 hover:text-emerald-300' : 'text-zinc-500 line-through';
+                    const existsClass = linkedTask ? 'text-success hover:text-success' : 'text-faint line-through';
                     parts.push(taskTarget
                         ? `<a href="${safeHref}" data-task-file-id="${escapeAttribute(taskTarget.fileId)}" data-task-id="${escapeAttribute(taskTarget.taskId)}" class="${existsClass} hover:underline cursor-pointer transition-colors">${escapeHtml(display)}</a>`
-                        : `<span class="text-zinc-500 line-through">${escapeHtml(display)}</span>`);
+                        : `<span class="text-faint line-through">${escapeHtml(display)}</span>`);
                 } else {
-                    parts.push(`<a href="${safeHref}" target="_blank" rel="noopener noreferrer" class="text-blue-400 hover:text-blue-300 hover:underline cursor-pointer transition-colors">${escapeHtml(label)}</a>`);
+                    parts.push(`<a href="${safeHref}" target="_blank" rel="noopener noreferrer" class="text-accent hover:text-accent hover:underline cursor-pointer transition-colors">${escapeHtml(label)}</a>`);
                 }
             }
         } else {
@@ -781,7 +781,7 @@ const DocEditor: React.FC<EditorProps> = ({ initialContent, onSave, fileName, as
       onClick={onClick}
       disabled={disabled}
       className={`p-1.5 rounded-md transition-all flex items-center justify-center shrink-0 ${
-        active ? 'bg-blue-600 text-white shadow-sm' : 'text-zinc-400 hover:text-zinc-200 hover:bg-zinc-800'
+        active ? 'bg-accent text-accent-content shadow-sm' : 'text-muted hover:text-content hover:bg-surface-hover'
       } ${disabled ? 'opacity-50 cursor-not-allowed' : ''}`}
       title={title}
     >
@@ -802,12 +802,12 @@ const DocEditor: React.FC<EditorProps> = ({ initialContent, onSave, fileName, as
   ];
 
   return (
-    <div className="h-full flex flex-col bg-zinc-900">
+    <div className="h-full flex flex-col bg-surface">
       {/* Top Bar - Fixed Layout & Overflow */}
-      <div className="min-h-[3.5rem] border-b border-zinc-800 flex flex-wrap items-center justify-between px-4 py-2 bg-zinc-950/90 backdrop-blur-sm sticky top-0 z-30 shrink-0 gap-y-2">
+      <div className="min-h-[3.5rem] border-b border-border flex flex-wrap items-center justify-between px-4 py-2 bg-bg/90 backdrop-blur-sm sticky top-0 z-30 shrink-0 gap-y-2">
         <div className="flex items-center gap-4 flex-1 min-w-0">
-           <h3 className="text-zinc-200 font-medium mr-2 truncate shrink-0 max-w-[150px]">{fileName}</h3>
-           <div className="h-6 w-px bg-zinc-800 hidden sm:block shrink-0"></div>
+           <h3 className="text-content font-medium mr-2 truncate shrink-0 max-w-[150px]">{fileName}</h3>
+           <div className="h-6 w-px bg-surface-raised hidden sm:block shrink-0"></div>
            
            <div className="flex items-center gap-1 flex-wrap">
               {/* Text Style */}
@@ -828,19 +828,19 @@ const DocEditor: React.FC<EditorProps> = ({ initialContent, onSave, fileName, as
                   
                   {/* Popover Menu */}
                   {showColorPicker && (
-                      <div ref={popoverRef} className="absolute top-full left-0 mt-2 bg-zinc-900 border border-zinc-700 rounded-xl shadow-xl p-3 z-50 w-48 flex flex-col gap-3 animate-in fade-in slide-in-from-top-2 duration-200">
+                      <div ref={popoverRef} className="absolute top-full left-0 mt-2 bg-surface border border-border-strong rounded-xl shadow-xl p-3 z-50 w-48 flex flex-col gap-3 animate-in fade-in slide-in-from-top-2 duration-200">
                           <div className="grid grid-cols-5 gap-1.5">
                               {PRESET_COLORS.map(c => (
                                   <button
                                     key={c}
                                     onClick={() => applyColor(c)}
-                                    className="w-6 h-6 rounded-full border border-zinc-700 hover:scale-110 transition-transform shadow-sm"
+                                    className="w-6 h-6 rounded-full border border-border-strong hover:scale-110 transition-transform shadow-sm"
                                     style={{ backgroundColor: c }}
                                     title={c}
                                   />
                               ))}
                           </div>
-                          <div className="h-px bg-zinc-800 w-full"></div>
+                          <div className="h-px bg-surface-raised w-full"></div>
                           <div className="flex items-center gap-2">
                               <input 
                                 type="color" 
@@ -850,7 +850,7 @@ const DocEditor: React.FC<EditorProps> = ({ initialContent, onSave, fileName, as
                               />
                               <button 
                                 onClick={() => applyColor(customColor)}
-                                className="flex-1 bg-zinc-800 hover:bg-zinc-700 text-xs text-white py-1.5 rounded transition-colors"
+                                className="flex-1 bg-surface-raised hover:bg-surface-hover text-xs text-white py-1.5 rounded transition-colors"
                               >
                                 Apply
                               </button>
@@ -859,7 +859,7 @@ const DocEditor: React.FC<EditorProps> = ({ initialContent, onSave, fileName, as
                   )}
               </div>
 
-              <div className="w-px h-4 bg-zinc-800 mx-1"></div>
+              <div className="w-px h-4 bg-surface-raised mx-1"></div>
 
               {/* Structure */}
               <ToolbarButton icon={Heading1} onClick={() => insertText('# ')} title="Heading 1" />
@@ -878,35 +878,35 @@ const DocEditor: React.FC<EditorProps> = ({ initialContent, onSave, fileName, as
                  />
                  {showTaskLinkPicker && (
                    <div
-                     className="absolute left-0 top-full mt-2 z-50 w-80 rounded-lg border border-zinc-700 bg-zinc-900 p-2 shadow-xl"
+                     className="absolute left-0 top-full mt-2 z-50 w-80 rounded-lg border border-border-strong bg-surface p-2 shadow-xl"
                    >
                      <input
                        type="text"
                        value={taskLinkQuery}
                        onChange={(e) => setTaskLinkQuery(e.target.value)}
                        placeholder="Search tasks..."
-                       className="mb-2 w-full rounded border border-zinc-700 bg-zinc-950 px-2 py-1.5 text-xs text-zinc-200 focus:border-zinc-500 focus:outline-none"
+                       className="mb-2 w-full rounded border border-border-strong bg-bg px-2 py-1.5 text-xs text-content focus:border-accent focus:outline-none"
                        autoFocus
                      />
                      <div className="max-h-56 space-y-1 overflow-y-auto custom-scrollbar">
                        {filteredLinkableTasks.length === 0 ? (
-                         <p className="px-2 py-2 text-xs text-zinc-500">No matching tasks.</p>
+                         <p className="px-2 py-2 text-xs text-faint">No matching tasks.</p>
                        ) : (
                          filteredLinkableTasks.map(task => (
                            <button
                              key={`${task.fileId}-${task.taskId}`}
                              type="button"
                              onClick={() => insertTaskLink(task.fileId, task.taskId)}
-                             className="w-full rounded px-2 py-2 text-left text-xs text-zinc-300 transition hover:bg-zinc-800 hover:text-white"
+                             className="w-full rounded px-2 py-2 text-left text-xs text-content transition hover:bg-surface-hover hover:text-content"
                              title={`${task.fileName} • ${task.taskId}`}
                            >
-                             <div className="truncate font-medium text-zinc-200">{task.taskName}</div>
-                             <div className="mt-1 flex items-center justify-between gap-2 text-[10px] text-zinc-500">
+                             <div className="truncate font-medium text-content">{task.taskName}</div>
+                             <div className="mt-1 flex items-center justify-between gap-2 text-[10px] text-faint">
                                <span className="truncate">{task.fileName}</span>
                                <span>{task.status}</span>
                              </div>
                              {task.tags.length > 0 && (
-                               <div className="mt-1 truncate text-[10px] text-zinc-400">
+                               <div className="mt-1 truncate text-[10px] text-muted">
                                  {task.tags.map(tag => `#${tag}`).join(' ')}
                                </div>
                              )}
@@ -928,30 +928,30 @@ const DocEditor: React.FC<EditorProps> = ({ initialContent, onSave, fileName, as
                  />
                  {showLinkPicker && (
                    <div
-                     className="absolute left-0 top-full mt-2 z-50 w-72 rounded-lg border border-zinc-700 bg-zinc-900 p-2 shadow-xl"
+                     className="absolute left-0 top-full mt-2 z-50 w-72 rounded-lg border border-border-strong bg-surface p-2 shadow-xl"
                   >
                     <input
                       type="text"
                       value={linkPickerQuery}
                       onChange={(e) => setLinkPickerQuery(e.target.value)}
                       placeholder="Search files..."
-                      className="mb-2 w-full rounded border border-zinc-700 bg-zinc-950 px-2 py-1.5 text-xs text-zinc-200 focus:border-zinc-500 focus:outline-none"
+                      className="mb-2 w-full rounded border border-border-strong bg-bg px-2 py-1.5 text-xs text-content focus:border-accent focus:outline-none"
                       autoFocus
                     />
                     <div className="max-h-48 space-y-1 overflow-y-auto custom-scrollbar">
                       {filteredLinkableFiles.length === 0 ? (
-                        <p className="px-2 py-2 text-xs text-zinc-500">No matching files.</p>
+                        <p className="px-2 py-2 text-xs text-faint">No matching files.</p>
                       ) : (
                         filteredLinkableFiles.map(file => (
                           <button
                             key={file.id}
                             type="button"
                             onClick={() => insertFileLink(file.id)}
-                            className="flex w-full items-center justify-between rounded px-2 py-1.5 text-left text-xs text-zinc-300 transition hover:bg-zinc-800 hover:text-white"
+                            className="flex w-full items-center justify-between rounded px-2 py-1.5 text-left text-xs text-content transition hover:bg-surface-hover hover:text-content"
                             title={file.id}
                           >
                             <span className="truncate pr-2">{file.name}</span>
-                            <span className="text-[10px] text-zinc-500">{file.id.slice(0, 8)}</span>
+                            <span className="text-[10px] text-faint">{file.id.slice(0, 8)}</span>
                           </button>
                         ))
                       )}
@@ -960,7 +960,7 @@ const DocEditor: React.FC<EditorProps> = ({ initialContent, onSave, fileName, as
                   )}
                 </div>
                
-               <div className="w-px h-4 bg-zinc-800 mx-1"></div>
+               <div className="w-px h-4 bg-surface-raised mx-1"></div>
 
                {/* Media Upload */}
                <div className="relative" ref={assetPickerRef}>
@@ -973,50 +973,50 @@ const DocEditor: React.FC<EditorProps> = ({ initialContent, onSave, fileName, as
                    active={showAssetPicker}
                  />
                  {showAssetPicker && (
-                    <div className="absolute left-0 top-full mt-2 z-50 w-96 rounded-lg border border-zinc-700 bg-zinc-900 p-2 shadow-xl">
+                    <div className="absolute left-0 top-full mt-2 z-50 w-96 rounded-lg border border-border-strong bg-surface p-2 shadow-xl">
                       <input
                         type="text"
                         value={assetQuery}
                         onChange={(e) => setAssetQuery(e.target.value)}
                         placeholder="Search assets by name, type, or id..."
-                        className="mb-2 w-full rounded border border-zinc-700 bg-zinc-950 px-2 py-1.5 text-xs text-zinc-200 focus:border-zinc-500 focus:outline-none"
+                        className="mb-2 w-full rounded border border-border-strong bg-bg px-2 py-1.5 text-xs text-content focus:border-accent focus:outline-none"
                         autoFocus
                       />
                       <div className="max-h-56 space-y-1 overflow-y-auto custom-scrollbar">
                         {filteredLinkableAssets.length === 0 ? (
-                          <p className="px-2 py-2 text-xs text-zinc-500">No matching assets.</p>
+                          <p className="px-2 py-2 text-xs text-faint">No matching assets.</p>
                         ) : (
                           filteredLinkableAssets.map(asset => (
                             <button
                               key={asset.id}
                               type="button"
                               onClick={() => insertAssetReference(asset.id)}
-                              className="w-full rounded px-2 py-2 text-left text-xs text-zinc-300 transition hover:bg-zinc-800 hover:text-white"
+                              className="w-full rounded px-2 py-2 text-left text-xs text-content transition hover:bg-surface-hover hover:text-content"
                               title={`${asset.mime} • ${asset.id}`}
                             >
                               <div className="flex items-center gap-3">
-                                <div className="h-14 w-14 shrink-0 overflow-hidden rounded-md border border-zinc-700 bg-zinc-950">
+                                <div className="h-14 w-14 shrink-0 overflow-hidden rounded-md border border-border-strong bg-bg">
                                   {asset.kind === 'image' ? (
                                     <img src={asset.data} alt={asset.displayName} className="h-full w-full object-cover" />
                                   ) : asset.kind === 'video' ? (
                                     <video src={asset.data} className="h-full w-full object-cover" muted preload="metadata" playsInline />
                                   ) : asset.kind === 'audio' ? (
-                                    <div className="flex h-full w-full items-center justify-center bg-gradient-to-br from-purple-600/20 to-zinc-950 text-purple-300">
+                                    <div className="flex h-full w-full items-center justify-center bg-accent/15 text-accent">
                                       <Music className="h-6 w-6" />
                                     </div>
                                   ) : (
-                                    <div className="flex h-full w-full items-center justify-center bg-zinc-900 text-zinc-500">
+                                    <div className="flex h-full w-full items-center justify-center bg-surface text-faint">
                                       <FolderOpen className="h-6 w-6" />
                                     </div>
                                   )}
                                 </div>
                                 <div className="min-w-0 flex-1">
-                                  <div className="truncate font-medium text-zinc-200">{asset.displayName}</div>
-                                  <div className="mt-1 flex items-center justify-between gap-2 text-[10px] text-zinc-500">
+                                  <div className="truncate font-medium text-content">{asset.displayName}</div>
+                                  <div className="mt-1 flex items-center justify-between gap-2 text-[10px] text-faint">
                                     <span className="uppercase">{asset.kind}</span>
                                     <span className="truncate">{asset.mime}</span>
                                   </div>
-                                  <div className="mt-1 truncate text-[10px] text-zinc-600">
+                                  <div className="mt-1 truncate text-[10px] text-faint">
                                     {asset.name !== asset.displayName ? `ID ${asset.id.slice(0, 8)}` : asset.id}
                                   </div>
                                 </div>
@@ -1059,25 +1059,25 @@ const DocEditor: React.FC<EditorProps> = ({ initialContent, onSave, fileName, as
 
         <div className="flex items-center gap-3 shrink-0 ml-auto">
           <div className="flex items-center gap-0.5 mr-1">
-            <button onClick={() => { const prev = undoRedo.undo(); if (prev !== undefined) { setContent(prev); lastUndoPushRef.current = prev; } }} disabled={!undoRedo.canUndo} className="p-1.5 rounded text-zinc-500 hover:text-white hover:bg-zinc-800 disabled:opacity-30 disabled:pointer-events-none transition-colors" title="Undo (Ctrl+Z)"><Undo2 className="w-4 h-4" /></button>
-            <button onClick={() => { const next = undoRedo.redo(); if (next !== undefined) { setContent(next); lastUndoPushRef.current = next; } }} disabled={!undoRedo.canRedo} className="p-1.5 rounded text-zinc-500 hover:text-white hover:bg-zinc-800 disabled:opacity-30 disabled:pointer-events-none transition-colors" title="Redo (Ctrl+Y)"><Redo2 className="w-4 h-4" /></button>
+            <button onClick={() => { const prev = undoRedo.undo(); if (prev !== undefined) { setContent(prev); lastUndoPushRef.current = prev; } }} disabled={!undoRedo.canUndo} className="p-1.5 rounded text-faint hover:text-content hover:bg-surface-hover disabled:opacity-30 disabled:pointer-events-none transition-colors" title="Undo (Ctrl+Z)"><Undo2 className="w-4 h-4" /></button>
+            <button onClick={() => { const next = undoRedo.redo(); if (next !== undefined) { setContent(next); lastUndoPushRef.current = next; } }} disabled={!undoRedo.canRedo} className="p-1.5 rounded text-faint hover:text-content hover:bg-surface-hover disabled:opacity-30 disabled:pointer-events-none transition-colors" title="Redo (Ctrl+Y)"><Redo2 className="w-4 h-4" /></button>
           </div>
           <div className="flex items-center mr-2 hidden sm:flex">
-            {saveStatus === 'saving' && <span className="text-xs text-zinc-500 flex items-center gap-1"><Loader2 className="w-3 h-3 animate-spin" /></span>}
-            {saveStatus === 'saved' && <span className="text-xs text-zinc-500 flex items-center gap-1 opacity-50"><Check className="w-3 h-3" /></span>}
-            {saveStatus === 'unsaved' && <span className="text-xs text-orange-400 flex items-center gap-1"><AlertCircle className="w-3 h-3" /></span>}
+            {saveStatus === 'saving' && <span className="text-xs text-faint flex items-center gap-1"><Loader2 className="w-3 h-3 animate-spin" /></span>}
+            {saveStatus === 'saved' && <span className="text-xs text-faint flex items-center gap-1 opacity-50"><Check className="w-3 h-3" /></span>}
+            {saveStatus === 'unsaved' && <span className="text-xs text-warning flex items-center gap-1"><AlertCircle className="w-3 h-3" /></span>}
           </div>
 
-          <div className="flex bg-zinc-800 p-1 rounded-lg border border-zinc-700 hidden sm:flex">
-            <button onClick={() => setViewMode('edit')} className={`p-1.5 rounded transition-all ${viewMode === 'edit' ? 'bg-zinc-600 text-white' : 'text-zinc-400'}`} title="Edit Only"><PenTool className="w-4 h-4" /></button>
-            <button onClick={() => setViewMode('split')} className={`p-1.5 rounded transition-all ${viewMode === 'split' ? 'bg-zinc-600 text-white' : 'text-zinc-400'}`} title="Split View"><Columns className="w-4 h-4" /></button>
-            <button onClick={() => setViewMode('preview')} className={`p-1.5 rounded transition-all ${viewMode === 'preview' ? 'bg-zinc-600 text-white' : 'text-zinc-400'}`} title="Preview Only"><Eye className="w-4 h-4" /></button>
+          <div className="flex bg-surface-raised p-1 rounded-lg border border-border-strong hidden sm:flex">
+            <button onClick={() => setViewMode('edit')} className={`p-1.5 rounded transition-all ${viewMode === 'edit' ? 'bg-accent text-accent-content' : 'text-muted'}`} title="Edit Only"><PenTool className="w-4 h-4" /></button>
+            <button onClick={() => setViewMode('split')} className={`p-1.5 rounded transition-all ${viewMode === 'split' ? 'bg-accent text-accent-content' : 'text-muted'}`} title="Split View"><Columns className="w-4 h-4" /></button>
+            <button onClick={() => setViewMode('preview')} className={`p-1.5 rounded transition-all ${viewMode === 'preview' ? 'bg-accent text-accent-content' : 'text-muted'}`} title="Preview Only"><Eye className="w-4 h-4" /></button>
           </div>
-          <button onClick={handleClear} className="p-2 hover:bg-red-500/10 rounded text-zinc-500 hover:text-red-400 transition-colors" title="Clear Document"><Trash2 className="w-4 h-4" /></button>
+          <button onClick={handleClear} className="p-2 hover:bg-danger/10 rounded text-faint hover:text-danger transition-colors" title="Clear Document"><Trash2 className="w-4 h-4" /></button>
           
           <button 
             onClick={handleManualSave} 
-            className={`flex items-center gap-2 px-3 py-1.5 rounded-md text-sm font-medium transition-colors shadow-lg ${saveStatus === 'unsaved' ? 'bg-blue-600 text-white' : 'bg-zinc-700 text-zinc-200'}`}
+            className={`flex items-center gap-2 px-3 py-1.5 rounded-md text-sm font-medium transition-colors shadow-lg ${saveStatus === 'unsaved' ? 'bg-accent text-accent-content' : 'bg-surface-raised text-content'}`}
           >
             <Save className="w-4 h-4" />
           </button>
@@ -1087,10 +1087,10 @@ const DocEditor: React.FC<EditorProps> = ({ initialContent, onSave, fileName, as
       <div className="flex-1 flex overflow-hidden relative">
         {/* Editor Pane */}
         {(viewMode === 'edit' || viewMode === 'split') && (
-          <div className={`h-full flex flex-col ${viewMode === 'split' ? 'w-1/2 border-r border-zinc-800' : 'w-full'}`}>
+          <div className={`h-full flex flex-col ${viewMode === 'split' ? 'w-1/2 border-r border-border' : 'w-full'}`}>
             <textarea
               ref={textareaRef}
-              className="w-full h-full bg-zinc-950 p-6 text-zinc-300 font-mono text-sm resize-none focus:outline-none leading-relaxed custom-scrollbar selection:bg-blue-500/30"
+              className="w-full h-full bg-bg p-6 text-content font-mono text-sm resize-none focus:outline-none leading-relaxed custom-scrollbar selection:bg-accent/30"
               value={content}
               onChange={(e) => setContent(e.target.value)}
               onDragOver={handleEditorDragOver}
@@ -1103,7 +1103,7 @@ const DocEditor: React.FC<EditorProps> = ({ initialContent, onSave, fileName, as
 
         {/* Preview Pane - Custom Render */}
         {(viewMode === 'preview' || viewMode === 'split') && (
-          <div className={`h-full overflow-auto custom-scrollbar bg-zinc-900 ${viewMode === 'split' ? 'w-1/2' : 'w-full'}`}>
+          <div className={`h-full overflow-auto custom-scrollbar bg-surface ${viewMode === 'split' ? 'w-1/2' : 'w-full'}`}>
              <div 
                 ref={previewPaneRef}
                 onClick={handlePreviewClick}

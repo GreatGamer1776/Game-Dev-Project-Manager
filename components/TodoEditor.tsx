@@ -79,7 +79,7 @@ const TagInputSection: React.FC<{
   const selectedTags = React.useMemo(() => parseTagInput(value), [value]);
   const availableTags = React.useMemo(() => {
     const selectedTagKeys = new Set(selectedTags.map(normalizeTagKey));
-    return allTags.filter(tag => !selectedTagKeys.has(normalizeTagKey(tag))).slice(0, 12);
+    return allTags.filter(tag => !selectedTagKeys.has(normalizeTagKey(tag)));
   }, [allTags, selectedTags]);
 
   const addTag = (tag: string) => onChange(formatTagInput([...selectedTags, tag]));
@@ -1230,12 +1230,12 @@ const TodoEditor: React.FC<EditorProps> = ({ initialContent, onSave, fileName, p
                                           </div>
                                           <div className="space-y-1">
                                               {subTasks.map(sub => (
-                                                  <div key={sub.id} className="flex items-center gap-2 group/sub">
-                                                      <button onClick={() => toggleSubTask(item.id, sub.id)} className={`text-faint hover:text-blue-500 ${sub.completed ? 'text-blue-500' : ''}`}>
+                                                  <div key={sub.id} className="flex items-start gap-2 group/sub">
+                                                      <button onClick={() => toggleSubTask(item.id, sub.id)} className={`mt-0.5 shrink-0 text-faint hover:text-blue-500 ${sub.completed ? 'text-blue-500' : ''}`}>
                                                           {sub.completed ? <CheckSquare className="w-3 h-3" /> : <Square className="w-3 h-3" />}
                                                       </button>
-                                                      <span className={`text-xs flex-1 truncate ${sub.completed ? 'line-through text-faint' : 'text-muted'}`}>{sub.text}</span>
-                                                      <button onClick={() => deleteSubTask(item.id, sub.id)} className="text-faint hover:text-red-400 opacity-0 group-hover/sub:opacity-100 transition-opacity"><Trash2 className="w-3 h-3" /></button>
+                                                      <span className={`text-xs flex-1 min-w-0 break-words ${sub.completed ? 'line-through text-faint' : 'text-muted'}`}>{sub.text}</span>
+                                                      <button onClick={() => deleteSubTask(item.id, sub.id)} className="mt-0.5 shrink-0 text-faint hover:text-red-400 opacity-0 group-hover/sub:opacity-100 transition-opacity"><Trash2 className="w-3 h-3" /></button>
                                                   </div>
                                               ))}
                                           </div>

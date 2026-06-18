@@ -1366,11 +1366,11 @@ const App: React.FC = () => {
                             draggable
                             onDragStart={(e) => handleFileDragStart(e, file.id, file.name)}
                             onDragEnd={handleFileDragEnd}
-                            className={`w-full flex items-start gap-2 pl-1.5 pr-2 py-[var(--row-py)] text-sm text-left transition-[padding] duration-150 group-hover:pr-28 ${activeFileId === file.id ? 'bg-accent/10 text-content' : 'text-muted hover:text-content'}`}
+                            className={`w-full flex items-center gap-2 pl-1.5 pr-2 py-[var(--row-py)] text-sm text-left transition-[padding] duration-150 group-hover:pr-28 ${activeFileId === file.id ? 'bg-accent/10 text-content' : 'text-muted hover:text-content'}`}
                             title={file.name}
                           >
-                             <Icon className={`w-4 h-4 shrink-0 mt-0.5 ${activeFileId === file.id ? 'text-accent' : 'text-faint'}`} />
-                             <span className="min-w-0 flex-1 break-words leading-snug">{file.name}</span>
+                             <Icon className={`w-4 h-4 shrink-0 ${activeFileId === file.id ? 'text-accent' : 'text-faint'}`} />
+                             <span className="min-w-0 flex-1 truncate">{file.name}</span>
                           </button>
                           <div className="absolute right-1 top-1/2 -translate-y-1/2 flex items-center gap-1 rounded-md border border-border bg-surface/95 px-1 py-0.5 opacity-0 pointer-events-none group-hover:opacity-100 group-hover:pointer-events-auto transition-opacity">
                             <button

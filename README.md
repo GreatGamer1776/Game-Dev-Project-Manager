@@ -191,6 +191,6 @@ npm --prefix server run build
 
 - No password recovery or account deletion UI — accounts are username + password only.
 - No rate limiting on auth endpoints — keep the API private/self-hosted or put it behind a reverse proxy with rate limiting.
-- The GitHub Pages deploy (push to `main`) publishes only the static frontend, which then requires a reachable API — the full-stack app is meant to run via Docker Compose.
+- There is no CI deploy — the app is meant to be self-hosted via Docker Compose. (The `gh-pages` branch is a stale remnant of the old static deploy.)
 - ZIP export is supported, but ZIP import is not currently implemented.
 - Large embedded media assets increase project size because assets are stored as data URLs in the database.

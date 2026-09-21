@@ -1,0 +1,8 @@
+# Legacy browser-local build — static frontend only, no backend/database.
+# Deploy alongside the full-stack `main` build for side-by-side comparison.
+services:
+  web:
+    build: .
+    restart: unless-stopped
+    ports:
+      - "${WEB_PORT:-8081}:80"

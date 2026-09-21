@@ -68,6 +68,7 @@ overwritten by every successful build.
 - `main` — production / live site.
 - `dev` — integration and testing.
 - `topic/ui-redesign` — in-progress UI redesign work.
+- `topic/fullstack-db-storage` — migration from IndexedDB to PostgreSQL + Fastify API with Docker Compose.
 
 ## Quick reference
 

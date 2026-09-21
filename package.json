@@ -5,8 +5,11 @@
   "type": "module",
   "scripts": {
     "dev": "vite",
+    "dev:api": "npm --prefix server run dev",
     "build": "vite build",
-    "preview": "vite preview"
+    "preview": "vite preview",
+    "docker:up": "docker compose up --build",
+    "docker:down": "docker compose down"
   },
   "dependencies": {
     "jszip": "^3.10.1",

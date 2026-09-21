@@ -7,6 +7,8 @@ import HelpModal from './components/HelpModal';
 import GuideView, { GuideSectionId } from './components/GuideView';
 import { Project, ViewState, ProjectFile, FileType, EditorProps, ProjectFolder, TaskNavigationTarget } from './types';
 import { useProjectStore } from './stores/useProjectStore';
+import { api } from './services/api';
+import { handleStore } from './services/handleStore';
 import { getAssetExtensionFromMime, getAssetMimeType } from './services/assetUtils';
 import { Button, Modal, Input, Select, Field, Eyebrow } from './components/ui';
 import { SettingsModal } from './components/SettingsModal';
@@ -41,122 +43,9 @@ const base64ToBlob = (base64: string): Blob => {
   }
 };
 
-// IndexedDB Wrapper
-type PersistedAppState = {
-  currentView: ViewState;
-  activeProjectId: string | null;
-  activeFileId: string | null;
-  sidebarCollapsed?: boolean;
-};
-
-const IDB = {
-    DB_VERSION: 3,
-    DB_NAME: 'devarchitect_db',
-    STORE_PROJECTS: 'projects',
-    STORE_HANDLES: 'handles',
-    STORE_APP_STATE: 'app_state',
-    APP_STATE_KEY: 'session',
-    init: function() {
-        return new Promise<void>((resolve, reject) => {
-            const req = indexedDB.open(this.DB_NAME, this.DB_VERSION);
-            req.onerror = () => reject(req.error);
-            req.onupgradeneeded = (e: any) => {
-                const db = e.target.result;
-                if (!db.objectStoreNames.contains(this.STORE_PROJECTS)) {
-                    db.createObjectStore(this.STORE_PROJECTS, { keyPath: 'id' });
-                }
-                if (!db.objectStoreNames.contains(this.STORE_HANDLES)) {
-                    db.createObjectStore(this.STORE_HANDLES); 
-                }
-                if (!db.objectStoreNames.contains(this.STORE_APP_STATE)) {
-                    db.createObjectStore(this.STORE_APP_STATE);
-                }
-            };
-            req.onsuccess = () => resolve();
-        });
-    },
-    saveProject: function(project: Project) {
-        return new Promise<void>((resolve, reject) => {
-            const req = indexedDB.open(this.DB_NAME, this.DB_VERSION);
-            req.onsuccess = (e: any) => {
-                const tx = e.target.result.transaction([this.STORE_PROJECTS], 'readwrite');
-                tx.objectStore(this.STORE_PROJECTS).put(project);
-                tx.oncomplete = () => resolve();
-                tx.onerror = () => reject(tx.error);
-            };
-        });
-    },
-    saveHandle: function(id: string, handle: any) {
-        return new Promise<void>((resolve, reject) => {
-            const req = indexedDB.open(this.DB_NAME, this.DB_VERSION);
-            req.onsuccess = (e: any) => {
-                const tx = e.target.result.transaction([this.STORE_HANDLES], 'readwrite');
-                tx.objectStore(this.STORE_HANDLES).put(handle, id);
-                tx.oncomplete = () => resolve();
-                tx.onerror = () => reject(tx.error);
-            };
-        });
-    },
-    loadAllProjects: function() {
-        return new Promise<Project[]>((resolve, reject) => {
-            const req = indexedDB.open(this.DB_NAME, this.DB_VERSION);
-            req.onsuccess = (e: any) => {
-                const tx = e.target.result.transaction([this.STORE_PROJECTS], 'readonly');
-                const reqAll = tx.objectStore(this.STORE_PROJECTS).getAll();
-                reqAll.onsuccess = () => resolve(reqAll.result);
-                reqAll.onerror = () => reject(reqAll.error);
-            };
-            req.onerror = () => resolve([]); 
-        });
-    },
-    loadHandle: function(id: string) {
-        return new Promise<any>((resolve, reject) => {
-             const req = indexedDB.open(this.DB_NAME, this.DB_VERSION);
-             req.onsuccess = (e: any) => {
-                 const tx = e.target.result.transaction([this.STORE_HANDLES], 'readonly');
-                 const reqGet = tx.objectStore(this.STORE_HANDLES).get(id);
-                 reqGet.onsuccess = () => resolve(reqGet.result);
-                 reqGet.onerror = () => resolve(null);
-             };
-             req.onerror = () => resolve(null);
-        });
-    },
-    delete: function(id: string) {
-        return new Promise<void>((resolve, reject) => {
-            const req = indexedDB.open(this.DB_NAME, this.DB_VERSION);
-            req.onsuccess = (e: any) => {
-                const tx = e.target.result.transaction([this.STORE_PROJECTS, this.STORE_HANDLES], 'readwrite');
-                tx.objectStore(this.STORE_PROJECTS).delete(id);
-                tx.objectStore(this.STORE_HANDLES).delete(id);
-                tx.oncomplete = () => resolve();
-            };
-        });
-    },
-    saveAppState: function(appState: PersistedAppState) {
-        return new Promise<void>((resolve) => {
-            const req = indexedDB.open(this.DB_NAME, this.DB_VERSION);
-            req.onsuccess = (e: any) => {
-                const tx = e.target.result.transaction([this.STORE_APP_STATE], 'readwrite');
-                tx.objectStore(this.STORE_APP_STATE).put(appState, this.APP_STATE_KEY);
-                tx.oncomplete = () => resolve();
-                tx.onerror = () => resolve();
-            };
-            req.onerror = () => resolve();
-        });
-    },
-    loadAppState: function() {
-        return new Promise<PersistedAppState | null>((resolve) => {
-            const req = indexedDB.open(this.DB_NAME, this.DB_VERSION);
-            req.onsuccess = (e: any) => {
-                const tx = e.target.result.transaction([this.STORE_APP_STATE], 'readonly');
-                const reqGet = tx.objectStore(this.STORE_APP_STATE).get(this.APP_STATE_KEY);
-                reqGet.onsuccess = () => resolve(reqGet.result || null);
-                reqGet.onerror = () => resolve(null);
-            };
-            req.onerror = () => resolve(null);
-        });
-    }
-};
+// Persistence is handled by the backend API (see services/api.ts). IndexedDB is
+// only used to remember File System Access handles for linked local folders —
+// those objects cannot be serialized to a server (see services/handleStore.ts).
 
 type EditorComponent = React.LazyExoticComponent<React.FC<EditorProps>>;
 
@@ -475,10 +364,13 @@ const App: React.FC = () => {
   const [pinnedFileIds, setPinnedFileIds] = useState<string[]>([]);
   const [draggingTabId, setDraggingTabId] = useState<string | null>(null);
 
+  const [loadError, setLoadError] = useState<string | null>(null);
+
   const isSavingRef = React.useRef(false);
   const saveQueueRef = React.useRef<Project | null>(null);
   const projectHandlesRef = React.useRef<Map<string, any>>(new Map());
   const projectsRef = React.useRef<Project[]>([]);
+  const persistedProjectsRef = React.useRef<Project[]>([]);
   const taskNavigationRequestRef = React.useRef(0);
   projectsRef.current = projects;
 
@@ -489,15 +381,14 @@ const App: React.FC = () => {
   useEffect(() => {
     const load = async () => {
         try {
-            await IDB.init();
-            const loaded = await IDB.loadAllProjects();
-            const savedAppState = await IDB.loadAppState();
+            const loaded = await api.listProjects();
+            const savedAppState = await api.loadAppState();
             const loadedProjects = await Promise.all(loaded.map(async (project) => {
                 if (!project.isLocal) {
                     return project;
                 }
 
-                const handle = await IDB.loadHandle(project.id);
+                const handle = await handleStore.load(project.id);
                 if (!handle) {
                     return project;
                 }
@@ -507,7 +398,10 @@ const App: React.FC = () => {
                 return diskProject || project;
             }));
             const normalizedLoaded = loadedProjects.map(normalizeProjectFiles);
+            // When the database is empty, seed the demo project. The diff-save
+            // effect below persists it on first run.
             const hydratedProjects = normalizedLoaded.length > 0 ? normalizedLoaded : MOCK_PROJECTS.map(normalizeProjectFiles);
+            persistedProjectsRef.current = normalizedLoaded;
             setProjects(hydratedProjects);
 
             const hydratedProjectId = savedAppState?.activeProjectId && hydratedProjects.some(p => p.id === savedAppState.activeProjectId)
@@ -537,7 +431,8 @@ const App: React.FC = () => {
             }
         } catch (e) {
             console.error("Init error", e);
-            setProjects(MOCK_PROJECTS.map(normalizeProjectFiles));
+            setLoadError("Could not reach the backend API. Start the server (docker compose up) and reload.");
+            setProjects([]);
             setCurrentView(ViewState.DASHBOARD);
             setActiveProjectId(null);
             setActiveFileId(null);
@@ -548,20 +443,48 @@ const App: React.FC = () => {
     load();
   }, [setActiveFileId, setActiveProjectId, setCurrentView, setIsLoaded, setProjects]);
 
-  useEffect(() => {
-    if (isLoaded && projects.length > 0) {
-        projects.forEach(p => IDB.saveProject(p));
-    }
-  }, [projects, isLoaded]);
+  // Persist only projects that actually changed since the last save. Mutations
+  // always produce new project objects, so reference equality is sufficient.
+  // Saves are debounced and coalesced per project since editors save per keystroke.
+  const pendingSavesRef = React.useRef<Map<string, Project>>(new Map());
+  const saveTimerRef = React.useRef<number | null>(null);
+
+  const flushPendingSaves = () => {
+    const batch = Array.from(pendingSavesRef.current.values());
+    pendingSavesRef.current.clear();
+    batch.forEach(p => {
+        api.saveProject(p).catch(err => console.error("Failed to save project:", p.id, err));
+    });
+  };
 
   useEffect(() => {
     if (!isLoaded) return;
-    IDB.saveAppState({
+    const persistedById = new Map(persistedProjectsRef.current.map(p => [p.id, p]));
+    projects.forEach(p => {
+        if (persistedById.get(p.id) !== p) {
+            pendingSavesRef.current.set(p.id, p);
+        }
+    });
+    persistedProjectsRef.current = projects;
+    if (pendingSavesRef.current.size === 0) return;
+    if (saveTimerRef.current) window.clearTimeout(saveTimerRef.current);
+    saveTimerRef.current = window.setTimeout(() => {
+        saveTimerRef.current = null;
+        flushPendingSaves();
+    }, 800);
+  }, [projects, isLoaded]);
+
+  // Flush any pending writes when the app unmounts.
+  useEffect(() => () => flushPendingSaves(), []);
+
+  useEffect(() => {
+    if (!isLoaded) return;
+    api.saveAppState({
       currentView,
       activeProjectId,
       activeFileId,
       sidebarCollapsed: isSidebarCollapsed
-    });
+    }).catch(err => console.error("Failed to save app state:", err));
   }, [isLoaded, currentView, activeProjectId, activeFileId, isSidebarCollapsed]);
 
   useEffect(() => {
@@ -687,11 +610,6 @@ const App: React.FC = () => {
     }
   };
 
-  const deleteProjectFromDisk = async (project: Project) => {
-      await IDB.delete(project.id);
-      projectHandlesRef.current.delete(project.id);
-  };
-
   // --- ACTIONS ---
 
   const handleImportLocalFolder = async () => {
@@ -713,14 +631,13 @@ const App: React.FC = () => {
 
           if (rootProject) {
               newProjects.push(rootProject);
-              await IDB.saveHandle(rootProject.id, handle);
+              await handleStore.save(rootProject.id, handle);
               projectHandlesRef.current.set(rootProject.id, handle);
           }
 
           if (newProjects.length > 0) {
               const newIds = new Set(newProjects.map(p => p.id));
               setProjects(prev => [...newProjects, ...prev.filter(p => !newIds.has(p.id))]);
-              newProjects.forEach(p => IDB.saveProject(p));
           } else {
               alert("No 'project.json' found in selected folder.");
           }
@@ -772,7 +689,7 @@ const App: React.FC = () => {
           }
 
           await writeProjectToHandle(handle, project);
-          await IDB.saveHandle(project.id, handle);
+          await handleStore.save(project.id, handle);
           projectHandlesRef.current.set(project.id, handle);
 
           const linkedProject = normalizeProjectFiles({ ...project, isLocal: true });
@@ -781,7 +698,6 @@ const App: React.FC = () => {
               projectsRef.current = next;
               return next;
           });
-          IDB.saveProject(linkedProject);
       } catch (err: any) {
           if (err.name === 'AbortError') return;
           console.error("Error linking folder:", err);
@@ -816,7 +732,6 @@ const App: React.FC = () => {
     });
     
     setProjects(prev => [newProject, ...prev]);
-    IDB.saveProject(newProject);
   };
 
   const handleUpdateProject = (id: string, updates: { name: string; description: string }) => {
@@ -842,8 +757,17 @@ const App: React.FC = () => {
     if (!project) return;
     
     if (confirm("Delete project?")) {
-      await IDB.delete(id);
+      try {
+        await api.deleteProject(id);
+      } catch (err) {
+        console.error("Failed to delete project:", err);
+        alert("Failed to delete the project on the server.");
+        return;
+      }
+      handleStore.delete(id);
       projectHandlesRef.current.delete(id);
+      // Drop any queued debounced save so the upsert can't resurrect it.
+      pendingSavesRef.current.delete(id);
       setProjects(prev => prev.filter(p => p.id !== id));
       if (activeProjectId === id) { setActiveProjectId(null); setCurrentView(ViewState.DASHBOARD); }
     }
@@ -884,7 +808,6 @@ const App: React.FC = () => {
           saveQueueRef.current = normalizedProject;
           processSaveQueue();
       }
-      IDB.saveProject(normalizedProject);
   };
 
   // --- FOLDER & FILE LOGIC ---
@@ -1598,6 +1521,12 @@ const App: React.FC = () => {
     <div className="flex h-screen bg-bg text-content font-sans overflow-hidden">
       {renderSidebar()}
       <main className="flex-1 flex flex-col min-w-0 bg-bg">
+        {loadError && (
+          <div className="shrink-0 flex items-center gap-3 px-4 py-2.5 border-b border-danger/40 bg-danger/10 text-sm text-content">
+            <span className="flex-1 min-w-0 truncate">{loadError}</span>
+            <button onClick={() => setLoadError(null)} className="text-faint hover:text-content" title="Dismiss"><X className="w-4 h-4" /></button>
+          </div>
+        )}
         <div className="flex-1 overflow-hidden relative">
           {currentView === ViewState.DASHBOARD ? (
             showGuide ? (

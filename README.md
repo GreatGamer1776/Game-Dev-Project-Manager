@@ -1,8 +1,8 @@
 # Game Dev Project Manager
 
-`Game Dev Project Manager` is a local-first project planning workspace for software, web, and game projects. The in-app product name is `DevArchitect`.
+`Game Dev Project Manager` is a project planning workspace for software, web, and game projects. The in-app product name is `DevArchitect`.
 
-The app keeps project documents, task planning, bug tracking, roadmaps, flowcharts, whiteboards, data grids, and project media in one browser-based workspace with no backend requirement.
+The app keeps project documents, task planning, bug tracking, roadmaps, flowcharts, whiteboards, data grids, and project media in one workspace backed by a PostgreSQL database through a Fastify API, all runnable via Docker Compose.
 
 ## Current Feature Set
 
@@ -10,7 +10,7 @@ The app keeps project documents, task planning, bug tracking, roadmaps, flowchar
 - Nested project folders with drag-and-drop file organization
 - Command palette for quickly opening files and creating common project artifacts
 - In-app guide, help modal, and release notes
-- Browser-local persistence with IndexedDB
+- Server-side persistence in PostgreSQL via a Fastify REST API
 - Optional local folder linking through the File System Access API
 - ZIP export for portable project backups
 - Cross-file links from documents, task lists, and bug descriptions
@@ -43,17 +43,16 @@ The app keeps project documents, task planning, bug tracking, roadmaps, flowchar
 
 ## Storage Model
 
-The app supports two persistence modes.
+The app persists data in PostgreSQL through the backend API, and supports optional local folder linking.
 
-### Browser-local storage
+### Database storage
 
-Projects created inside the app are saved to IndexedDB. This is the default mode and works without a server.
+Projects created inside the app are saved to PostgreSQL via the Fastify API (`server/`). The schema is created automatically on API startup:
 
-IndexedDB stores:
+- `projects` — one row per project. Metadata (`name`, `type`, `description`, `last_modified`, `is_local`) is stored in columns; `files`, `folders`, and `assets` are stored as JSONB payloads since the app always reads and writes a project as a single aggregate.
+- `app_state` — key-value table storing the session state (active project, active file, sidebar state).
 
-- project records
-- remembered File System Access handles
-- app session state such as the active project, active file, and sidebar state
+IndexedDB is no longer used for project data. The single exception is `services/handleStore.ts`: File System Access directory handles are browser security tokens that can only be persisted in IndexedDB, so linked-folder handles are still remembered there.
 
 ### Local folder linking
 
@@ -79,6 +78,8 @@ Notes:
 
 ## Tech Stack
 
+Frontend:
+
 - React 18
 - TypeScript
 - Vite 5
@@ -88,22 +89,52 @@ Notes:
 - Tailwind CSS
 - Lucide React icons
 
+Backend (`server/`):
+
+- Fastify 5
+- PostgreSQL 16
+- node-postgres (`pg`)
+
 ## Getting Started
 
-### Prerequisites
+### Run everything with Docker
 
-- Node.js 18+
-- npm
-
-### Install
+Requires Docker with Compose v2.
 
 ```bash
-npm install
+docker compose up --build
 ```
 
-### Run the app
+Then open http://localhost:8080
+
+Services:
+
+| Service | Description | Port |
+| --- | --- | --- |
+| `web` | Nginx serving the built frontend; proxies `/api` to the API | 8080 |
+| `api` | Fastify REST API | 3001 |
+| `db` | PostgreSQL with a persistent `pgdata` volume | 5432 |
+
+Environment overrides (optional): `POSTGRES_USER`, `POSTGRES_PASSWORD`, `POSTGRES_DB`, `DB_PORT`, `API_PORT`, `WEB_PORT` — set them in a root `.env` file or inline.
+
+### Local development without Docker
+
+Prerequisites: Node.js 18+, npm, and a PostgreSQL instance.
 
 ```bash
+# 1. Start PostgreSQL and create a database, e.g.
+#    createdb devarchitect
+#    (or run just the db service: docker compose up db)
+
+# 2. Point the API at it (default: postgres://devarchitect:devarchitect@localhost:5432/devarchitect)
+export DATABASE_URL=postgres://user:pass@localhost:5432/devarchitect
+
+# 3. Install dependencies
+npm install
+npm --prefix server install
+
+# 4. Run the API (port 3001) and the Vite dev server (port 5173, proxies /api)
+npm run dev:api
 npm run dev
 ```
 
@@ -119,17 +150,36 @@ npm run build
 npm run preview
 ```
 
+## API
+
+| Method | Endpoint | Purpose |
+| --- | --- | --- |
+| `GET` | `/api/health` | Health check |
+| `GET` | `/api/projects` | List all projects |
+| `GET` | `/api/projects/:id` | Get one project |
+| `PUT` | `/api/projects/:id` | Create or update a project (upsert) |
+| `DELETE` | `/api/projects/:id` | Delete a project |
+| `GET` | `/api/state` | Load persisted session state |
+| `PUT` | `/api/state` | Save session state |
+
 ## Project Structure
 
 ```text
 App.tsx                  App shell, lazy editor routing, persistence, and disk I/O
 components/              Editors and reusable UI surfaces
 hooks/                   Shared hooks such as undo/redo
-services/                Utility helpers for assets, app changelog, and integrations
+services/                API client, asset helpers, folder-handle store, integrations
 stores/                  Zustand project/session store
+server/                  Fastify + PostgreSQL backend (own package.json + Dockerfile)
+  src/index.ts           Fastify bootstrap and REST routes
+  src/db.ts              pg pool and schema initialization
+  src/types.ts           Server-side project/app-state models
 types.ts                 Shared TypeScript models
+docker-compose.yml       db + api + web orchestration
+Dockerfile               Frontend production image (vite build -> nginx)
+nginx.conf               Web server config: SPA fallback + /api proxy
 tailwind.config.js       Tailwind source scanning and theme config
-vite.config.ts           Vite configuration
+vite.config.ts           Vite configuration (including /api dev proxy)
 ```
 
 ## Validation
@@ -139,12 +189,14 @@ The current codebase does not include an automated test suite yet. Use these che
 ```bash
 npx tsc --noEmit
 npm run build
+npm --prefix server run build
 ```
 
 ## Known Constraints
 
-- There is no backend or cloud sync.
+- There is no authentication or multi-user support; the API is intended for local/self-hosted use.
+- The GitHub Pages deploy (push to `main`) publishes only the static frontend, which then requires a reachable API — the full-stack app is meant to run via Docker Compose.
 - ZIP export is supported, but ZIP import is not currently implemented.
 - Local folder import expects an existing `project.json`.
-- Projects stored only in IndexedDB are removed if browser storage is cleared.
-- Large embedded media assets increase project size because assets are stored as data URLs in browser storage.
+- Local folder linking still requires a Chromium-based desktop browser; folder handles are remembered in IndexedDB (they cannot be stored server-side).
+- Large embedded media assets increase project size because assets are stored as data URLs in the database.

@@ -1,8 +1,8 @@
 # Game Dev Project Manager
 
-`Game Dev Project Manager` is a local-first project planning workspace for software, web, and game projects. The in-app product name is `DevArchitect`.
+`Game Dev Project Manager` is a project planning workspace for software, web, and game projects. The in-app product name is `DevArchitect`.
 
-The app keeps project documents, task planning, bug tracking, roadmaps, flowcharts, whiteboards, data grids, and project media in one browser-based workspace with no backend requirement.
+The app keeps project documents, task planning, bug tracking, roadmaps, flowcharts, whiteboards, data grids, and project media in one workspace backed by a PostgreSQL database through a Fastify API, all runnable via Docker Compose.
 
 ## Current Feature Set
 
@@ -10,8 +10,8 @@ The app keeps project documents, task planning, bug tracking, roadmaps, flowchar
 - Nested project folders with drag-and-drop file organization
 - Command palette for quickly opening files and creating common project artifacts
 - In-app guide, help modal, and release notes
-- Browser-local persistence with IndexedDB
-- Optional local folder linking through the File System Access API
+- Username/password accounts — no email or PII collected
+- Server-side persistence in PostgreSQL via a Fastify REST API, with per-user data isolation
 - ZIP export for portable project backups
 - Cross-file links from documents, task lists, and bug descriptions
 - Task links from documents into the task list editor
@@ -43,41 +43,30 @@ The app keeps project documents, task planning, bug tracking, roadmaps, flowchar
 
 ## Storage Model
 
-The app supports two persistence modes.
+All project data persists in PostgreSQL through the backend API, behind per-user accounts.
 
-### Browser-local storage
+### Authentication
 
-Projects created inside the app are saved to IndexedDB. This is the default mode and works without a server.
+Accounts are username + password only — no email or other PII is collected or stored. Passwords are hashed with Node's built-in `crypto.scrypt` (per-user salt). Sessions are random bearer tokens; only their SHA-256 hash is stored server-side. Tokens expire after 30 days.
 
-IndexedDB stores:
+### Database storage
 
-- project records
-- remembered File System Access handles
-- app session state such as the active project, active file, and sidebar state
+The schema is created automatically on API startup:
 
-### Local folder linking
+- `users` — `id`, `username` (unique), `password_hash`, `created_at`
+- `sessions` — `token_hash`, `user_id`, `created_at`, `expires_at`
+- `projects` — one row per project, owned by a user (`user_id`). Metadata (`name`, `type`, `description`, `last_modified`) is stored in columns; `files`, `folders`, and `assets` are stored as JSONB payloads since the app always reads and writes a project as a single aggregate.
+- `app_state` — per-user key-value table storing session state (active project, active file, sidebar state).
 
-Projects can be opened from a folder on disk with `Import Local Folder`, or an existing browser-stored project can be linked to a folder from the dashboard.
+No project data is stored in the browser — clearing browser data only signs you out. The browser only holds the session token (localStorage) and appearance preferences.
 
-When a folder is linked, the app writes project changes back to disk automatically.
+### Migrating an existing database
 
-Expected folder layout:
-
-```text
-your-project-folder/
-  project.json
-  assets/
-    <asset-id>.<ext>
-```
-
-Notes:
-
-- `project.json` stores project metadata, folders, file records, and file contents.
-- Binary assets are written into `assets/`.
-- Local folder linking requires a Chromium-based desktop browser with File System Access API support.
-- The app remembers granted folder handles in IndexedDB.
+If you deployed the pre-auth version, the schema migrates automatically on API startup (`user_id` column added, `is_local` dropped, `app_state` recreated per-user). Orphaned projects (created before accounts existed) are claimed by the first user who registers.
 
 ## Tech Stack
+
+Frontend:
 
 - React 18
 - TypeScript
@@ -88,22 +77,52 @@ Notes:
 - Tailwind CSS
 - Lucide React icons
 
+Backend (`server/`):
+
+- Fastify 5
+- PostgreSQL 16
+- node-postgres (`pg`)
+
 ## Getting Started
 
-### Prerequisites
+### Run everything with Docker
 
-- Node.js 18+
-- npm
-
-### Install
+Requires Docker with Compose v2.
 
 ```bash
-npm install
+docker compose up --build
 ```
 
-### Run the app
+Then open http://localhost:8080
+
+Services:
+
+| Service | Description | Port |
+| --- | --- | --- |
+| `web` | Nginx serving the built frontend; proxies `/api` to the API | 8080 |
+| `api` | Fastify REST API | 3001 |
+| `db` | PostgreSQL with a persistent `pgdata` volume | 5432 |
+
+Environment overrides (optional): `POSTGRES_USER`, `POSTGRES_PASSWORD`, `POSTGRES_DB`, `DB_PORT`, `API_PORT`, `WEB_PORT` — set them in a root `.env` file or inline.
+
+### Local development without Docker
+
+Prerequisites: Node.js 18+, npm, and a PostgreSQL instance.
 
 ```bash
+# 1. Start PostgreSQL and create a database, e.g.
+#    createdb devarchitect
+#    (or run just the db service: docker compose up db)
+
+# 2. Point the API at it (default: postgres://devarchitect:devarchitect@localhost:5432/devarchitect)
+export DATABASE_URL=postgres://user:pass@localhost:5432/devarchitect
+
+# 3. Install dependencies
+npm install
+npm --prefix server install
+
+# 4. Run the API (port 3001) and the Vite dev server (port 5173, proxies /api)
+npm run dev:api
 npm run dev
 ```
 
@@ -119,17 +138,43 @@ npm run build
 npm run preview
 ```
 
+## API
+
+All endpoints except `/api/health` and the auth routes require `Authorization: Bearer <token>`.
+
+| Method | Endpoint | Purpose |
+| --- | --- | --- |
+| `GET` | `/api/health` | Health check |
+| `POST` | `/api/auth/register` | Create account; returns `{ token, user }` |
+| `POST` | `/api/auth/login` | Sign in; returns `{ token, user }` |
+| `GET` | `/api/auth/me` | Current session's user |
+| `POST` | `/api/auth/logout` | Invalidate the session token |
+| `GET` | `/api/projects` | List the current user's projects |
+| `GET` | `/api/projects/:id` | Get one project |
+| `PUT` | `/api/projects/:id` | Create or update a project (upsert) |
+| `DELETE` | `/api/projects/:id` | Delete a project |
+| `GET` | `/api/state` | Load persisted session state |
+| `PUT` | `/api/state` | Save session state |
+
 ## Project Structure
 
 ```text
-App.tsx                  App shell, lazy editor routing, persistence, and disk I/O
-components/              Editors and reusable UI surfaces
+App.tsx                  App shell, auth gating, lazy editor routing, persistence
+components/              Editors, AuthView, and reusable UI surfaces
 hooks/                   Shared hooks such as undo/redo
-services/                Utility helpers for assets, app changelog, and integrations
-stores/                  Zustand project/session store
+services/                API client, asset helpers, and integrations
+stores/                  Zustand project/session/auth stores
+server/                  Fastify + PostgreSQL backend (own package.json + Dockerfile)
+  src/index.ts           Fastify bootstrap and REST routes
+  src/auth.ts            scrypt password hashing and bearer-token sessions
+  src/db.ts              pg pool, schema, and conditional migrations
+  src/types.ts           Server-side project/app-state models
 types.ts                 Shared TypeScript models
+docker-compose.yml       db + api + web orchestration
+Dockerfile               Frontend production image (vite build -> nginx)
+nginx.conf               Web server config: SPA fallback + /api proxy
 tailwind.config.js       Tailwind source scanning and theme config
-vite.config.ts           Vite configuration
+vite.config.ts           Vite configuration (including /api dev proxy)
 ```
 
 ## Validation
@@ -139,12 +184,13 @@ The current codebase does not include an automated test suite yet. Use these che
 ```bash
 npx tsc --noEmit
 npm run build
+npm --prefix server run build
 ```
 
 ## Known Constraints
 
-- There is no backend or cloud sync.
+- No password recovery or account deletion UI — accounts are username + password only.
+- No rate limiting on auth endpoints — keep the API private/self-hosted or put it behind a reverse proxy with rate limiting.
+- The GitHub Pages deploy (push to `main`) publishes only the static frontend, which then requires a reachable API — the full-stack app is meant to run via Docker Compose.
 - ZIP export is supported, but ZIP import is not currently implemented.
-- Local folder import expects an existing `project.json`.
-- Projects stored only in IndexedDB are removed if browser storage is cleared.
-- Large embedded media assets increase project size because assets are stored as data URLs in browser storage.
+- Large embedded media assets increase project size because assets are stored as data URLs in the database.

@@ -247,8 +247,8 @@ const GuideView: React.FC<GuideViewProps> = ({ initialSection = 'overview' }) =>
         </p>
         <p className="text-muted leading-relaxed">
           Each project is a self-contained workspace with typed files (Documents, Flowcharts, Task Lists, Bug Trackers, Roadmaps, Data Grids, Whiteboards, and Asset Libraries) 
-          organized in folders. Projects are stored in your browser's IndexedDB, and can be exported as <code className="text-content bg-surface-raised px-1.5 py-0.5 rounded text-xs">.zip</code> archives 
-          or linked to a local folder on your disk for automatic persistence.
+          organized in folders. Projects are stored in your account's workspace database, so they follow you to any browser or device, 
+          and can be exported as <code className="text-content bg-surface-raised px-1.5 py-0.5 rounded text-xs">.zip</code> archives for backup.
         </p>
       </div>
 
@@ -260,8 +260,8 @@ const GuideView: React.FC<GuideViewProps> = ({ initialSection = 'overview' }) =>
         </div>
         <div className="bg-surface border border-border rounded-xl p-5">
           <HardDrive className="w-8 h-8 text-emerald-400 mb-3" />
-          <h4 className="font-semibold text-content mb-1">Offline-First</h4>
-          <p className="text-sm text-faint">Everything is stored locally in your browser. No accounts, no cloud sync, no internet required. Your data stays on your machine.</p>
+          <h4 className="font-semibold text-content mb-1">Private by Design</h4>
+          <p className="text-sm text-faint">Your projects live in a database you control. Sign in with just a username and password — no email or personal info required.</p>
         </div>
         <div className="bg-surface border border-border rounded-xl p-5">
           <Workflow className="w-8 h-8 text-purple-400 mb-3" />
@@ -277,7 +277,7 @@ const GuideView: React.FC<GuideViewProps> = ({ initialSection = 'overview' }) =>
           <li className="flex gap-3"><span className="shrink-0 w-6 h-6 rounded-full bg-accent/20 text-blue-400 flex items-center justify-center text-xs font-bold">2</span><span><strong className="text-content">Add files</strong> using the "New File" button in the sidebar. Choose the editor type that fits your content.</span></li>
           <li className="flex gap-3"><span className="shrink-0 w-6 h-6 rounded-full bg-accent/20 text-blue-400 flex items-center justify-center text-xs font-bold">3</span><span><strong className="text-content">Organize with folders</strong> — create folders to group related files (e.g., "Design", "Art", "Code").</span></li>
           <li className="flex gap-3"><span className="shrink-0 w-6 h-6 rounded-full bg-accent/20 text-blue-400 flex items-center justify-center text-xs font-bold">4</span><span><strong className="text-content">Save your work</strong> — files auto-save, but use Ctrl+S for manual saves. Export the project as a .zip for backup.</span></li>
-          <li className="flex gap-3"><span className="shrink-0 w-6 h-6 rounded-full bg-accent/20 text-blue-400 flex items-center justify-center text-xs font-bold">5</span><span><strong className="text-content">Link a local folder</strong> — use "Import Local Folder" to persist your project directly to disk for version control.</span></li>
+          <li className="flex gap-3"><span className="shrink-0 w-6 h-6 rounded-full bg-accent/20 text-blue-400 flex items-center justify-center text-xs font-bold">5</span><span><strong className="text-content">Pick up anywhere</strong> — sign in from another browser or device and your projects are right where you left them.</span></li>
         </ol>
       </div>
     </div>
@@ -463,13 +463,24 @@ const GuideView: React.FC<GuideViewProps> = ({ initialSection = 'overview' }) =>
 
   const renderStorage = () => (
     <div className="space-y-4">
-      <CollapsibleSection title="Browser Storage (IndexedDB)" defaultOpen>
+      <CollapsibleSection title="Workspace Database" defaultOpen>
         <div className="space-y-3 text-sm text-muted">
-          <p>By default, all projects are stored in your browser's <strong className="text-content">IndexedDB</strong>. This means:</p>
+          <p>All projects are stored in the workspace database behind your account. This means:</p>
           <ul className="space-y-1.5 ml-1">
-            <li className="flex gap-2"><span className="text-blue-500">•</span>Data persists across browser sessions — closing and reopening the tab won't lose your work</li>
-            <li className="flex gap-2"><span className="text-blue-500">•</span>Storage is local only — no data is sent to any server</li>
-            <li className="flex gap-2"><span className="text-blue-500">•</span>Clearing browser data (cookies/storage) will delete your projects, so export regularly</li>
+            <li className="flex gap-2"><span className="text-blue-500">•</span>Data persists across browsers, devices, and sessions — sign in anywhere to pick up where you left off</li>
+            <li className="flex gap-2"><span className="text-blue-500">•</span>Each account sees only its own projects</li>
+            <li className="flex gap-2"><span className="text-blue-500">•</span>Clearing browser data only signs you out — your projects stay safe on the server</li>
+          </ul>
+        </div>
+      </CollapsibleSection>
+
+      <CollapsibleSection title="Your Account">
+        <div className="space-y-3 text-sm text-muted">
+          <p>Accounts are just a username and password — no email or personal information is collected or stored.</p>
+          <ul className="space-y-1.5 ml-1">
+            <li className="flex gap-2"><span className="text-blue-500">•</span>Sessions last 30 days; sign back in anytime with the same credentials</li>
+            <li className="flex gap-2"><span className="text-blue-500">•</span>There is no password recovery — if you forget your password, the account cannot be recovered</li>
+            <li className="flex gap-2"><span className="text-blue-500">•</span>Sign out from the bottom of the sidebar</li>
           </ul>
         </div>
       </CollapsibleSection>
@@ -478,19 +489,6 @@ const GuideView: React.FC<GuideViewProps> = ({ initialSection = 'overview' }) =>
         <div className="space-y-3 text-sm text-muted">
           <p>Export any project as a <code className="text-content bg-surface-raised px-1.5 py-0.5 rounded text-xs">.zip</code> file for backup or sharing. The archive contains all files and assets in a structured format that can be re-imported later.</p>
           <p>To export: go to the Dashboard, find the project card, and click the download icon.</p>
-        </div>
-      </CollapsibleSection>
-
-      <CollapsibleSection title="Local Folder Linking">
-        <div className="space-y-3 text-sm text-muted">
-          <p>For version control workflows, you can link a project to a <strong className="text-content">local folder</strong> on your disk using the browser's File System Access API.</p>
-          <ul className="space-y-1.5 ml-1">
-            <li className="flex gap-2"><span className="text-blue-500">•</span>Click "Import Local Folder" on the Dashboard to link a directory</li>
-            <li className="flex gap-2"><span className="text-blue-500">•</span>The project reads/writes files directly to that folder</li>
-            <li className="flex gap-2"><span className="text-blue-500">•</span>Combine with Git for full version history of your project files</li>
-            <li className="flex gap-2"><span className="text-blue-500">•</span>The disk icon on a project card indicates it's folder-linked</li>
-          </ul>
-          <p className="text-faint text-xs mt-2">Note: Local folder linking requires a Chromium-based browser (Chrome, Edge, Brave) due to File System Access API support.</p>
         </div>
       </CollapsibleSection>
     </div>
@@ -535,8 +533,7 @@ const GuideView: React.FC<GuideViewProps> = ({ initialSection = 'overview' }) =>
       <CollapsibleSection title="Keeping Projects Portable">
         <div className="space-y-2 text-sm text-muted">
           <ul className="space-y-1.5 ml-1">
-            <li className="flex gap-2"><span className="text-amber-500">★</span>Export a .zip backup before clearing browser data or switching machines</li>
-            <li className="flex gap-2"><span className="text-amber-500">★</span>Use local folder linking + Git for the most robust backup strategy</li>
+            <li className="flex gap-2"><span className="text-amber-500">★</span>Export a .zip backup regularly — it is the portable, self-contained copy of a project</li>
             <li className="flex gap-2"><span className="text-amber-500">★</span>Keep asset images reasonably sized — very large images increase project file size significantly</li>
           </ul>
         </div>

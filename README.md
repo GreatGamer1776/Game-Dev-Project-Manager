@@ -10,8 +10,8 @@ The app keeps project documents, task planning, bug tracking, roadmaps, flowchar
 - Nested project folders with drag-and-drop file organization
 - Command palette for quickly opening files and creating common project artifacts
 - In-app guide, help modal, and release notes
-- Server-side persistence in PostgreSQL via a Fastify REST API
-- Optional local folder linking through the File System Access API
+- Username/password accounts — no email or PII collected
+- Server-side persistence in PostgreSQL via a Fastify REST API, with per-user data isolation
 - ZIP export for portable project backups
 - Cross-file links from documents, task lists, and bug descriptions
 - Task links from documents into the task list editor
@@ -43,38 +43,26 @@ The app keeps project documents, task planning, bug tracking, roadmaps, flowchar
 
 ## Storage Model
 
-The app persists data in PostgreSQL through the backend API, and supports optional local folder linking.
+All project data persists in PostgreSQL through the backend API, behind per-user accounts.
+
+### Authentication
+
+Accounts are username + password only — no email or other PII is collected or stored. Passwords are hashed with Node's built-in `crypto.scrypt` (per-user salt). Sessions are random bearer tokens; only their SHA-256 hash is stored server-side. Tokens expire after 30 days.
 
 ### Database storage
 
-Projects created inside the app are saved to PostgreSQL via the Fastify API (`server/`). The schema is created automatically on API startup:
+The schema is created automatically on API startup:
 
-- `projects` — one row per project. Metadata (`name`, `type`, `description`, `last_modified`, `is_local`) is stored in columns; `files`, `folders`, and `assets` are stored as JSONB payloads since the app always reads and writes a project as a single aggregate.
-- `app_state` — key-value table storing the session state (active project, active file, sidebar state).
+- `users` — `id`, `username` (unique), `password_hash`, `created_at`
+- `sessions` — `token_hash`, `user_id`, `created_at`, `expires_at`
+- `projects` — one row per project, owned by a user (`user_id`). Metadata (`name`, `type`, `description`, `last_modified`) is stored in columns; `files`, `folders`, and `assets` are stored as JSONB payloads since the app always reads and writes a project as a single aggregate.
+- `app_state` — per-user key-value table storing session state (active project, active file, sidebar state).
 
-IndexedDB is no longer used for project data. The single exception is `services/handleStore.ts`: File System Access directory handles are browser security tokens that can only be persisted in IndexedDB, so linked-folder handles are still remembered there.
+No project data is stored in the browser — clearing browser data only signs you out. The browser only holds the session token (localStorage) and appearance preferences.
 
-### Local folder linking
+### Migrating an existing database
 
-Projects can be opened from a folder on disk with `Import Local Folder`, or an existing browser-stored project can be linked to a folder from the dashboard.
-
-When a folder is linked, the app writes project changes back to disk automatically.
-
-Expected folder layout:
-
-```text
-your-project-folder/
-  project.json
-  assets/
-    <asset-id>.<ext>
-```
-
-Notes:
-
-- `project.json` stores project metadata, folders, file records, and file contents.
-- Binary assets are written into `assets/`.
-- Local folder linking requires a Chromium-based desktop browser with File System Access API support.
-- The app remembers granted folder handles in IndexedDB.
+If you deployed the pre-auth version, the schema migrates automatically on API startup (`user_id` column added, `is_local` dropped, `app_state` recreated per-user). Orphaned projects (created before accounts existed) are claimed by the first user who registers.
 
 ## Tech Stack
 
@@ -152,10 +140,16 @@ npm run preview
 
 ## API
 
+All endpoints except `/api/health` and the auth routes require `Authorization: Bearer <token>`.
+
 | Method | Endpoint | Purpose |
 | --- | --- | --- |
 | `GET` | `/api/health` | Health check |
-| `GET` | `/api/projects` | List all projects |
+| `POST` | `/api/auth/register` | Create account; returns `{ token, user }` |
+| `POST` | `/api/auth/login` | Sign in; returns `{ token, user }` |
+| `GET` | `/api/auth/me` | Current session's user |
+| `POST` | `/api/auth/logout` | Invalidate the session token |
+| `GET` | `/api/projects` | List the current user's projects |
 | `GET` | `/api/projects/:id` | Get one project |
 | `PUT` | `/api/projects/:id` | Create or update a project (upsert) |
 | `DELETE` | `/api/projects/:id` | Delete a project |
@@ -165,14 +159,15 @@ npm run preview
 ## Project Structure
 
 ```text
-App.tsx                  App shell, lazy editor routing, persistence, and disk I/O
-components/              Editors and reusable UI surfaces
+App.tsx                  App shell, auth gating, lazy editor routing, persistence
+components/              Editors, AuthView, and reusable UI surfaces
 hooks/                   Shared hooks such as undo/redo
-services/                API client, asset helpers, folder-handle store, integrations
-stores/                  Zustand project/session store
+services/                API client, asset helpers, and integrations
+stores/                  Zustand project/session/auth stores
 server/                  Fastify + PostgreSQL backend (own package.json + Dockerfile)
   src/index.ts           Fastify bootstrap and REST routes
-  src/db.ts              pg pool and schema initialization
+  src/auth.ts            scrypt password hashing and bearer-token sessions
+  src/db.ts              pg pool, schema, and conditional migrations
   src/types.ts           Server-side project/app-state models
 types.ts                 Shared TypeScript models
 docker-compose.yml       db + api + web orchestration
@@ -194,9 +189,8 @@ npm --prefix server run build
 
 ## Known Constraints
 
-- There is no authentication or multi-user support; the API is intended for local/self-hosted use.
+- No password recovery or account deletion UI — accounts are username + password only.
+- No rate limiting on auth endpoints — keep the API private/self-hosted or put it behind a reverse proxy with rate limiting.
 - The GitHub Pages deploy (push to `main`) publishes only the static frontend, which then requires a reachable API — the full-stack app is meant to run via Docker Compose.
 - ZIP export is supported, but ZIP import is not currently implemented.
-- Local folder import expects an existing `project.json`.
-- Local folder linking still requires a Chromium-based desktop browser; folder handles are remembered in IndexedDB (they cannot be stored server-side).
 - Large embedded media assets increase project size because assets are stored as data URLs in the database.

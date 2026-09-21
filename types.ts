@@ -137,7 +137,6 @@ export interface Project {
   files: ProjectFile[];
   folders: ProjectFolder[]; // Added folders list
   assets: Record<string, string>; 
-  isLocal?: boolean;
 }
 
 export enum ViewState {

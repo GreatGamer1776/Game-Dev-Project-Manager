@@ -88,7 +88,7 @@ const CommandPalette: React.FC<CommandPaletteProps> = ({
         id: p.id,
         type: 'project',
         label: p.name,
-        subLabel: p.isLocal ? 'Switch to Local Repo' : 'Switch Project',
+        subLabel: 'Switch Project',
         action: () => { onSelectProject(p.id); onClose(); }
       });
     }

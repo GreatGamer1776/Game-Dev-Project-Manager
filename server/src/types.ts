@@ -24,7 +24,6 @@ export interface Project {
   files: ProjectFile[];
   folders: ProjectFolder[];
   assets: Record<string, string>;
-  isLocal?: boolean;
 }
 
 export interface AppState {
@@ -34,13 +33,20 @@ export interface AppState {
   sidebarCollapsed?: boolean;
 }
 
+export interface UserRow {
+  id: string;
+  username: string;
+  password_hash: string;
+  created_at: string | number;
+}
+
 export interface ProjectRow {
   id: string;
+  user_id: string | null;
   name: string;
   type: string;
   description: string;
   last_modified: string | number;
-  is_local: boolean;
   files: ProjectFile[];
   folders: ProjectFolder[];
   assets: Record<string, string>;
@@ -56,5 +62,4 @@ export const rowToProject = (row: ProjectRow): Project => ({
   files: row.files ?? [],
   folders: row.folders ?? [],
   assets: row.assets ?? {},
-  isLocal: row.is_local ?? false,
 });

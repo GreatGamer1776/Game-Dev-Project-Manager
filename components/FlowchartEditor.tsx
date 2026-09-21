@@ -26,6 +26,7 @@ import {
 } from 'lucide-react';
 import { EditorProps } from '../types';
 import { useUndoRedo } from '../hooks/useUndoRedo';
+import { uid } from '../utils/id';
 
 // --- CUSTOM NODE COMPONENTS ---
 
@@ -264,7 +265,7 @@ const FlowchartEditorContent: React.FC<EditorProps> = ({ initialContent, onSave,
   );
 
   const addNode = (type: string, label: string) => {
-    const id = crypto.randomUUID();
+    const id = uid();
     const position = { 
       x: Math.random() * 200 + 200, 
       y: Math.random() * 200 + 100 

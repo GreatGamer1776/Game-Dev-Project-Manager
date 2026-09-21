@@ -2,6 +2,7 @@ import React, { useEffect, useMemo, useState } from 'react';
 import { Upload, Trash2, Image as ImageIcon, Copy, Search, Grid, Check, Download, FolderOpen, FolderPlus, Folder, ChevronRight, ChevronDown, Music, File as FileIcon, Pencil } from 'lucide-react';
 import { EditorProps } from '../types';
 import { ASSET_LINK_DRAG_MIME, AssetKind, getAssetExtensionFromMime, getAssetKindFromMime, getAssetMimeType } from '../services/assetUtils';
+import { uid } from '../utils/id';
 
 interface AssetFolderItem {
   id: string;
@@ -110,7 +111,7 @@ const AssetBrowser: React.FC<EditorProps> = ({ initialContent, assets = {}, onAd
     const name = prompt('Folder name:');
     const trimmedName = name?.trim();
     if (!trimmedName) return;
-    const newId = crypto.randomUUID();
+    const newId = uid();
     commitLibraryContent(prev => ({
       ...prev,
       folders: [...prev.folders, { id: newId, name: trimmedName, parentId }]
@@ -338,7 +339,7 @@ const AssetBrowser: React.FC<EditorProps> = ({ initialContent, assets = {}, onAd
   };
 
   const handleCopy = (id: string) => {
-    navigator.clipboard.writeText(`asset://${id}`);
+    navigator.clipboard?.writeText(`asset://${id}`);
     setCopiedId(id);
     setTimeout(() => setCopiedId(null), 2000);
   };

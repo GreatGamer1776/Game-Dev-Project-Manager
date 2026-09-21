@@ -1,8 +1,12 @@
 # Legacy browser-local build — static frontend only, no backend/database.
 # Deploy alongside the full-stack `main` build for side-by-side comparison.
+# Defaults: https://<server>:8444 (http://<server>:8081 redirects).
 services:
   web:
     build: .
     restart: unless-stopped
+    environment:
+      HTTPS_PORT: ${HTTPS_PORT:-8444}
     ports:
       - "${WEB_PORT:-8081}:80"
+      - "${HTTPS_PORT:-8444}:443"

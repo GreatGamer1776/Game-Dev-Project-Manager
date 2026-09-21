@@ -2,6 +2,7 @@ import React, { useState, useEffect, useRef } from 'react';
 import { Save, Plus, AlertCircle, ChevronLeft, ChevronRight, X, Trash2, Bug as BugIcon, Search, Filter, Pencil, Loader2, Check, Link as LinkIcon, ArrowUpDown, Calendar, Undo2, Redo2 } from 'lucide-react';
 import { Bug, BugSeverity, BugStatus, EditorProps } from '../types';
 import { useUndoRedo } from '../hooks/useUndoRedo';
+import { uid } from '../utils/id';
 
 const FILE_LINK_DRAG_MIME = 'application/x-gdpm-file-id';
 type BugSort = 'Newest' | 'Oldest' | 'Severity' | 'Due Date';
@@ -260,7 +261,7 @@ const KanbanBoard: React.FC<EditorProps> = ({ initialContent, onSave, fileName, 
       } : b));
     } else {
       const newBug: Bug = {
-        id: crypto.randomUUID(),
+        id: uid(),
         title: newTitle,
         description: newDesc,
         severity: newSeverity,

@@ -2,6 +2,7 @@ import React, { useState, useEffect, useRef } from 'react';
 import { Save, Plus, Trash2, CheckSquare, Square, Calendar, ChevronDown, ChevronUp, ListChecks, Loader2, Check, AlertCircle, MoreHorizontal, Link as LinkIcon, Tags, X, Search, Filter, ArrowUpDown, Undo2, Redo2 } from 'lucide-react';
 import { TodoItem, Priority, SubTask, EditorProps, TodoStatus } from '../types';
 import { useUndoRedo } from '../hooks/useUndoRedo';
+import { uid } from '../utils/id';
 
 const FILE_LINK_DRAG_MIME = 'application/x-gdpm-file-id';
 const TASK_LINK_DRAG_MIME = 'application/x-gdpm-task-link';
@@ -407,7 +408,7 @@ const TodoEditor: React.FC<EditorProps> = ({ initialContent, onSave, fileName, p
     const parsedEstimate = newItemEstimate.trim() ? Number(newItemEstimate.trim()) : undefined;
     const parsedTags = parseTagInput(newItemTags);
     const newItem: TodoItem = {
-      id: crypto.randomUUID(),
+      id: uid(),
       text: newItemText.trim(),
       completed: newItemStatus === 'Done',
       status: newItemStatus,
@@ -451,7 +452,7 @@ const TodoEditor: React.FC<EditorProps> = ({ initialContent, onSave, fileName, p
 
   const addCreateSubTask = () => {
     if (!newItemSubTaskText.trim()) return;
-    setNewItemSubTasks(prev => [...prev, { id: crypto.randomUUID(), text: newItemSubTaskText.trim(), completed: false }]);
+    setNewItemSubTasks(prev => [...prev, { id: uid(), text: newItemSubTaskText.trim(), completed: false }]);
     setNewItemSubTaskText('');
   };
 
@@ -475,9 +476,9 @@ const TodoEditor: React.FC<EditorProps> = ({ initialContent, onSave, fileName, p
     if (!source) return;
     const clone: TodoItem = {
       ...source,
-      id: crypto.randomUUID(),
+      id: uid(),
       text: `${source.text} (Copy)`,
-      subTasks: (source.subTasks || []).map(sub => ({ ...sub, id: crypto.randomUUID() }))
+      subTasks: (source.subTasks || []).map(sub => ({ ...sub, id: uid() }))
     };
     setItems([clone, ...items]);
   };
@@ -616,7 +617,7 @@ const TodoEditor: React.FC<EditorProps> = ({ initialContent, onSave, fileName, p
   // --- Sub Tasks ---
   const addSubTask = (itemId: string) => {
     if (!newSubTaskText.trim()) return;
-    const newSub: SubTask = { id: crypto.randomUUID(), text: newSubTaskText.trim(), completed: false };
+    const newSub: SubTask = { id: uid(), text: newSubTaskText.trim(), completed: false };
     setItems(items.map(item => item.id === itemId ? { ...item, subTasks: [...(item.subTasks || []), newSub] } : item));
     setNewSubTaskText('');
   };

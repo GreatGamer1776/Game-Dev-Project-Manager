@@ -2,6 +2,7 @@ import React, { useEffect, useMemo, useRef, useState } from 'react';
 import { AlertCircle, Calendar, Check, ChevronLeft, ChevronRight, Filter, Flag, Loader2, Pencil, Plus, RotateCcw, Save, Search, Trash2, Undo2, Redo2 } from 'lucide-react';
 import { EditorProps, RoadmapItem, RoadmapItemType, RoadmapStatus } from '../types';
 import { useUndoRedo } from '../hooks/useUndoRedo';
+import { uid } from '../utils/id';
 
 const ROADMAP_STATUS_OPTIONS: RoadmapStatus[] = ['planned', 'in-progress', 'completed', 'delayed', 'dropped'];
 const ROADMAP_TYPE_OPTIONS: RoadmapItemType[] = ['phase', 'milestone'];
@@ -100,7 +101,7 @@ const normalizeItems = (content: any): RoadmapItem[] => {
       const status: RoadmapStatus = ROADMAP_STATUS_OPTIONS.includes(item.status) ? item.status : 'planned';
       const progress = type === 'milestone' ? (status === 'completed' ? 100 : 0) : clampProgress(Number(item.progress) || 0);
       return {
-        id: typeof item.id === 'string' ? item.id : crypto.randomUUID(),
+        id: typeof item.id === 'string' ? item.id : uid(),
         title: item.title.trim() || 'Untitled Item',
         startDate,
         endDate,
@@ -290,7 +291,7 @@ const RoadmapEditor: React.FC<EditorProps> = ({ initialContent, onSave, fileName
     const safeEnd = dateToTs(rawEnd) < dateToTs(safeStart) ? safeStart : rawEnd;
 
     const next: RoadmapItem = {
-      id: editingId || crypto.randomUUID(),
+      id: editingId || uid(),
       title: safeTitle,
       type: formData.type,
       status: formData.status,

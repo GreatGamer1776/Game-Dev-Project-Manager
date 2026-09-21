@@ -1,6 +1,7 @@
 import React, { useRef, useState, useEffect, useMemo } from 'react';
 import { Save, Eraser, Pen, Highlighter, Trash2, Loader2, Check, AlertCircle, Image as ImageIcon, X, Maximize2, Undo2, Redo2, Type as TypeIcon, Upload } from 'lucide-react';
 import { EditorProps } from '../types';
+import { uid } from '../utils/id';
 
 type ToolType = 'pen' | 'highlighter' | 'eraser' | 'text';
 type MediaType = 'image' | 'video' | 'audio';
@@ -85,7 +86,7 @@ const sanitizeHighlighterStrokes = (value: unknown): HighlighterStroke[] => {
       const opacity = Number.isFinite((raw as any)?.opacity) ? Math.min(1, Math.max(0.05, Number((raw as any).opacity))) : DEFAULT_HIGHLIGHTER_LAYER_ALPHA;
 
       return {
-        id: typeof (raw as any)?.id === 'string' ? (raw as any).id : crypto.randomUUID(),
+        id: typeof (raw as any)?.id === 'string' ? (raw as any).id : uid(),
         color,
         width,
         opacity,
@@ -102,7 +103,7 @@ const sanitizeTextElements = (value: unknown): TextElement[] => {
       if (!Number.isFinite((raw as any)?.x) || !Number.isFinite((raw as any)?.y)) return null;
       if (typeof (raw as any)?.text !== 'string') return null;
       return {
-        id: typeof (raw as any)?.id === 'string' ? (raw as any).id : crypto.randomUUID(),
+        id: typeof (raw as any)?.id === 'string' ? (raw as any).id : uid(),
         x: Number((raw as any).x),
         y: Number((raw as any).y),
         text: (raw as any).text,
@@ -125,7 +126,7 @@ const sanitizeMediaElements = (value: unknown): MediaElement[] => {
       if (!Number.isFinite((raw as any)?.x) || !Number.isFinite((raw as any)?.y)) return null;
       if (!Number.isFinite((raw as any)?.width) || !Number.isFinite((raw as any)?.height)) return null;
       return {
-        id: typeof (raw as any)?.id === 'string' ? (raw as any).id : crypto.randomUUID(),
+        id: typeof (raw as any)?.id === 'string' ? (raw as any).id : uid(),
         type,
         src: (raw as any).src,
         name: typeof (raw as any)?.name === 'string' ? (raw as any).name : `${type}-${Date.now()}`,
@@ -476,7 +477,7 @@ const WhiteboardEditor: React.FC<EditorProps> = ({ initialContent, onSave, fileN
   };
 
   const beginTextAt = (x: number, y: number) => {
-    const id = crypto.randomUUID();
+    const id = uid();
     const next: TextElement = {
       id,
       x,
@@ -552,7 +553,7 @@ const WhiteboardEditor: React.FC<EditorProps> = ({ initialContent, onSave, fileN
 
     const pos = getCenteredPlacement(width, height);
     const media: MediaElement = {
-      id: crypto.randomUUID(),
+      id: uid(),
       type,
       src,
       name,
@@ -607,7 +608,7 @@ const WhiteboardEditor: React.FC<EditorProps> = ({ initialContent, onSave, fileN
 
     if (activeTool === 'highlighter') {
       const stroke: HighlighterStroke = {
-        id: crypto.randomUUID(),
+        id: uid(),
         color: currentSettings.color,
         width: currentSettings.width,
         opacity: highlighterOpacity,

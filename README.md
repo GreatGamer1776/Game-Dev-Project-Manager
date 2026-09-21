@@ -93,17 +93,24 @@ Requires Docker with Compose v2.
 docker compose up --build
 ```
 
-Then open http://localhost:8080
+Then open **https://localhost:8443**
+
+The web container auto-generates a self-signed TLS cert on first start, so your
+browser will show a one-time certificate warning — accept it to continue. (The
+app needs a secure context for browser APIs like `crypto.randomUUID`.)
+`http://localhost:8080` still works and just redirects to HTTPS. To use your own
+certificates instead, mount them into the web container at `/etc/nginx/certs`
+as `server.crt` and `server.key`.
 
 Services:
 
-| Service | Description | Port |
+| Service | Description | Ports |
 | --- | --- | --- |
-| `web` | Nginx serving the built frontend; proxies `/api` to the API | 8080 |
+| `web` | Nginx serving the built frontend over HTTPS; proxies `/api` to the API | 8443 (HTTPS), 8080 (redirect) |
 | `api` | Fastify REST API | 3001 |
 | `db` | PostgreSQL with a persistent `pgdata` volume | 5432 |
 
-Environment overrides (optional): `POSTGRES_USER`, `POSTGRES_PASSWORD`, `POSTGRES_DB`, `DB_PORT`, `API_PORT`, `WEB_PORT` — set them in a root `.env` file or inline.
+Environment overrides (optional): `POSTGRES_USER`, `POSTGRES_PASSWORD`, `POSTGRES_DB`, `DB_PORT`, `API_PORT`, `WEB_PORT`, `HTTPS_PORT` — set them in a root `.env` file or inline.
 
 ### Local development without Docker
 

@@ -13,6 +13,7 @@ import AuthView from './components/AuthView';
 import { Button, Modal, Input, Select, Field, Eyebrow } from './components/ui';
 import { SettingsModal } from './components/SettingsModal';
 import { useSettingsStore } from './stores/useSettingsStore';
+import { uid } from './utils/id';
 
 const DocEditor = React.lazy(() => import('./components/DocEditor'));
 const FlowchartEditor = React.lazy(() => import('./components/FlowchartEditor'));
@@ -67,7 +68,7 @@ const MANDATORY_SINGLETON_FILES: Array<{ type: FileType; name: string }> = [
 ];
 
 const createAssetLibraryFile = (): ProjectFile => ({
-  id: crypto.randomUUID(),
+  id: uid(),
   name: ASSET_LIBRARY_NAME,
   type: ASSET_LIBRARY_TYPE,
   content: {},
@@ -77,7 +78,7 @@ const createAssetLibraryFile = (): ProjectFile => ({
 const createDefaultProjectFile = (type: FileType, name: string): ProjectFile => {
   const plugin = EDITOR_PLUGINS.find(p => p.type === type);
   return {
-    id: crypto.randomUUID(),
+    id: uid(),
     name,
     type,
     content: plugin ? plugin.createDefaultContent(name) : '',
@@ -476,12 +477,12 @@ const App: React.FC = () => {
     const trimmedName = name.trim();
     const defaultDocPlugin = EDITOR_PLUGINS.find(p => p.type === 'doc');
     const newProject: Project = normalizeProjectFiles({
-      id: crypto.randomUUID(),
+      id: uid(),
       name: trimmedName,
       type,
       description: description.trim(),
       lastModified: Date.now(),
-      files: [{ id: crypto.randomUUID(), name: 'Readme', type: 'doc', content: defaultDocPlugin ? defaultDocPlugin.createDefaultContent(trimmedName) : '', folderId: null }],
+      files: [{ id: uid(), name: 'Readme', type: 'doc', content: defaultDocPlugin ? defaultDocPlugin.createDefaultContent(trimmedName) : '', folderId: null }],
       folders: [],
       assets: {}
     });
@@ -567,7 +568,7 @@ const App: React.FC = () => {
     
     const project = projects.find(p => p.id === activeProjectId);
     if (project) {
-        const newFolder: ProjectFolder = { id: crypto.randomUUID(), name, parentId };
+        const newFolder: ProjectFolder = { id: uid(), name, parentId };
         updateProjectState({
             ...project,
             folders: [...project.folders, newFolder]
@@ -710,7 +711,7 @@ const App: React.FC = () => {
       if (!plugin) return;
 
       const newFile: ProjectFile = {
-          id: crypto.randomUUID(),
+          id: uid(),
           name: newFileName,
           type: newFileType,
           content: plugin.createDefaultContent(newFileName),
@@ -768,7 +769,7 @@ const App: React.FC = () => {
   const handleAddAsset = async (file: File): Promise<string> => {
     if (!activeProjectId) throw new Error("No active project");
     const base64 = await readFileAsDataUrl(file);
-    const assetId = crypto.randomUUID();
+    const assetId = uid();
     const project = projectsRef.current.find(p => p.id === activeProjectId);
     if (!project) throw new Error("Active project not found");
 
@@ -897,7 +898,7 @@ const App: React.FC = () => {
 
   const handleCopyFileId = async (fileId: string) => {
     try {
-      await navigator.clipboard.writeText(fileId);
+      await navigator.clipboard?.writeText(fileId);
     } catch {
       alert("Failed to copy file ID.");
     }

@@ -18,6 +18,7 @@ import {
 } from 'lucide-react';
 import { EditorProps } from '../types';
 import { useUndoRedo } from '../hooks/useUndoRedo';
+import { uid } from '../utils/id';
 
 interface GridColumn {
   id: string;
@@ -59,7 +60,7 @@ const normalizeInitialData = (content: any): GridData => {
 
   const rawRows = Array.isArray(content?.rows) ? content.rows : [];
   const rows: GridRow[] = rawRows.map((row: any) => {
-    const normalized: GridRow = { id: typeof row?.id === 'string' ? row.id : crypto.randomUUID() };
+    const normalized: GridRow = { id: typeof row?.id === 'string' ? row.id : uid() };
     for (const col of columns) {
       normalized[col.id] = row?.[col.id] ?? defaultValueForType(col.type);
     }
@@ -173,13 +174,13 @@ const parseCsvToGrid = (text: string): GridData => {
 
   const detectedTypes = headers.map((_, index) => detectImportedType(parsedRows.map(row => row[index] || '')));
   const columns: GridColumn[] = headers.map((name, index) => ({
-    id: crypto.randomUUID(),
+    id: uid(),
     name,
     type: detectedTypes[index]
   }));
 
   const rows: GridRow[] = parsedRows.map(cells => {
-    const row: GridRow = { id: crypto.randomUUID() };
+    const row: GridRow = { id: uid() };
     columns.forEach((column, index) => {
       row[column.id] = castForColumnType(cells[index], column.type);
     });
@@ -356,7 +357,7 @@ const DataGridEditor: React.FC<EditorProps> = ({ initialContent, onSave, fileNam
     if (!trimmedName) return;
 
     const nextColumn: GridColumn = {
-      id: crypto.randomUUID(),
+      id: uid(),
       name: trimmedName,
       type: newColumnType
     };
@@ -367,7 +368,7 @@ const DataGridEditor: React.FC<EditorProps> = ({ initialContent, onSave, fileNam
   };
 
   const addRow = () => {
-    const newRow: GridRow = { id: crypto.randomUUID() };
+    const newRow: GridRow = { id: uid() };
     columns.forEach(column => {
       newRow[column.id] = defaultValueForType(column.type);
     });

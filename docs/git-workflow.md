@@ -8,7 +8,8 @@ flow from development to the deployed server.
 | Branch              | Purpose                                                                 | Buildable? | Deploys?                          |
 | ------------------- | ----------------------------------------------------------------------- | ---------- | --------------------------------- |
 | `main`              | **Production.** The full-stack app (web + API + Postgres, via Docker Compose). | Always | Yes — deploy on your server  |
-| `dev`               | **Integration.** Where test/work-in-progress code lands and is verified. *Currently frozen at the last browser-local (IndexedDB) build for side-by-side testing.* | Always | Optional — deployable legacy build for comparison |
+| `dev`               | **Integration.** The full-stack app under active development — where feature work lands and is verified before promotion to `main`. | Always | Yes — deploy alongside `main` to preview |
+| `legacy/*`          | **Frozen legacy builds.** e.g. `legacy/browser-local` — the last browser-local (IndexedDB) app, with its own static-only Docker deploy. | n/a | Optional — comparison/testing |
 | `backup/*`          | **Snapshots.** Frozen copies kept for rollback (e.g. `backup/main-browser-storage`). | n/a | No |
 | `topic/*`           | **Feature branches.** Isolated work (e.g. `topic/ui-redesign`).         | Not required | No                              |
 | `gh-pages`          | **Stale remnant** of the old GitHub Pages deploy — the workflow has been removed. Safe to delete. | n/a | No |
@@ -26,9 +27,6 @@ topic/my-feature  ──►  dev  ──►  main  ──►  your server (docke
    git switch dev
    git switch -c topic/my-feature
    ```
-   *Note: while `dev` is pinned to the legacy browser-local build for
-   comparison testing, branch new work off `main` instead — then merge `main`
-   into `dev` once you're done comparing.*
 2. **Merge into `dev` to integrate and test.** `dev` must always build
    (`npm run build` succeeds). Verify before merging up.
    ```bash
@@ -52,47 +50,54 @@ topic/my-feature  ──►  dev  ──►  main  ──►  your server (docke
   directly on `main`.
 - **`topic/*` branches** are for focused work and can be freely rebased or
   squashed before merging into `dev`.
+- **`legacy/*` and `backup/*` are frozen** — don't commit to them; create a new
+  branch if a snapshot needs work.
 
 ## Deployment
 
-The app is self-hosted — there is no CI deploy. On your server:
+The app is self-hosted — there is no CI deploy. On your server (or via a
+Portainer stack pointed at the repo + branch):
 
 ```bash
 git fetch origin
-git switch main        # or dev, to run the comparison build
+git switch main        # or dev / legacy/browser-local
 git pull
 docker compose up --build -d
 ```
 
-The `main` compose stack runs three services: `db` (Postgres + `pgdata`
-volume), `api` (Fastify), and `web` (nginx serving the frontend over HTTPS and
-proxying `/api`). The `dev` branch ships a static-only compose (just `web`).
-To run both side by side, check out each branch in a separate directory clone —
-the defaults already avoid port collisions:
+`main` and `dev` run the full compose stack (`db` + `api` + `web`, HTTPS on 4443
+by default). `legacy/browser-local` is static-only (single `web` service, HTTPS
+on 4444). To run `dev` and `main` side by side, deploy each as its own
+stack/clone with different project names and port overrides:
 
 ```bash
-# main checkout  → https://server:4443 (http :8080 redirects)
+# main checkout  → https://server:4443
 docker compose -p gdpm-main up --build -d
 
-# dev checkout   → https://server:4444 (http :8081 redirects)
-docker compose -p gdpm-dev up --build -d
+# dev checkout   → https://server:4444
+WEB_PORT=8081 HTTPS_PORT=4444 API_PORT=3002 DB_PORT=5433 \
+  docker compose -p gdpm-dev up --build -d
 ```
 
-Both serve a self-signed cert by default — see the README's HTTPS section for
-trusted-cert options (reverse proxy, mkcert, Tailscale).
+Each stack gets its own `pgdata` volume (compose project-scoped), so the two
+databases stay fully independent.
+
+All builds serve a self-signed cert by default — see the README's HTTPS section
+for trusted-cert options (reverse proxy, mkcert, Tailscale).
 
 ## Current branches
 
 - `main` — production / full-stack app (Postgres + Fastify + Docker).
-- `dev` — frozen at the last browser-local (IndexedDB) build for side-by-side testing; merge `main` into it to resume normal integration work.
+- `dev` — integration / full-stack app under development.
+- `legacy/browser-local` — frozen browser-local build (IndexedDB, no backend) for side-by-side comparison.
 - `backup/main-browser-storage` — snapshot of `main` before the full-stack migration.
-- `topic/fullstack-db-storage` — migration + auth work (merged into `main`).
+- `topic/fullstack-db-storage` — migration + auth work (merged).
 
 ## Quick reference
 
 ```bash
-# Start new feature work (off main while dev is pinned to the legacy build)
-git switch main && git switch -c topic/<name>
+# Start new feature work
+git switch dev && git switch -c topic/<name>
 
 # Integrate a finished feature
 git switch dev && git merge topic/<name> && npm run build

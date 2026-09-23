@@ -6,6 +6,9 @@ import {
   createSession,
   deleteSession,
   hashPassword,
+  MAX_PASSWORD_LENGTH,
+  MIN_PASSWORD_LENGTH,
+  requireAdmin,
   requireAuth,
   validateCredentials,
   verifyPassword,
@@ -33,7 +36,20 @@ interface AuthBody {
   password?: unknown;
 }
 
+// Lets the frontend decide between "create admin" (first run) and "sign in".
+app.get('/api/auth/setup', async () => {
+  const { rows } = await pool.query<{ c: string }>('SELECT COUNT(*) AS c FROM users');
+  return { needsSetup: Number(rows[0]?.c ?? 0) === 0 };
+});
+
+// Public registration only while no users exist — the first account is the
+// admin. Afterwards only admins can create accounts (see POST /api/users).
 app.post<{ Body: AuthBody }>('/api/auth/register', async (req, reply) => {
+  const { rows } = await pool.query<{ c: string }>('SELECT COUNT(*) AS c FROM users');
+  if (Number(rows[0]?.c ?? 0) > 0) {
+    return reply.code(403).send({ error: 'Public registration is disabled — ask an admin for an account' });
+  }
+
   const creds = validateCredentials(req.body?.username, req.body?.password);
   if ('error' in creds) {
     return reply.code(400).send({ error: creds.error });
@@ -42,7 +58,7 @@ app.post<{ Body: AuthBody }>('/api/auth/register', async (req, reply) => {
   const id = randomUUID();
   try {
     await pool.query(
-      'INSERT INTO users (id, username, password_hash, created_at) VALUES ($1, $2, $3, $4)',
+      'INSERT INTO users (id, username, password_hash, is_admin, created_at) VALUES ($1, $2, $3, true, $4)',
       [id, creds.username, hashPassword(creds.password), Date.now()]
     );
   } catch (err: any) {
@@ -56,7 +72,7 @@ app.post<{ Body: AuthBody }>('/api/auth/register', async (req, reply) => {
   await pool.query('UPDATE projects SET user_id = $1 WHERE user_id IS NULL', [id]);
 
   const token = await createSession(id);
-  return { token, user: { id, username: creds.username } };
+  return { token, user: { id, username: creds.username, isAdmin: true } };
 });
 
 app.post<{ Body: AuthBody }>('/api/auth/login', async (req, reply) => {
@@ -76,7 +92,7 @@ app.post<{ Body: AuthBody }>('/api/auth/login', async (req, reply) => {
   }
 
   const token = await createSession(user.id);
-  return { token, user: { id: user.id, username: user.username } };
+  return { token, user: { id: user.id, username: user.username, isAdmin: user.is_admin } };
 });
 
 app.get('/api/auth/me', { preHandler: requireAuth }, async (req) => ({
@@ -87,6 +103,128 @@ app.post('/api/auth/logout', { preHandler: requireAuth }, async (req) => {
   await deleteSession(req.sessionToken!);
   return { ok: true };
 });
+
+// --- User management (admin only) ---
+
+interface UserParams {
+  id: string;
+}
+
+interface CreateUserBody {
+  username?: unknown;
+  password?: unknown;
+  isAdmin?: unknown;
+}
+
+interface UpdateUserBody {
+  password?: unknown;
+  isAdmin?: unknown;
+}
+
+const toAdminUser = (row: Pick<UserRow, 'id' | 'username' | 'is_admin' | 'created_at'>) => ({
+  id: row.id,
+  username: row.username,
+  isAdmin: row.is_admin,
+  createdAt: Number(row.created_at) || 0,
+});
+
+app.get('/api/users', { preHandler: requireAdmin }, async () => {
+  const { rows } = await pool.query<UserRow>(
+    'SELECT id, username, is_admin, created_at FROM users ORDER BY created_at ASC'
+  );
+  return rows.map(toAdminUser);
+});
+
+app.post<{ Body: CreateUserBody }>('/api/users', { preHandler: requireAdmin }, async (req, reply) => {
+  const creds = validateCredentials(req.body?.username, req.body?.password);
+  if ('error' in creds) {
+    return reply.code(400).send({ error: creds.error });
+  }
+  const isAdmin = req.body?.isAdmin === true;
+
+  const id = randomUUID();
+  try {
+    await pool.query(
+      'INSERT INTO users (id, username, password_hash, is_admin, created_at) VALUES ($1, $2, $3, $4, $5)',
+      [id, creds.username, hashPassword(creds.password), isAdmin, Date.now()]
+    );
+  } catch (err: any) {
+    if (err?.code === '23505') {
+      return reply.code(409).send({ error: 'Username is already taken' });
+    }
+    throw err;
+  }
+  return reply.code(201).send({ id, username: creds.username, isAdmin, createdAt: Date.now() });
+});
+
+app.put<{ Params: UserParams; Body: UpdateUserBody }>(
+  '/api/users/:id',
+  { preHandler: requireAdmin },
+  async (req, reply) => {
+    const { id } = req.params;
+    const { password, isAdmin } = req.body ?? {};
+
+    // Prevent admins from locking themselves (and potentially everyone) out.
+    if (id === req.user!.id && isAdmin === false) {
+      return reply.code(400).send({ error: 'You cannot remove your own admin access' });
+    }
+
+    const updates: string[] = [];
+    const values: unknown[] = [];
+
+    if (password !== undefined) {
+      if (
+        typeof password !== 'string' ||
+        password.length < MIN_PASSWORD_LENGTH ||
+        password.length > MAX_PASSWORD_LENGTH
+      ) {
+        return reply.code(400).send({ error: `Password must be ${MIN_PASSWORD_LENGTH}-${MAX_PASSWORD_LENGTH} characters` });
+      }
+      values.push(hashPassword(password));
+      updates.push(`password_hash = $${values.length}`);
+    }
+
+    if (isAdmin !== undefined) {
+      values.push(isAdmin === true);
+      updates.push(`is_admin = $${values.length}`);
+    }
+
+    if (updates.length === 0) {
+      return reply.code(400).send({ error: 'Nothing to update' });
+    }
+
+    values.push(id);
+    const { rowCount } = await pool.query(
+      `UPDATE users SET ${updates.join(', ')} WHERE id = $${values.length}`,
+      values
+    );
+    if (!rowCount) {
+      return reply.code(404).send({ error: 'User not found' });
+    }
+    // Invalidate the target's sessions so a stolen/forgotten password stops working.
+    if (password !== undefined) {
+      await pool.query('DELETE FROM sessions WHERE user_id = $1', [id]);
+    }
+    return { ok: true };
+  }
+);
+
+app.delete<{ Params: UserParams }>(
+  '/api/users/:id',
+  { preHandler: requireAdmin },
+  async (req, reply) => {
+    const { id } = req.params;
+    if (id === req.user!.id) {
+      return reply.code(400).send({ error: 'You cannot delete your own account' });
+    }
+    // sessions / projects / app_state cascade via ON DELETE CASCADE.
+    const { rowCount } = await pool.query('DELETE FROM users WHERE id = $1', [id]);
+    if (!rowCount) {
+      return reply.code(404).send({ error: 'User not found' });
+    }
+    return { ok: true };
+  }
+);
 
 // --- Projects (all scoped to the authenticated user) ---
 

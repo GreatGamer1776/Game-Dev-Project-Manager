@@ -13,6 +13,7 @@ CREATE TABLE IF NOT EXISTS users (
   id TEXT PRIMARY KEY,
   username TEXT UNIQUE NOT NULL,
   password_hash TEXT NOT NULL,
+  is_admin BOOLEAN NOT NULL DEFAULT false,
   created_at BIGINT NOT NULL DEFAULT 0
 );
 
@@ -54,6 +55,7 @@ CREATE TABLE IF NOT EXISTS app_state (
 const MIGRATIONS = `
 ALTER TABLE IF EXISTS projects ADD COLUMN IF NOT EXISTS user_id TEXT REFERENCES users(id) ON DELETE CASCADE;
 ALTER TABLE IF EXISTS projects DROP COLUMN IF EXISTS is_local;
+ALTER TABLE IF EXISTS users ADD COLUMN IF NOT EXISTS is_admin BOOLEAN NOT NULL DEFAULT false;
 
 DO $$
 BEGIN
@@ -63,6 +65,16 @@ BEGIN
        WHERE table_name = 'app_state' AND column_name = 'user_id'
      ) THEN
     DROP TABLE app_state;
+  END IF;
+END $$;
+
+-- Upgraded databases have users but no admin: promote the earliest account.
+DO $$
+BEGIN
+  IF EXISTS (SELECT 1 FROM information_schema.columns WHERE table_name = 'users' AND column_name = 'is_admin')
+     AND NOT EXISTS (SELECT 1 FROM users WHERE is_admin) THEN
+    UPDATE users SET is_admin = true
+    WHERE id = (SELECT id FROM users ORDER BY created_at ASC LIMIT 1);
   END IF;
 END $$;
 `;

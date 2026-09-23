@@ -478,8 +478,9 @@ const GuideView: React.FC<GuideViewProps> = ({ initialSection = 'overview' }) =>
         <div className="space-y-3 text-sm text-muted">
           <p>Accounts are just a username and password — no email or personal information is collected or stored.</p>
           <ul className="space-y-1.5 ml-1">
+            <li className="flex gap-2"><span className="text-blue-500">•</span>Sign-up is invite-only — an admin creates accounts from Manage Users in the sidebar</li>
             <li className="flex gap-2"><span className="text-blue-500">•</span>Sessions last 30 days; sign back in anytime with the same credentials</li>
-            <li className="flex gap-2"><span className="text-blue-500">•</span>There is no password recovery — if you forget your password, the account cannot be recovered</li>
+            <li className="flex gap-2"><span className="text-blue-500">•</span>Forgot your password? An admin can set a new one from Manage Users</li>
             <li className="flex gap-2"><span className="text-blue-500">•</span>Sign out from the bottom of the sidebar</li>
           </ul>
         </div>

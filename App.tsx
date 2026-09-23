@@ -1,5 +1,5 @@
 import React, { useState, useEffect } from 'react';
-import { LayoutDashboard, FileText, Network, ArrowLeft, Folder, File, CheckSquare, Bug as BugIcon, Trash2, Download, Map as MapIcon, Table, PenTool, Image as ImageIcon, HelpCircle, ChevronRight, ChevronDown, FolderPlus, FilePlus, Copy as CopyIcon, Pencil, PanelLeftClose, PanelLeftOpen, BookOpen, Settings as SettingsIcon, X, Pin, LogOut } from 'lucide-react';
+import { LayoutDashboard, FileText, Network, ArrowLeft, Folder, File, CheckSquare, Bug as BugIcon, Trash2, Download, Map as MapIcon, Table, PenTool, Image as ImageIcon, HelpCircle, ChevronRight, ChevronDown, FolderPlus, FilePlus, Copy as CopyIcon, Pencil, PanelLeftClose, PanelLeftOpen, BookOpen, Settings as SettingsIcon, X, Pin, LogOut, Users } from 'lucide-react';
 import JSZip from 'jszip';
 import Dashboard from './components/Dashboard';
 import CommandPalette from './components/CommandPalette';
@@ -10,6 +10,7 @@ import { useProjectStore } from './stores/useProjectStore';
 import { api, setUnauthorizedHandler } from './services/api';
 import { useAuthStore } from './stores/useAuthStore';
 import AuthView from './components/AuthView';
+import AdminUsersModal from './components/AdminUsersModal';
 import { Button, Modal, Input, Select, Field, Eyebrow } from './components/ui';
 import { SettingsModal } from './components/SettingsModal';
 import { useSettingsStore } from './stores/useSettingsStore';
@@ -217,6 +218,7 @@ const App: React.FC = () => {
 
   const [isPaletteOpen, setIsPaletteOpen] = useState(false);
   const [isHelpOpen, setIsHelpOpen] = useState(false);
+  const [showAdminUsers, setShowAdminUsers] = useState(false);
   const [isSidebarCollapsed, setIsSidebarCollapsed] = useState(false);
   const [showGuide, setShowGuide] = useState(false);
   const [guideSection, setGuideSection] = useState<GuideSectionId>('overview');
@@ -1133,6 +1135,9 @@ const App: React.FC = () => {
           <button onClick={() => { setShowGuide(false); setGuideSection('overview'); }} className={`p-3 rounded-xl transition-colors ${!showGuide ? 'bg-accent/15 text-accent shadow-soft' : 'text-faint hover:bg-surface-hover hover:text-content'}`} title="Dashboard"><LayoutDashboard className="w-5 h-5" /></button>
           <button onClick={() => openGuideSection('overview')} className={`p-3 rounded-xl transition-colors ${showGuide ? 'bg-accent/15 text-accent shadow-soft' : 'text-faint hover:bg-surface-hover hover:text-content'}`} title="Guide & Documentation"><BookOpen className="w-5 h-5" /></button>
           <button onClick={openSettings} className="mt-auto p-3 rounded-xl text-faint hover:bg-surface-hover hover:text-content transition-colors" title="Settings"><SettingsIcon className="w-5 h-5" /></button>
+          {authUser?.isAdmin && (
+            <button onClick={() => setShowAdminUsers(true)} className="p-3 rounded-xl text-faint hover:bg-surface-hover hover:text-content transition-colors" title="Manage Users"><Users className="w-5 h-5" /></button>
+          )}
           <button onClick={handleLogout} className="p-3 rounded-xl text-faint hover:bg-surface-hover hover:text-danger transition-colors" title={`Sign out (${authUser?.username})`}><LogOut className="w-5 h-5" /></button>
         </aside>
       );
@@ -1172,6 +1177,11 @@ const App: React.FC = () => {
             <button onClick={openSettings} className="p-2 rounded-lg text-faint hover:bg-surface-hover hover:text-content transition-colors" title="Settings">
               <SettingsIcon className="w-4 h-4" />
             </button>
+            {authUser?.isAdmin && (
+              <button onClick={() => setShowAdminUsers(true)} className="p-2 rounded-lg text-faint hover:bg-surface-hover hover:text-content transition-colors" title="Manage Users">
+                <Users className="w-4 h-4" />
+              </button>
+            )}
             <button onClick={() => setIsHelpOpen(true)} className="p-2 rounded-lg text-faint hover:bg-surface-hover hover:text-content transition-colors" title="Help">
               <HelpCircle className="w-4 h-4" />
             </button>
@@ -1266,6 +1276,12 @@ const App: React.FC = () => {
                 <SettingsIcon className="w-4 h-4" />
                 <span className="text-sm">Settings</span>
              </button>
+             {authUser?.isAdmin && (
+               <button onClick={() => setShowAdminUsers(true)} className="flex items-center gap-3 px-3 py-2 text-faint hover:text-content hover:bg-surface-hover rounded-lg w-full transition-colors">
+                  <Users className="w-4 h-4" />
+                  <span className="text-sm">Manage Users</span>
+               </button>
+             )}
              <button onClick={() => setIsHelpOpen(true)} className="flex items-center gap-3 px-3 py-2 text-faint hover:text-content hover:bg-surface-hover rounded-lg w-full transition-colors">
                 <HelpCircle className="w-4 h-4" />
                 <span className="text-sm">Guide & Help</span>
@@ -1400,6 +1416,7 @@ const App: React.FC = () => {
         <HelpModal isOpen={isHelpOpen} onClose={() => setIsHelpOpen(false)} />
 
         <SettingsModal />
+        <AdminUsersModal open={showAdminUsers} onClose={() => setShowAdminUsers(false)} />
 
         {/* Rename File Modal */}
         <Modal

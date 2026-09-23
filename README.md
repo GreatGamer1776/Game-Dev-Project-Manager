@@ -49,11 +49,13 @@ All project data persists in PostgreSQL through the backend API, behind per-user
 
 Accounts are username + password only — no email or other PII is collected or stored. Passwords are hashed with Node's built-in `crypto.scrypt` (per-user salt). Sessions are random bearer tokens; only their SHA-256 hash is stored server-side. Tokens expire after 30 days.
 
+Public sign-up is **invite-only**: the first account created on a fresh database becomes the admin; after that, only admins can create accounts (sidebar → Manage Users). Admins can also promote/demote other admins, reset passwords, and delete accounts — deleting an account cascades to all of its projects, sessions, and state. On an upgraded database that already has users, the earliest account is automatically promoted to admin.
+
 ### Database storage
 
 The schema is created automatically on API startup:
 
-- `users` — `id`, `username` (unique), `password_hash`, `created_at`
+- `users` — `id`, `username` (unique), `password_hash`, `is_admin`, `created_at`
 - `sessions` — `token_hash`, `user_id`, `created_at`, `expires_at`
 - `projects` — one row per project, owned by a user (`user_id`). Metadata (`name`, `type`, `description`, `last_modified`) is stored in columns; `files`, `folders`, and `assets` are stored as JSONB payloads since the app always reads and writes a project as a single aggregate.
 - `app_state` — per-user key-value table storing session state (active project, active file, sidebar state).
@@ -62,7 +64,7 @@ No project data is stored in the browser — clearing browser data only signs yo
 
 ### Migrating an existing database
 
-If you deployed the pre-auth version, the schema migrates automatically on API startup (`user_id` column added, `is_local` dropped, `app_state` recreated per-user). Orphaned projects (created before accounts existed) are claimed by the first user who registers.
+If you deployed the pre-auth version, the schema migrates automatically on API startup (`user_id` column added, `is_local` dropped, `app_state` recreated per-user). Orphaned projects (created before accounts existed) are claimed by the first registered account — the admin.
 
 ## Tech Stack
 
@@ -147,15 +149,20 @@ npm run preview
 
 ## API
 
-All endpoints except `/api/health` and the auth routes require `Authorization: Bearer <token>`.
+All endpoints except `/api/health`, `/api/auth/setup`, `/api/auth/login`, and `/api/auth/register` (bootstrap only) require `Authorization: Bearer <token>`.
 
 | Method | Endpoint | Purpose |
 | --- | --- | --- |
 | `GET` | `/api/health` | Health check |
-| `POST` | `/api/auth/register` | Create account; returns `{ token, user }` |
+| `GET` | `/api/auth/setup` | `{ needsSetup }` — true while no users exist |
+| `POST` | `/api/auth/register` | First-run only: creates the admin; returns `{ token, user }` (403 afterwards) |
 | `POST` | `/api/auth/login` | Sign in; returns `{ token, user }` |
 | `GET` | `/api/auth/me` | Current session's user |
 | `POST` | `/api/auth/logout` | Invalidate the session token |
+| `GET` | `/api/users` | **Admin.** List all accounts |
+| `POST` | `/api/users` | **Admin.** Create an account (`username`, `password`, `isAdmin`) |
+| `PUT` | `/api/users/:id` | **Admin.** Reset password and/or toggle `isAdmin` |
+| `DELETE` | `/api/users/:id` | **Admin.** Delete account + all its data |
 | `GET` | `/api/projects` | List the current user's projects |
 | `GET` | `/api/projects/:id` | Get one project |
 | `PUT` | `/api/projects/:id` | Create or update a project (upsert) |
@@ -196,7 +203,7 @@ npm --prefix server run build
 
 ## Known Constraints
 
-- No password recovery or account deletion UI — accounts are username + password only.
+- No self-service password change — admins reset passwords via Manage Users (and can't delete or demote their own account).
 - No rate limiting on auth endpoints — keep the API private/self-hosted or put it behind a reverse proxy with rate limiting.
 - There is no CI deploy — the app is meant to be self-hosted via Docker Compose. (The `gh-pages` branch is a stale remnant of the old static deploy.)
 - ZIP export is supported, but ZIP import is not currently implemented.

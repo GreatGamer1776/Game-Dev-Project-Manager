@@ -5,6 +5,7 @@ import { pool } from './db.js';
 export interface AuthUser {
   id: string;
   username: string;
+  isAdmin: boolean;
 }
 
 declare module 'fastify' {
@@ -16,8 +17,8 @@ declare module 'fastify' {
 
 const SESSION_TTL_MS = 30 * 24 * 60 * 60 * 1000; // 30 days
 const USERNAME_PATTERN = /^[A-Za-z0-9_.-]{3,32}$/;
-const MIN_PASSWORD_LENGTH = 8;
-const MAX_PASSWORD_LENGTH = 200;
+export const MIN_PASSWORD_LENGTH = 8;
+export const MAX_PASSWORD_LENGTH = 200;
 
 // scrypt is built into Node — no native/bcrypt dependency needed in Docker.
 export const hashPassword = (password: string): string => {
@@ -69,13 +70,14 @@ export const deleteSession = async (token: string): Promise<void> => {
 
 // Only the SHA-256 of the token is stored — the raw token never touches the DB.
 const findUserByToken = async (token: string): Promise<AuthUser | null> => {
-  const { rows } = await pool.query<{ id: string; username: string }>(
-    `SELECT u.id, u.username
+  const { rows } = await pool.query<{ id: string; username: string; is_admin: boolean }>(
+    `SELECT u.id, u.username, u.is_admin
      FROM sessions s JOIN users u ON u.id = s.user_id
      WHERE s.token_hash = $1 AND s.expires_at > $2`,
     [hashToken(token), Date.now()]
   );
-  return rows[0] ?? null;
+  const row = rows[0];
+  return row ? { id: row.id, username: row.username, isAdmin: row.is_admin } : null;
 };
 
 export const requireAuth = async (
@@ -91,4 +93,16 @@ export const requireAuth = async (
   }
   req.user = user;
   req.sessionToken = token!;
+};
+
+// Admin-only routes. Runs requireAuth first; replies 401/403 and returns early.
+export const requireAdmin = async (
+  req: FastifyRequest,
+  reply: FastifyReply
+): Promise<void> => {
+  await requireAuth(req, reply);
+  if (reply.sent) return;
+  if (!req.user?.isAdmin) {
+    await reply.code(403).send({ error: 'Admin access required' });
+  }
 };

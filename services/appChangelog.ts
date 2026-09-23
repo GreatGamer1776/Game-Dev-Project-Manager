@@ -8,6 +8,18 @@ export interface AppChangelogEntry {
 
 export const APP_CHANGELOG: AppChangelogEntry[] = [
   {
+    id: '2026-09-22-admin-managed-accounts',
+    title: 'Admin-Managed Accounts',
+    date: 'September 22, 2026',
+    summary: 'Accounts are now invite-only, managed by an admin.',
+    changes: [
+      'The first account created becomes the admin; open registration is then disabled.',
+      'Admins can create, promote, reset passwords for, and delete accounts from Manage Users in the sidebar.',
+      'HTTPS is now served by default — the app redirects to a secure connection automatically.',
+      'Fixed a crash when the app was served over plain HTTP (missing secure-context browser APIs).'
+    ]
+  },
+  {
     id: '2026-09-21-accounts-and-server',
     title: 'Accounts & Server Storage',
     date: 'September 21, 2026',

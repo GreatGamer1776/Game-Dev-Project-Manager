@@ -10,6 +10,14 @@ export type PersistedAppState = {
 export interface AuthUser {
   id: string;
   username: string;
+  isAdmin: boolean;
+}
+
+export interface AdminUser {
+  id: string;
+  username: string;
+  isAdmin: boolean;
+  createdAt: number;
 }
 
 export interface AuthResult {
@@ -81,6 +89,8 @@ const request = async <T>(path: string, init?: RequestInit): Promise<T> => {
 };
 
 export const api = {
+  // True while the DB has zero users — the next register creates the admin.
+  setupStatus: () => request<{ needsSetup: boolean }>('/auth/setup'),
   register: (username: string, password: string) =>
     request<AuthResult>('/auth/register', {
       method: 'POST',
@@ -93,6 +103,19 @@ export const api = {
     }),
   logout: () => request<{ ok: boolean }>('/auth/logout', { method: 'POST' }),
   me: () => request<{ user: AuthUser }>('/auth/me'),
+  adminListUsers: () => request<AdminUser[]>('/users'),
+  adminCreateUser: (username: string, password: string, isAdmin: boolean) =>
+    request<AdminUser>('/users', {
+      method: 'POST',
+      body: JSON.stringify({ username, password, isAdmin }),
+    }),
+  adminUpdateUser: (id: string, patch: { password?: string; isAdmin?: boolean }) =>
+    request<{ ok: boolean }>(`/users/${encodeURIComponent(id)}`, {
+      method: 'PUT',
+      body: JSON.stringify(patch),
+    }),
+  adminDeleteUser: (id: string) =>
+    request<{ ok: boolean }>(`/users/${encodeURIComponent(id)}`, { method: 'DELETE' }),
   listProjects: () => request<Project[]>('/projects'),
   saveProject: (project: Project) =>
     request<Project>(`/projects/${encodeURIComponent(project.id)}`, {

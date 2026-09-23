@@ -13,8 +13,11 @@ services:
       interval: 5s
       timeout: 5s
       retries: 10
+    # Bound to localhost only — the API reaches Postgres over the internal
+    # network; publishing it LAN-wide would expose the DB with default creds.
+    # Remove the 127.0.0.1 prefix only if you need remote DB access.
     ports:
-      - "${DB_PORT:-5432}:5432"
+      - "127.0.0.1:${DB_PORT:-5432}:5432"
 
   api:
     build: ./server
@@ -25,8 +28,9 @@ services:
     depends_on:
       db:
         condition: service_healthy
+    # Localhost-only too — browsers reach the API through the nginx proxy.
     ports:
-      - "${API_PORT:-3001}:3001"
+      - "127.0.0.1:${API_PORT:-3001}:3001"
 
   web:
     build: .

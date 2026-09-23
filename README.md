@@ -125,10 +125,15 @@ Services:
 | Service | Description | Ports |
 | --- | --- | --- |
 | `web` | Nginx serving the built frontend over HTTPS; proxies `/api` to the API | 4443 (HTTPS), 8080 (redirect) |
-| `api` | Fastify REST API | 3001 |
-| `db` | PostgreSQL with a persistent `pgdata` volume | 5432 |
+| `api` | Fastify REST API | 3001 — bound to **localhost only** (browsers reach it via the nginx proxy) |
+| `db` | PostgreSQL with a persistent `pgdata` volume | 5432 — bound to **localhost only** |
 
-Environment overrides (optional): `POSTGRES_USER`, `POSTGRES_PASSWORD`, `POSTGRES_DB`, `DB_PORT`, `API_PORT`, `WEB_PORT`, `HTTPS_PORT`, `DISABLE_INTERNAL_TLS` — set them in a root `.env` file or inline.
+The `api`/`db` ports are published to `127.0.0.1` for host-side debugging while
+staying unreachable from the network — the app itself only needs the internal
+compose network. Remove the `127.0.0.1:` prefix in `docker-compose.yml` only if
+you genuinely need remote access to them.
+
+Environment overrides (optional): `POSTGRES_USER`, `POSTGRES_PASSWORD`, `POSTGRES_DB`, `DB_PORT`, `API_PORT`, `WEB_PORT`, `HTTPS_PORT`, `DISABLE_INTERNAL_TLS`, `CORS_ORIGIN` — set them in a root `.env` file or inline. Set `POSTGRES_PASSWORD` to something non-default for anything beyond LAN testing.
 
 ### Local development without Docker
 
@@ -220,7 +225,8 @@ npm --prefix server run build
 ## Known Constraints
 
 - No self-service password change — admins reset passwords via Manage Users (and can't delete or demote their own account).
-- No rate limiting on auth endpoints — keep the API private/self-hosted or put it behind a reverse proxy with rate limiting.
+- Auth endpoints are rate-limited in memory (20 req/min per IP). If you front the app with a real reverse proxy, prefer enforcing limits there too.
+- Security headers (CSP, `nosniff`, frame-deny, Referrer/Permissions-Policy) are set by nginx; CORS is disabled by default since the app is same-origin — set `CORS_ORIGIN` if something external legitimately needs browser access to the API.
 - There is no CI deploy — the app is meant to be self-hosted via Docker Compose. (The `gh-pages` branch is a stale remnant of the old static deploy.)
 - ZIP export is supported, but ZIP import is not currently implemented.
 - Large embedded media assets increase project size because assets are stored as data URLs in the database.

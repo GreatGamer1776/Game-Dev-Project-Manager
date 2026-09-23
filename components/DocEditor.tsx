@@ -45,6 +45,9 @@ const BULLET_PATTERN = /^\s*-\s/;
 const ORDERED_LIST_PATTERN = /^\s*(\d+)\.\s/;
 const MEDIA_PATTERN = /^!\[(.*?)\]\((.*?)\)$/;
 const SAFE_COLOR_PATTERN = /^#[0-9a-fA-F]{3,8}$/;
+// Schemes allowed on external links in rendered markdown. file:// and task://
+// are handled by dedicated branches before this is consulted.
+const SAFE_LINK_PATTERN = /^(https?:\/\/|mailto:|asset:\/\/|#|\/)/i;
 
 const escapeHtml = (value: string) =>
     value.replace(/[&<>"']/g, char => {
@@ -231,8 +234,11 @@ const parseInline = (text: string, assets: Record<string, string>, fileLookup: M
                     parts.push(taskTarget
                         ? `<a href="${safeHref}" data-task-file-id="${escapeAttribute(taskTarget.fileId)}" data-task-id="${escapeAttribute(taskTarget.taskId)}" class="${existsClass} hover:underline cursor-pointer transition-colors">${escapeHtml(display)}</a>`
                         : `<span class="text-faint line-through">${escapeHtml(display)}</span>`);
-                } else {
+                } else if (SAFE_LINK_PATTERN.test(href.trim())) {
                     parts.push(`<a href="${safeHref}" target="_blank" rel="noopener noreferrer" class="text-accent hover:text-accent hover:underline cursor-pointer transition-colors">${escapeHtml(label)}</a>`);
+                } else {
+                    // javascript:/data:/etc. links would execute in the app context — render as text.
+                    parts.push(`<span class="text-faint">${escapeHtml(label || href)}</span>`);
                 }
             }
         } else {

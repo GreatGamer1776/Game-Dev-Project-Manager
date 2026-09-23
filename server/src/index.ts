@@ -1,6 +1,7 @@
 import Fastify from 'fastify';
 import cors from '@fastify/cors';
 import { randomUUID } from 'crypto';
+import type { FastifyReply, FastifyRequest } from 'fastify';
 import { initDb, pool } from './db.js';
 import {
   createSession,
@@ -23,9 +24,41 @@ const APP_STATE_KEY = 'session';
 const app = Fastify({
   logger: true,
   bodyLimit: 50 * 1024 * 1024,
+  // nginx sets X-Forwarded-For — trust it so req.ip/rate-limiting see real clients.
+  trustProxy: true,
 });
 
-await app.register(cors, { origin: true });
+// The SPA is same-origin (nginx proxy in prod, vite proxy in dev), so CORS is
+// off by default. Set CORS_ORIGIN (comma-separated) only if something external
+// needs browser access to the API.
+const corsOrigin = process.env.CORS_ORIGIN?.split(',').map((s) => s.trim()).filter(Boolean);
+await app.register(cors, { origin: corsOrigin?.length ? corsOrigin : false });
+
+// --- Auth rate limiting ---
+// In-memory per-IP limiter for login/register — enough to blunt brute force
+// without a dependency. The container restart resets it, which is acceptable.
+const AUTH_RATE_WINDOW_MS = 60_000;
+const AUTH_RATE_MAX = 20;
+const authAttempts = new Map<string, { count: number; resetAt: number }>();
+
+const authRateLimit = async (req: FastifyRequest, reply: FastifyReply) => {
+  const now = Date.now();
+  const entry = authAttempts.get(req.ip);
+  if (entry && now < entry.resetAt) {
+    if (entry.count >= AUTH_RATE_MAX) {
+      return reply.code(429).send({ error: 'Too many attempts — try again in a minute' });
+    }
+    entry.count += 1;
+  } else {
+    authAttempts.set(req.ip, { count: 1, resetAt: now + AUTH_RATE_WINDOW_MS });
+  }
+  // Bound the map so it can't grow forever under spraying.
+  if (authAttempts.size > 10_000) {
+    for (const [ip, e] of authAttempts) {
+      if (e.resetAt <= now) authAttempts.delete(ip);
+    }
+  }
+};
 
 app.get('/api/health', async () => ({ ok: true }));
 
@@ -44,7 +77,10 @@ app.get('/api/auth/setup', async () => {
 
 // Public registration only while no users exist — the first account is the
 // admin. Afterwards only admins can create accounts (see POST /api/users).
-app.post<{ Body: AuthBody }>('/api/auth/register', async (req, reply) => {
+app.post<{ Body: AuthBody }>(
+  '/api/auth/register',
+  { preHandler: authRateLimit },
+  async (req, reply) => {
   const { rows } = await pool.query<{ c: string }>('SELECT COUNT(*) AS c FROM users');
   if (Number(rows[0]?.c ?? 0) > 0) {
     return reply.code(403).send({ error: 'Public registration is disabled — ask an admin for an account' });
@@ -75,7 +111,14 @@ app.post<{ Body: AuthBody }>('/api/auth/register', async (req, reply) => {
   return { token, user: { id, username: creds.username, isAdmin: true } };
 });
 
-app.post<{ Body: AuthBody }>('/api/auth/login', async (req, reply) => {
+// Verified in place of a real hash when the username doesn't exist, so the
+// response time can't reveal whether an account exists.
+const DUMMY_HASH = hashPassword(randomUUID());
+
+app.post<{ Body: AuthBody }>(
+  '/api/auth/login',
+  { preHandler: authRateLimit },
+  async (req, reply) => {
   const creds = validateCredentials(req.body?.username, req.body?.password);
   if ('error' in creds) {
     return reply.code(400).send({ error: creds.error });
@@ -87,7 +130,8 @@ app.post<{ Body: AuthBody }>('/api/auth/login', async (req, reply) => {
   );
   const user = rows[0];
   // Same error for unknown user and wrong password — no account enumeration.
-  if (!user || !verifyPassword(creds.password, user.password_hash)) {
+  const valid = verifyPassword(creds.password, user?.password_hash ?? DUMMY_HASH);
+  if (!user || !valid) {
     return reply.code(401).send({ error: 'Invalid username or password' });
   }
 
@@ -338,6 +382,12 @@ app.put<{ Body: AppState }>(
 const start = async () => {
   try {
     await initDb();
+    // Expired sessions accumulate otherwise; prune on boot and hourly.
+    const pruneSessions = () =>
+      pool.query('DELETE FROM sessions WHERE expires_at < $1', [Date.now()])
+        .catch((err) => app.log.warn(err, 'session prune failed'));
+    setInterval(pruneSessions, 60 * 60 * 1000).unref();
+    await pruneSessions();
     await app.listen({ port: PORT, host: HOST });
   } catch (err) {
     app.log.error(err);

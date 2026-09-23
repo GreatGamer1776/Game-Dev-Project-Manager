@@ -74,7 +74,7 @@ the defaults already avoid port collisions:
 # main checkout  → https://server:4443 (http :8080 redirects)
 docker compose -p gdpm-main up --build -d
 
-# dev checkout   → https://server:8444 (http :8081 redirects)
+# dev checkout   → https://server:4444 (http :8081 redirects)
 docker compose -p gdpm-dev up --build -d
 ```
 

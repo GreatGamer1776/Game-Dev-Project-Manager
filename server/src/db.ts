@@ -69,12 +69,16 @@ BEGIN
 END $$;
 
 -- Upgraded databases have users but no admin: promote the earliest account.
+-- Nested IFs, not AND: Postgres does not short-circuit AND, so referencing the
+-- users table in the same condition crashes on fresh databases where it does
+-- not exist yet (SCHEMA runs after MIGRATIONS).
 DO $$
 BEGIN
-  IF EXISTS (SELECT 1 FROM information_schema.columns WHERE table_name = 'users' AND column_name = 'is_admin')
-     AND NOT EXISTS (SELECT 1 FROM users WHERE is_admin) THEN
-    UPDATE users SET is_admin = true
-    WHERE id = (SELECT id FROM users ORDER BY created_at ASC LIMIT 1);
+  IF EXISTS (SELECT 1 FROM information_schema.columns WHERE table_name = 'users' AND column_name = 'is_admin') THEN
+    IF NOT EXISTS (SELECT 1 FROM users WHERE is_admin) THEN
+      UPDATE users SET is_admin = true
+      WHERE id = (SELECT id FROM users ORDER BY created_at ASC LIMIT 1);
+    END IF;
   END IF;
 END $$;
 `;

@@ -64,23 +64,22 @@ git pull
 docker compose up --build -d
 ```
 
-The compose stack runs three services: `db` (Postgres + `pgdata` volume), `api`
-(Fastify), and `web` (nginx serving the frontend and proxying `/api`). To run
-`dev` and `main` side by side, check out each branch in a separate directory
-clone and give each its own `WEB_PORT`/`DB_PORT`/`API_PORT` and project name:
+The `main` compose stack runs three services: `db` (Postgres + `pgdata`
+volume), `api` (Fastify), and `web` (nginx serving the frontend over HTTPS and
+proxying `/api`). The `dev` branch ships a static-only compose (just `web`).
+To run both side by side, check out each branch in a separate directory clone —
+the defaults already avoid port collisions:
 
 ```bash
-# main checkout
-docker compose -p gdpm-main up --build -d          # http://server:8080
+# main checkout  → https://server:4443 (http :8080 redirects)
+docker compose -p gdpm-main up --build -d
 
-# dev checkout
-WEB_PORT=8081 docker compose -p gdpm-dev up --build -d   # http://server:8081
+# dev checkout   → https://server:8444 (http :8081 redirects)
+docker compose -p gdpm-dev up --build -d
 ```
 
-Note: the `dev` (legacy) branch predates the Docker files, so deploy it as a
-plain static frontend instead — `npm install && npm run build`, then serve
-`dist/` with any static server (e.g. `npx serve dist` or nginx). It needs no
-backend.
+Both serve a self-signed cert by default — see the README's HTTPS section for
+trusted-cert options (reverse proxy, mkcert, Tailscale).
 
 ## Current branches
 

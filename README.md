@@ -95,24 +95,40 @@ Requires Docker with Compose v2.
 docker compose up --build
 ```
 
-Then open **https://localhost:8443**
+Then open **https://localhost:4443**
 
 The web container auto-generates a self-signed TLS cert on first start, so your
 browser will show a one-time certificate warning — accept it to continue. (The
 app needs a secure context for browser APIs like `crypto.randomUUID`.)
-`http://localhost:8080` still works and just redirects to HTTPS. To use your own
-certificates instead, mount them into the web container at `/etc/nginx/certs`
-as `server.crt` and `server.key`.
+`http://localhost:8080` still works and just redirects to HTTPS.
+
+### Getting trusted HTTPS (no browser warning)
+
+Self-signed encrypts traffic but browsers will always warn. To get a green
+padlock you need a cert issued by a CA your devices trust:
+
+1. **You own a domain** → point DNS at the server and put a TLS-terminating
+   reverse proxy in front (Nginx Proxy Manager, Caddy, Traefik) — it fetches a
+   free Let's Encrypt cert automatically. Then set `DISABLE_INTERNAL_TLS=true`
+   on the web service so the proxy can talk plain HTTP to the container
+   (otherwise the :80 → :443 redirect bypasses your proxy).
+2. **LAN-only, no domain** → use [mkcert](https://github.com/FiloSottile/mkcert):
+   `mkcert -install` on each client device (or install its root CA manually),
+   then `mkcert <server-ip> <hostname>` and mount the result:
+   `volumes: ["/path/to/certs:/etc/nginx/certs:ro"]` with the files named
+   `server.crt` / `server.key`.
+3. **Tailscale** → `tailscale cert <machine>.<tailnet>.ts.net` gives you a real
+   cert for your tailnet hostname; mount it the same way.
 
 Services:
 
 | Service | Description | Ports |
 | --- | --- | --- |
-| `web` | Nginx serving the built frontend over HTTPS; proxies `/api` to the API | 8443 (HTTPS), 8080 (redirect) |
+| `web` | Nginx serving the built frontend over HTTPS; proxies `/api` to the API | 4443 (HTTPS), 8080 (redirect) |
 | `api` | Fastify REST API | 3001 |
 | `db` | PostgreSQL with a persistent `pgdata` volume | 5432 |
 
-Environment overrides (optional): `POSTGRES_USER`, `POSTGRES_PASSWORD`, `POSTGRES_DB`, `DB_PORT`, `API_PORT`, `WEB_PORT`, `HTTPS_PORT` — set them in a root `.env` file or inline.
+Environment overrides (optional): `POSTGRES_USER`, `POSTGRES_PASSWORD`, `POSTGRES_DB`, `DB_PORT`, `API_PORT`, `WEB_PORT`, `HTTPS_PORT`, `DISABLE_INTERNAL_TLS` — set them in a root `.env` file or inline.
 
 ### Local development without Docker
 

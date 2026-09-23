@@ -34,10 +34,16 @@ services:
     depends_on:
       - api
     environment:
-      HTTPS_PORT: ${HTTPS_PORT:-8443}
+      HTTPS_PORT: ${HTTPS_PORT:-4443}
+      # Set to "true" when a TLS-terminating reverse proxy (NPM, Caddy,
+      # Traefik) fronts the app — the container then serves plain HTTP :80.
+      DISABLE_INTERNAL_TLS: ${DISABLE_INTERNAL_TLS:-false}
     ports:
       - "${WEB_PORT:-8080}:80"
-      - "${HTTPS_PORT:-8443}:443"
+      - "${HTTPS_PORT:-4443}:443"
+    # Optional: real certs (server.crt + server.key) replace the self-signed one.
+    # volumes:
+    #   - /path/to/certs:/etc/nginx/certs:ro
 
 volumes:
   pgdata:

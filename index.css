@@ -315,6 +315,19 @@
   }
 }
 
+/* Markdown preview: the inline `code` style must not leak into fenced blocks. */
+.doc-md pre code {
+  background: transparent;
+  border: 0;
+  padding: 0;
+  color: inherit;
+  border-radius: 0;
+}
+.doc-md li:has(> input[type="checkbox"]) {
+  list-style: none;
+  margin-left: -1.5rem;
+}
+
 /* Custom Scrollbar (token-driven) */
 ::-webkit-scrollbar {
   width: 9px;

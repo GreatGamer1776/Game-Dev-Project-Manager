@@ -1,11 +1,16 @@
 import React, { useState, useEffect, useRef } from 'react';
-import { 
-  Save, Trash2, Bold, Italic, List, ListOrdered, 
-  Heading1, Heading2, Quote, Code, Image as ImageIcon, 
+import {
+  Save, Trash2, Bold, Italic, List, ListOrdered, ListTodo, Table, Minus,
+  Heading1, Heading2, Quote, Code, Image as ImageIcon,
   Eye, Columns, PenTool, Link as LinkIcon, Check, Loader2, AlertCircle,
-  Underline, Strikethrough, Palette, Video, Music, X, CheckSquare, FolderOpen,
+  Underline, Strikethrough, Palette, Video, Music, CheckSquare, FolderOpen,
   Undo2, Redo2
 } from 'lucide-react';
+import ReactMarkdown, { defaultUrlTransform } from 'react-markdown';
+import type { Components } from 'react-markdown';
+import remarkGfm from 'remark-gfm';
+import rehypeRaw from 'rehype-raw';
+import rehypeSanitize, { defaultSchema } from 'rehype-sanitize';
 import { EditorProps, TodoItem, TodoStatus } from '../types';
 import { useUndoRedo } from '../hooks/useUndoRedo';
 import { ASSET_LINK_DRAG_MIME, AssetKind, getAssetDisplayName, getAssetKindFromMime, getAssetMimeType, sanitizeAssetLabel } from '../services/assetUtils';
@@ -40,28 +45,26 @@ const parseTaskHref = (href: string): { fileId: string; taskId: string } | null 
     return { fileId: match[1], taskId: match[2] };
 };
 
-const INLINE_TOKEN_PATTERN = /(`[^`\n]+`|\*\*[^*\n]+?\*\*|~~[^~\n]+?~~|<u>.*?<\/u>|<span style="color:\s*[^"]+">.*?<\/span>|\[[^\]\n]*?\]\([^)]+?\)|\*[^*\n]+?\*)/g;
-const BULLET_PATTERN = /^\s*-\s/;
-const ORDERED_LIST_PATTERN = /^\s*(\d+)\.\s/;
-const MEDIA_PATTERN = /^!\[(.*?)\]\((.*?)\)$/;
 const SAFE_COLOR_PATTERN = /^#[0-9a-fA-F]{3,8}$/;
-// Schemes allowed on external links in rendered markdown. file:// and task://
-// are handled by dedicated branches before this is consulted.
-const SAFE_LINK_PATTERN = /^(https?:\/\/|mailto:|asset:\/\/|#|\/)/i;
+// App-internal link schemes handled by the anchor override below. Everything
+// else passes through react-markdown's defaultUrlTransform, which neutralizes
+// javascript:/data:/vbscript: hrefs.
+const INTERNAL_LINK_PATTERN = /^(file|task|asset):/i;
 
-const escapeHtml = (value: string) =>
-    value.replace(/[&<>"']/g, char => {
-        switch (char) {
-            case '&': return '&amp;';
-            case '<': return '&lt;';
-            case '>': return '&gt;';
-            case '"': return '&quot;';
-            case "'": return '&#39;';
-            default: return char;
-        }
-    });
+const urlTransform = (url: string) =>
+    INTERNAL_LINK_PATTERN.test(url) ? url : defaultUrlTransform(url);
 
-const escapeAttribute = (value: string) => escapeHtml(value);
+// rehype-raw lets the toolbar's <u> and <span style="color:..."> through;
+// rehype-sanitize (GitHub schema + these two tags) keeps raw HTML safe.
+const sanitizeSchema = {
+    ...defaultSchema,
+    tagNames: [...(defaultSchema.tagNames || []), 'u', 'span', 'input'],
+    attributes: {
+        ...defaultSchema.attributes,
+        span: [...(defaultSchema.attributes?.span || []), 'style'],
+        input: [...(defaultSchema.attributes?.input || []), 'type', 'checked', 'disabled'],
+    },
+};
 
 const schedulePreviewRender = (callback: () => void) => {
     const win = window as typeof window & {
@@ -78,183 +81,6 @@ const schedulePreviewRender = (callback: () => void) => {
     return () => window.clearTimeout(handle);
 };
 
-const parseDoc = (text: string, assets: Record<string, string>, fileLookup: Map<string, string>, taskLookup: Map<string, TaskLinkRecord>) => {
-    
-    const resolveSrc = (src: string) => {
-        if (!src) return '';
-        if (src.startsWith('asset://')) {
-            const id = src.replace('asset://', '');
-            return assets[id] || src;
-        }
-        return src;
-    };
-
-    const lines = text.split('\n');
-    const html: string[] = [];
-    let inCodeBlock = false;
-
-    for (let i = 0; i < lines.length; i++) {
-        const line = lines[i];
-        const trimmed = line.trim();
-
-        // 1. Code Blocks
-        if (trimmed.startsWith('```')) {
-            inCodeBlock = !inCodeBlock;
-            html.push(inCodeBlock
-                ? '<div class="bg-bg p-4 rounded-lg my-4 border border-border font-mono text-sm text-content overflow-x-auto"><pre>' 
-                : '</pre></div>');
-            continue;
-        }
-        if (inCodeBlock) {
-            html.push(`${escapeHtml(line)}\n`);
-            continue;
-        }
-
-        // 2. Headers
-        if (line.startsWith('# ')) {
-            html.push(`<h1 class="text-3xl font-bold text-content mb-4 pb-2 border-b border-border mt-6">${parseInline(line.slice(2), assets, fileLookup, taskLookup)}</h1>`);
-            continue;
-        }
-        if (line.startsWith('## ')) {
-            html.push(`<h2 class="text-2xl font-semibold text-content mb-3 mt-8">${parseInline(line.slice(3), assets, fileLookup, taskLookup)}</h2>`);
-            continue;
-        }
-        if (line.startsWith('### ')) {
-            html.push(`<h3 class="text-xl font-medium text-content mb-2 mt-6">${parseInline(line.slice(4), assets, fileLookup, taskLookup)}</h3>`);
-            continue;
-        }
-
-        // 3. Blockquotes
-        if (line.startsWith('> ')) {
-            html.push(`<blockquote class="border-l-4 border-accent pl-4 py-2 my-4 text-muted italic bg-surface-raised/40 rounded-r">${parseInline(line.slice(2), assets, fileLookup, taskLookup)}</blockquote>`);
-            continue;
-        }
-
-        // 4. Lists
-        if (BULLET_PATTERN.test(line)) {
-            html.push(`<div class="flex gap-2 ml-4 mb-1 text-content"><span class="text-faint">•</span><span>${parseInline(line.replace(BULLET_PATTERN, ''), assets, fileLookup, taskLookup)}</span></div>`);
-            continue;
-        }
-        const orderedListMatch = line.match(ORDERED_LIST_PATTERN);
-        if (orderedListMatch) {
-            const num = orderedListMatch[1] || '1';
-            html.push(`<div class="flex gap-2 ml-4 mb-1 text-content"><span class="text-faint font-mono">${num}.</span><span>${parseInline(line.replace(ORDERED_LIST_PATTERN, ''), assets, fileLookup, taskLookup)}</span></div>`);
-            continue;
-        }
-
-        // 5. Media
-        const mediaMatch = line.match(MEDIA_PATTERN);
-        if (mediaMatch) {
-            const [_, alt, src] = mediaMatch;
-            const resolved = resolveSrc(src);
-            const safeAlt = escapeHtml(alt);
-            const safeSrc = escapeAttribute(resolved);
-            
-            const isVideo = resolved.startsWith('data:video') || /\.(mp4|webm|mov)$/i.test(src);
-            const isAudio = resolved.startsWith('data:audio') || /\.(mp3|wav|ogg)$/i.test(src);
-
-            if (isVideo) {
-                html.push(`<div class="my-6"><video controls src="${safeSrc}" class="max-w-full rounded-lg shadow-lg border border-border bg-black max-h-[500px]"></video><div class="text-xs text-faint mt-2 text-center italic">${safeAlt}</div></div>`);
-            } else if (isAudio) {
-                html.push(`<div class="my-4 p-4 bg-surface-raised/60 rounded-lg border border-border flex flex-col gap-2"><div class="text-xs text-muted flex items-center gap-2 font-mono uppercase"><span class="w-2 h-2 rounded-full bg-purple-500"></span> ${safeAlt || 'Audio Track'}</div><audio controls src="${safeSrc}" class="w-full h-8"></audio></div>`);
-            } else {
-                html.push(`<div class="my-6"><img src="${safeSrc}" alt="${safeAlt}" class="max-w-full rounded-lg shadow-lg border border-border" /><div class="text-xs text-faint mt-2 text-center italic">${safeAlt}</div></div>`);
-            }
-            continue;
-        }
-
-        // 6. Horizontal Rule
-        if (trimmed === '---' || trimmed === '***') {
-            html.push('<hr class="border-border my-8" />');
-            continue;
-        }
-
-        // 7. Empty lines
-        if (trimmed === '') {
-            html.push('<div class="h-4"></div>');
-            continue;
-        }
-
-        // 8. Paragraphs
-        html.push(`<p class="mb-2 leading-relaxed text-content">${parseInline(line, assets, fileLookup, taskLookup)}</p>`);
-    }
-    return html.join('');
-};
-
-const parseInline = (text: string, assets: Record<string, string>, fileLookup: Map<string, string>, taskLookup: Map<string, TaskLinkRecord>) => {
-    const parts: string[] = [];
-    let lastIndex = 0;
-    INLINE_TOKEN_PATTERN.lastIndex = 0;
-
-    for (const match of text.matchAll(INLINE_TOKEN_PATTERN)) {
-        const token = match[0];
-        const index = match.index || 0;
-        if (index > lastIndex) {
-            parts.push(escapeHtml(text.slice(lastIndex, index)));
-        }
-
-        if (token.startsWith('`') && token.endsWith('`')) {
-            parts.push(`<code class="bg-surface-raised text-danger px-1.5 py-0.5 rounded text-sm font-mono border border-border">${escapeHtml(token.slice(1, -1))}</code>`);
-        } else if (token.startsWith('**') && token.endsWith('**')) {
-            parts.push(`<strong class="text-content font-bold">${parseInline(token.slice(2, -2), assets, fileLookup, taskLookup)}</strong>`);
-        } else if (token.startsWith('*') && token.endsWith('*')) {
-            parts.push(`<em class="text-content italic">${parseInline(token.slice(1, -1), assets, fileLookup, taskLookup)}</em>`);
-        } else if (token.startsWith('~~') && token.endsWith('~~')) {
-            parts.push(`<s class="opacity-60 text-faint decoration-faint">${parseInline(token.slice(2, -2), assets, fileLookup, taskLookup)}</s>`);
-        } else if (token.startsWith('<u>') && token.endsWith('</u>')) {
-            parts.push(`<u class="decoration-accent decoration-2 underline-offset-4">${parseInline(token.slice(3, -4), assets, fileLookup, taskLookup)}</u>`);
-        } else if (token.startsWith('<span style="color:')) {
-            const spanMatch = token.match(/^<span style="color:\s*([^"]+)">(.*)<\/span>$/);
-            const color = spanMatch?.[1]?.trim() || '';
-            const spanText = spanMatch?.[2] || '';
-            if (SAFE_COLOR_PATTERN.test(color)) {
-                parts.push(`<span style="color: ${color}">${parseInline(spanText, assets, fileLookup, taskLookup)}</span>`);
-            } else {
-                parts.push(escapeHtml(token));
-            }
-        } else if (token.startsWith('[')) {
-            const linkMatch = token.match(/^\[([^\]]*?)\]\(([^)]+?)\)$/);
-            if (!linkMatch) {
-                parts.push(escapeHtml(token));
-            } else {
-                const label = linkMatch[1];
-                const href = linkMatch[2];
-                const safeHref = escapeAttribute(href);
-                if (href.startsWith('file://')) {
-                    const fileId = href.replace('file://', '');
-                    const linkedName = fileLookup.get(fileId);
-                    const display = label || linkedName || 'Open file';
-                    const existsClass = linkedName ? 'text-accent hover:text-accent' : 'text-faint line-through';
-                    parts.push(`<a href="${safeHref}" data-file-id="${escapeAttribute(fileId)}" class="${existsClass} hover:underline cursor-pointer transition-colors">${escapeHtml(display)}</a>`);
-                } else if (href.startsWith('task://')) {
-                    const taskTarget = parseTaskHref(href);
-                    const linkedTask = taskTarget ? taskLookup.get(getTaskLookupKey(taskTarget.fileId, taskTarget.taskId)) : undefined;
-                    const display = label || linkedTask?.taskName || 'Open task';
-                    const existsClass = linkedTask ? 'text-success hover:text-success' : 'text-faint line-through';
-                    parts.push(taskTarget
-                        ? `<a href="${safeHref}" data-task-file-id="${escapeAttribute(taskTarget.fileId)}" data-task-id="${escapeAttribute(taskTarget.taskId)}" class="${existsClass} hover:underline cursor-pointer transition-colors">${escapeHtml(display)}</a>`
-                        : `<span class="text-faint line-through">${escapeHtml(display)}</span>`);
-                } else if (SAFE_LINK_PATTERN.test(href.trim())) {
-                    parts.push(`<a href="${safeHref}" target="_blank" rel="noopener noreferrer" class="text-accent hover:text-accent hover:underline cursor-pointer transition-colors">${escapeHtml(label)}</a>`);
-                } else {
-                    // javascript:/data:/etc. links would execute in the app context — render as text.
-                    parts.push(`<span class="text-faint">${escapeHtml(label || href)}</span>`);
-                }
-            }
-        } else {
-            parts.push(escapeHtml(token));
-        }
-
-        lastIndex = index + token.length;
-    }
-
-    if (lastIndex < text.length) {
-        parts.push(escapeHtml(text.slice(lastIndex)));
-    }
-
-    return parts.join('');
-};
-
 
 // --- COMPONENT ---
 
@@ -264,7 +90,7 @@ const DocEditor: React.FC<EditorProps> = ({ initialContent, onSave, fileName, as
   // OPTIMIZATION: Default to 'edit' mode to prevent initial render lag
   const [viewMode, setViewMode] = useState<'edit' | 'preview' | 'split'>('edit');
   const [isUploading, setIsUploading] = useState(false);
-  const [previewHtml, setPreviewHtml] = useState('');
+  const [previewSource, setPreviewSource] = useState(content);
   
   // Color Picker State
   const [showColorPicker, setShowColorPicker] = useState(false);
@@ -410,6 +236,102 @@ const DocEditor: React.FC<EditorProps> = ({ initialContent, onSave, fileName, as
     latestContentRef.current = content;
   }, [content]);
 
+  const markdownComponents = React.useMemo<Components>(() => ({
+    h1: ({ children }) => <h1 className="text-3xl font-bold text-content mb-4 pb-2 border-b border-border mt-6 first:mt-0">{children}</h1>,
+    h2: ({ children }) => <h2 className="text-2xl font-semibold text-content mb-3 mt-8 first:mt-0">{children}</h2>,
+    h3: ({ children }) => <h3 className="text-xl font-medium text-content mb-2 mt-6 first:mt-0">{children}</h3>,
+    h4: ({ children }) => <h4 className="text-lg font-medium text-content mb-2 mt-4">{children}</h4>,
+    h5: ({ children }) => <h5 className="text-base font-medium text-content mb-2 mt-4">{children}</h5>,
+    h6: ({ children }) => <h6 className="text-sm font-medium uppercase tracking-wide text-muted mb-2 mt-4">{children}</h6>,
+    p: ({ children }) => <p className="mb-3 leading-relaxed text-content last:mb-0">{children}</p>,
+    a: ({ href, children }) => {
+      const url = typeof href === 'string' ? href : '';
+      if (url.startsWith('file://')) {
+        const fileId = url.slice('file://'.length);
+        const exists = fileLookup.has(fileId);
+        return (
+          <a href={url} data-file-id={fileId}
+             className={`${exists ? 'text-accent' : 'text-faint line-through'} hover:underline cursor-pointer transition-colors`}>
+            {children}
+          </a>
+        );
+      }
+      if (url.startsWith('task://')) {
+        const target = parseTaskHref(url);
+        const linked = target ? taskLookup.get(getTaskLookupKey(target.fileId, target.taskId)) : undefined;
+        if (!target) return <span className="text-faint line-through">{children}</span>;
+        return (
+          <a href={url} data-task-file-id={target.fileId} data-task-id={target.taskId}
+             className={`${linked ? 'text-success' : 'text-faint line-through'} hover:underline cursor-pointer transition-colors`}>
+            {children}
+          </a>
+        );
+      }
+      if (url.startsWith('asset://')) {
+        const exists = Boolean(assets[url.slice('asset://'.length)]);
+        return <span title="Asset library item" className={exists ? 'text-accent' : 'text-faint line-through'}>{children}</span>;
+      }
+      // Empty href = the url transform rejected an unsafe scheme — render as text.
+      if (!url) return <span className="text-faint">{children}</span>;
+      return (
+        <a href={url} target="_blank" rel="noopener noreferrer"
+           className="text-accent hover:underline cursor-pointer transition-colors">
+          {children}
+        </a>
+      );
+    },
+    img: ({ src, alt }) => {
+      const raw = typeof src === 'string' ? src : '';
+      const resolved = raw.startsWith('asset://') ? assets[raw.slice('asset://'.length)] || '' : raw;
+      if (!resolved) return <span className="text-faint italic">[{alt || 'Missing asset'}]</span>;
+      const caption = alt ? <span className="block text-xs text-faint mt-2 text-center italic">{alt}</span> : null;
+      if (resolved.startsWith('data:video') || /\.(mp4|webm|mov)$/i.test(raw)) {
+        return (
+          <span className="block my-6">
+            <video controls src={resolved} className="max-w-full rounded-lg shadow-lg border border-border bg-black max-h-[500px]" />
+            {caption}
+          </span>
+        );
+      }
+      if (resolved.startsWith('data:audio') || /\.(mp3|wav|ogg)$/i.test(raw)) {
+        return (
+          <span className="my-4 p-4 bg-surface-raised/60 rounded-lg border border-border flex flex-col gap-2">
+            <span className="text-xs text-muted flex items-center gap-2 font-mono uppercase">
+              <span className="w-2 h-2 rounded-full bg-purple-500 inline-block"></span> {alt || 'Audio Track'}
+            </span>
+            <audio controls src={resolved} className="w-full h-8" />
+          </span>
+        );
+      }
+      return (
+        <span className="block my-6">
+          <img src={resolved} alt={alt || ''} className="max-w-full rounded-lg shadow-lg border border-border" />
+          {caption}
+        </span>
+      );
+    },
+    ul: ({ children }) => <ul className="list-disc pl-6 mb-3 space-y-1 text-content marker:text-faint">{children}</ul>,
+    ol: ({ children }) => <ol className="list-decimal pl-6 mb-3 space-y-1 text-content marker:text-faint">{children}</ol>,
+    li: ({ children }) => <li className="leading-relaxed pl-1">{children}</li>,
+    input: ({ checked }) => <input type="checkbox" checked={Boolean(checked)} readOnly disabled className="mr-1.5 align-middle accent-accent" />,
+    blockquote: ({ children }) => <blockquote className="border-l-4 border-accent pl-4 py-2 my-4 text-muted italic bg-surface-raised/40 rounded-r">{children}</blockquote>,
+    hr: () => <hr className="border-border my-8" />,
+    pre: ({ children }) => <pre className="bg-bg p-4 rounded-lg my-4 border border-border font-mono text-sm text-content overflow-x-auto">{children}</pre>,
+    code: ({ children }) => <code className="bg-surface-raised text-danger px-1.5 py-0.5 rounded text-sm font-mono border border-border">{children}</code>,
+    table: ({ children }) => <div className="my-4 overflow-x-auto"><table className="w-full border-collapse text-sm text-content">{children}</table></div>,
+    th: ({ children }) => <th className="border border-border bg-surface-raised/60 px-3 py-2 text-left font-semibold text-content">{children}</th>,
+    td: ({ children }) => <td className="border border-border px-3 py-2 align-top text-content">{children}</td>,
+    strong: ({ children }) => <strong className="text-content font-bold">{children}</strong>,
+    em: ({ children }) => <em className="italic">{children}</em>,
+    del: ({ children }) => <del className="opacity-60 text-faint">{children}</del>,
+    u: ({ children }) => <u className="decoration-accent decoration-2 underline-offset-4">{children}</u>,
+    span: ({ children, style }) => {
+      // Only the toolbar's `color: #hex` form is allowed through.
+      const match = String(style ?? '').match(/^color:\s*(#[0-9a-fA-F]{3,8});?$/);
+      return match ? <span style={{ color: match[1] }}>{children}</span> : <span>{children}</span>;
+    },
+  }), [assets, fileLookup, taskLookup]);
+
   // Debounce preview work and run it during browser idle time so typing stays responsive.
   useEffect(() => {
       if (viewMode === 'edit') return;
@@ -418,7 +340,7 @@ const DocEditor: React.FC<EditorProps> = ({ initialContent, onSave, fileName, as
       const debounceMs = viewMode === 'preview' ? 80 : 250;
       const timer = setTimeout(() => {
         cancelPreviewRender = schedulePreviewRender(() => {
-          setPreviewHtml(parseDoc(content, assets, fileLookup, taskLookup));
+          setPreviewSource(content);
         });
       }, debounceMs);
 
@@ -426,7 +348,7 @@ const DocEditor: React.FC<EditorProps> = ({ initialContent, onSave, fileName, as
         clearTimeout(timer);
         cancelPreviewRender?.();
       };
-  }, [content, assets, fileLookup, taskLookup, viewMode]);
+  }, [content, viewMode]);
 
   useEffect(() => {
     if (linkableFiles.length > 0) return;
@@ -871,6 +793,10 @@ const DocEditor: React.FC<EditorProps> = ({ initialContent, onSave, fileName, as
               <ToolbarButton icon={Heading1} onClick={() => insertText('# ')} title="Heading 1" />
                <ToolbarButton icon={Heading2} onClick={() => insertText('## ')} title="Heading 2" />
                <ToolbarButton icon={List} onClick={() => insertText('- ')} title="Bullet List" />
+               <ToolbarButton icon={ListOrdered} onClick={() => insertText('1. ')} title="Numbered List" />
+               <ToolbarButton icon={ListTodo} onClick={() => insertText('- [ ] ')} title="Task List" />
+               <ToolbarButton icon={Table} onClick={() => insertText('\n| Column A | Column B |\n| --- | --- |\n| ', ' |  |\n')} title="Table" />
+               <ToolbarButton icon={Minus} onClick={() => insertText('\n---\n')} title="Horizontal Rule" />
                <ToolbarButton icon={Quote} onClick={() => insertText('> ')} title="Quote" />
                <ToolbarButton icon={Code} onClick={() => insertText('```\n', '\n```')} title="Code Block" />
                <div className="relative" ref={taskLinkPickerRef}>
@@ -1110,12 +1036,20 @@ const DocEditor: React.FC<EditorProps> = ({ initialContent, onSave, fileName, as
         {/* Preview Pane - Custom Render */}
         {(viewMode === 'preview' || viewMode === 'split') && (
           <div className={`h-full overflow-auto custom-scrollbar bg-surface ${viewMode === 'split' ? 'w-1/2' : 'w-full'}`}>
-             <div 
+             <div
                 ref={previewPaneRef}
                 onClick={handlePreviewClick}
-                className="max-w-3xl mx-auto p-8 prose prose-invert prose-headings:border-b-0"
-                dangerouslySetInnerHTML={{ __html: previewHtml }}
-             />
+                className="doc-md max-w-3xl mx-auto p-8"
+             >
+                <ReactMarkdown
+                  remarkPlugins={[remarkGfm]}
+                  rehypePlugins={[rehypeRaw, [rehypeSanitize, sanitizeSchema]]}
+                  urlTransform={urlTransform}
+                  components={markdownComponents}
+                >
+                  {previewSource}
+                </ReactMarkdown>
+             </div>
           </div>
         )}
       </div>

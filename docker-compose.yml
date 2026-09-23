@@ -1,13 +1,49 @@
-# Legacy browser-local build — static frontend only, no backend/database.
-# Deploy alongside the full-stack `main` build for side-by-side comparison.
-# Defaults: https://<server>:4444 (http://<server>:8081 redirects).
 services:
+  db:
+    image: postgres:16-alpine
+    restart: unless-stopped
+    environment:
+      POSTGRES_USER: ${POSTGRES_USER:-devarchitect}
+      POSTGRES_PASSWORD: ${POSTGRES_PASSWORD:-devarchitect}
+      POSTGRES_DB: ${POSTGRES_DB:-devarchitect}
+    volumes:
+      - pgdata:/var/lib/postgresql/data
+    healthcheck:
+      test: ["CMD-SHELL", "pg_isready -U $${POSTGRES_USER} -d $${POSTGRES_DB}"]
+      interval: 5s
+      timeout: 5s
+      retries: 10
+    ports:
+      - "${DB_PORT:-5432}:5432"
+
+  api:
+    build: ./server
+    restart: unless-stopped
+    environment:
+      DATABASE_URL: postgres://${POSTGRES_USER:-devarchitect}:${POSTGRES_PASSWORD:-devarchitect}@db:5432/${POSTGRES_DB:-devarchitect}
+      PORT: 3001
+    depends_on:
+      db:
+        condition: service_healthy
+    ports:
+      - "${API_PORT:-3001}:3001"
+
   web:
     build: .
     restart: unless-stopped
+    depends_on:
+      - api
     environment:
-      HTTPS_PORT: ${HTTPS_PORT:-4444}
+      HTTPS_PORT: ${HTTPS_PORT:-4443}
+      # Set to "true" when a TLS-terminating reverse proxy (NPM, Caddy,
+      # Traefik) fronts the app — the container then serves plain HTTP :80.
       DISABLE_INTERNAL_TLS: ${DISABLE_INTERNAL_TLS:-false}
     ports:
-      - "${WEB_PORT:-8081}:80"
-      - "${HTTPS_PORT:-4444}:443"
+      - "${WEB_PORT:-8080}:80"
+      - "${HTTPS_PORT:-4443}:443"
+    # Optional: real certs (server.crt + server.key) replace the self-signed one.
+    # volumes:
+    #   - /path/to/certs:/etc/nginx/certs:ro
+
+volumes:
+  pgdata:

@@ -1,5 +1,5 @@
 import React, { useState, useEffect } from 'react';
-import { LayoutDashboard, FileText, Network, ArrowLeft, Folder, File, CheckSquare, Bug as BugIcon, Trash2, HardDrive, Download, Map as MapIcon, Table, PenTool, Image as ImageIcon, HelpCircle, ChevronRight, ChevronDown, FolderPlus, FilePlus, Copy as CopyIcon, Pencil, PanelLeftClose, PanelLeftOpen, BookOpen, Settings as SettingsIcon, X, Pin } from 'lucide-react';
+import { LayoutDashboard, FileText, Network, ArrowLeft, Folder, File, CheckSquare, Bug as BugIcon, Trash2, Download, Map as MapIcon, Table, PenTool, Image as ImageIcon, HelpCircle, ChevronRight, ChevronDown, FolderPlus, FilePlus, Copy as CopyIcon, Pencil, PanelLeftClose, PanelLeftOpen, BookOpen, Settings as SettingsIcon, X, Pin, LogOut, Users } from 'lucide-react';
 import JSZip from 'jszip';
 import Dashboard from './components/Dashboard';
 import CommandPalette from './components/CommandPalette';
@@ -7,7 +7,10 @@ import HelpModal from './components/HelpModal';
 import GuideView, { GuideSectionId } from './components/GuideView';
 import { Project, ViewState, ProjectFile, FileType, EditorProps, ProjectFolder, TaskNavigationTarget } from './types';
 import { useProjectStore } from './stores/useProjectStore';
-import { getAssetExtensionFromMime, getAssetMimeType } from './services/assetUtils';
+import { api, setUnauthorizedHandler } from './services/api';
+import { useAuthStore } from './stores/useAuthStore';
+import AuthView from './components/AuthView';
+import AdminUsersModal from './components/AdminUsersModal';
 import { Button, Modal, Input, Select, Field, Eyebrow } from './components/ui';
 import { SettingsModal } from './components/SettingsModal';
 import { useSettingsStore } from './stores/useSettingsStore';
@@ -24,140 +27,8 @@ const AssetBrowser = React.lazy(() => import('./components/AssetBrowser'));
 
 // --- UTILS ---
 
-const base64ToBlob = (base64: string): Blob => {
-  try {
-      const arr = base64.split(',');
-      const mimeMatch = arr[0].match(/:(.*?);/);
-      const mime = mimeMatch ? mimeMatch[1] : 'application/octet-stream';
-      const bstr = atob(arr[1]);
-      let n = bstr.length;
-      const u8arr = new Uint8Array(n);
-      while (n--) {
-          u8arr[n] = bstr.charCodeAt(n);
-      }
-      return new Blob([u8arr], { type: mime });
-  } catch (e) {
-      console.error("Failed to convert base64 to blob", e);
-      return new Blob([]);
-  }
-};
-
-// IndexedDB Wrapper
-type PersistedAppState = {
-  currentView: ViewState;
-  activeProjectId: string | null;
-  activeFileId: string | null;
-  sidebarCollapsed?: boolean;
-};
-
-const IDB = {
-    DB_VERSION: 3,
-    DB_NAME: 'devarchitect_db',
-    STORE_PROJECTS: 'projects',
-    STORE_HANDLES: 'handles',
-    STORE_APP_STATE: 'app_state',
-    APP_STATE_KEY: 'session',
-    init: function() {
-        return new Promise<void>((resolve, reject) => {
-            const req = indexedDB.open(this.DB_NAME, this.DB_VERSION);
-            req.onerror = () => reject(req.error);
-            req.onupgradeneeded = (e: any) => {
-                const db = e.target.result;
-                if (!db.objectStoreNames.contains(this.STORE_PROJECTS)) {
-                    db.createObjectStore(this.STORE_PROJECTS, { keyPath: 'id' });
-                }
-                if (!db.objectStoreNames.contains(this.STORE_HANDLES)) {
-                    db.createObjectStore(this.STORE_HANDLES); 
-                }
-                if (!db.objectStoreNames.contains(this.STORE_APP_STATE)) {
-                    db.createObjectStore(this.STORE_APP_STATE);
-                }
-            };
-            req.onsuccess = () => resolve();
-        });
-    },
-    saveProject: function(project: Project) {
-        return new Promise<void>((resolve, reject) => {
-            const req = indexedDB.open(this.DB_NAME, this.DB_VERSION);
-            req.onsuccess = (e: any) => {
-                const tx = e.target.result.transaction([this.STORE_PROJECTS], 'readwrite');
-                tx.objectStore(this.STORE_PROJECTS).put(project);
-                tx.oncomplete = () => resolve();
-                tx.onerror = () => reject(tx.error);
-            };
-        });
-    },
-    saveHandle: function(id: string, handle: any) {
-        return new Promise<void>((resolve, reject) => {
-            const req = indexedDB.open(this.DB_NAME, this.DB_VERSION);
-            req.onsuccess = (e: any) => {
-                const tx = e.target.result.transaction([this.STORE_HANDLES], 'readwrite');
-                tx.objectStore(this.STORE_HANDLES).put(handle, id);
-                tx.oncomplete = () => resolve();
-                tx.onerror = () => reject(tx.error);
-            };
-        });
-    },
-    loadAllProjects: function() {
-        return new Promise<Project[]>((resolve, reject) => {
-            const req = indexedDB.open(this.DB_NAME, this.DB_VERSION);
-            req.onsuccess = (e: any) => {
-                const tx = e.target.result.transaction([this.STORE_PROJECTS], 'readonly');
-                const reqAll = tx.objectStore(this.STORE_PROJECTS).getAll();
-                reqAll.onsuccess = () => resolve(reqAll.result);
-                reqAll.onerror = () => reject(reqAll.error);
-            };
-            req.onerror = () => resolve([]); 
-        });
-    },
-    loadHandle: function(id: string) {
-        return new Promise<any>((resolve, reject) => {
-             const req = indexedDB.open(this.DB_NAME, this.DB_VERSION);
-             req.onsuccess = (e: any) => {
-                 const tx = e.target.result.transaction([this.STORE_HANDLES], 'readonly');
-                 const reqGet = tx.objectStore(this.STORE_HANDLES).get(id);
-                 reqGet.onsuccess = () => resolve(reqGet.result);
-                 reqGet.onerror = () => resolve(null);
-             };
-             req.onerror = () => resolve(null);
-        });
-    },
-    delete: function(id: string) {
-        return new Promise<void>((resolve, reject) => {
-            const req = indexedDB.open(this.DB_NAME, this.DB_VERSION);
-            req.onsuccess = (e: any) => {
-                const tx = e.target.result.transaction([this.STORE_PROJECTS, this.STORE_HANDLES], 'readwrite');
-                tx.objectStore(this.STORE_PROJECTS).delete(id);
-                tx.objectStore(this.STORE_HANDLES).delete(id);
-                tx.oncomplete = () => resolve();
-            };
-        });
-    },
-    saveAppState: function(appState: PersistedAppState) {
-        return new Promise<void>((resolve) => {
-            const req = indexedDB.open(this.DB_NAME, this.DB_VERSION);
-            req.onsuccess = (e: any) => {
-                const tx = e.target.result.transaction([this.STORE_APP_STATE], 'readwrite');
-                tx.objectStore(this.STORE_APP_STATE).put(appState, this.APP_STATE_KEY);
-                tx.oncomplete = () => resolve();
-                tx.onerror = () => resolve();
-            };
-            req.onerror = () => resolve();
-        });
-    },
-    loadAppState: function() {
-        return new Promise<PersistedAppState | null>((resolve) => {
-            const req = indexedDB.open(this.DB_NAME, this.DB_VERSION);
-            req.onsuccess = (e: any) => {
-                const tx = e.target.result.transaction([this.STORE_APP_STATE], 'readonly');
-                const reqGet = tx.objectStore(this.STORE_APP_STATE).get(this.APP_STATE_KEY);
-                reqGet.onsuccess = () => resolve(reqGet.result || null);
-                reqGet.onerror = () => resolve(null);
-            };
-            req.onerror = () => resolve(null);
-        });
-    }
-};
+// Persistence is handled by the backend API (see services/api.ts) behind
+// username/password auth. Nothing project-related is stored in the browser.
 
 type EditorComponent = React.LazyExoticComponent<React.FC<EditorProps>>;
 
@@ -307,122 +178,6 @@ const normalizeProjectFiles = (project: Project): Project => {
   };
 };
 
-const ensureDirectoryPermission = async (handle: any, mode: 'read' | 'readwrite' = 'readwrite') => {
-  if (!handle?.queryPermission || !handle?.requestPermission) {
-    return true;
-  }
-
-  const options = { mode };
-  if (await handle.queryPermission(options) === 'granted') {
-    return true;
-  }
-
-  return (await handle.requestPermission(options)) === 'granted';
-};
-
-const writeProjectToHandle = async (handle: any, project: Project) => {
-  const hasPermission = await ensureDirectoryPermission(handle, 'readwrite');
-  if (!hasPermission) {
-    throw new Error('Write permission denied for local project folder.');
-  }
-
-  const leanProject = { ...project, assets: {} };
-  const fileHandle = await handle.getFileHandle('project.json', { create: true });
-  const writable = await fileHandle.createWritable();
-  await writable.write(JSON.stringify(leanProject, null, 2));
-  await writable.close();
-
-  const trackedAssetFiles = new Set<string>();
-
-  if (project.assets && Object.keys(project.assets).length > 0) {
-    const assetsDir = await handle.getDirectoryHandle('assets', { create: true });
-    for (const [id, base64] of Object.entries(project.assets)) {
-      const ext = getAssetExtensionFromMime(getAssetMimeType(base64));
-      const filename = `${id}.${ext}`;
-      trackedAssetFiles.add(filename);
-
-      const assetFile = await assetsDir.getFileHandle(filename, { create: true });
-      const assetWriter = await assetFile.createWritable();
-      await assetWriter.write(base64ToBlob(base64));
-      await assetWriter.close();
-    }
-  }
-
-  try {
-    const assetsDir = await handle.getDirectoryHandle('assets');
-    // Remove orphaned files so deleted assets do not reappear after a reload.
-    // @ts-ignore
-    for await (const assetEntry of assetsDir.values()) {
-      if (assetEntry.kind === 'file' && !trackedAssetFiles.has(assetEntry.name)) {
-        await assetsDir.removeEntry(assetEntry.name);
-      }
-    }
-  } catch {
-    // Ignore missing assets directory.
-  }
-};
-
-const loadProjectFromHandle = async (folderHandle: any): Promise<Project | null> => {
-  try {
-    const hasPermission = await ensureDirectoryPermission(folderHandle, 'read');
-    if (!hasPermission) {
-      return null;
-    }
-
-    const jsonHandle = await folderHandle.getFileHandle('project.json');
-    const jsonFile = await jsonHandle.getFile();
-    const jsonText = await jsonFile.text();
-    const projectData = JSON.parse(jsonText);
-
-    if (!projectData.folders) projectData.folders = [];
-    if (projectData.files) {
-      projectData.files = projectData.files.map((f: any) => ({ ...f, folderId: f.folderId || null }));
-    }
-
-    const assetsMap: Record<string, string> = {};
-    try {
-      const assetsDir = await folderHandle.getDirectoryHandle('assets');
-      // @ts-ignore
-      for await (const assetEntry of assetsDir.values()) {
-        if (assetEntry.kind === 'file') {
-          const assetFile = await assetEntry.getFile();
-          const reader = new FileReader();
-          const base64 = await new Promise<string>((resolve) => {
-            reader.onload = (e) => resolve(e.target?.result as string);
-            reader.readAsDataURL(assetFile);
-          });
-          const id = assetEntry.name.split('.')[0];
-          assetsMap[id] = base64;
-        }
-      }
-    } catch {
-      // Ignore missing assets directory.
-    }
-
-    projectData.assets = assetsMap;
-    projectData.isLocal = true;
-    return normalizeProjectFiles(projectData);
-  } catch {
-    return null;
-  }
-};
-
-const folderHasProjectFile = async (folderHandle: any) => {
-  try {
-    await folderHandle.getFileHandle('project.json');
-    return true;
-  } catch {
-    return false;
-  }
-};
-
-const formatProjectTimestamp = (timestamp?: number) => {
-  if (typeof timestamp !== 'number' || Number.isNaN(timestamp)) {
-    return 'Unknown';
-  }
-  return new Date(timestamp).toLocaleString();
-};
-
 const MOCK_PROJECTS: Project[] = [{
     id: '1', name: 'Cosmic Invaders', type: 'Game', description: 'A retro-style space shooter.', lastModified: Date.now(),
     files: [
@@ -456,8 +211,14 @@ const App: React.FC = () => {
   
   const openSettings = useSettingsStore(state => state.openSettings);
 
+  const authUser = useAuthStore(state => state.user);
+  const authReady = useAuthStore(state => state.ready);
+  const clearSession = useAuthStore(state => state.clearSession);
+  const logout = useAuthStore(state => state.logout);
+
   const [isPaletteOpen, setIsPaletteOpen] = useState(false);
   const [isHelpOpen, setIsHelpOpen] = useState(false);
+  const [showAdminUsers, setShowAdminUsers] = useState(false);
   const [isSidebarCollapsed, setIsSidebarCollapsed] = useState(false);
   const [showGuide, setShowGuide] = useState(false);
   const [guideSection, setGuideSection] = useState<GuideSectionId>('overview');
@@ -476,10 +237,10 @@ const App: React.FC = () => {
   const [pinnedFileIds, setPinnedFileIds] = useState<string[]>([]);
   const [draggingTabId, setDraggingTabId] = useState<string | null>(null);
 
-  const isSavingRef = React.useRef(false);
-  const saveQueueRef = React.useRef<Project | null>(null);
-  const projectHandlesRef = React.useRef<Map<string, any>>(new Map());
+  const [loadError, setLoadError] = useState<string | null>(null);
+
   const projectsRef = React.useRef<Project[]>([]);
+  const persistedProjectsRef = React.useRef<Project[]>([]);
   const taskNavigationRequestRef = React.useRef(0);
   projectsRef.current = projects;
 
@@ -487,28 +248,39 @@ const App: React.FC = () => {
     projectsRef.current = projects;
   }, [projects]);
 
+  // Verify the stored session token once on boot.
   useEffect(() => {
+    useAuthStore.getState().bootstrap();
+  }, []);
+
+  // Any 401 with a live token means the session expired — drop to login.
+  useEffect(() => {
+    setUnauthorizedHandler(() => clearSession());
+    return () => setUnauthorizedHandler(null);
+  }, [clearSession]);
+
+  useEffect(() => {
+    if (!authReady) return;
+    if (!authUser) {
+        // Signed out — drop in-memory data so nothing leaks between sessions.
+        persistedProjectsRef.current = [];
+        pendingSavesRef.current.clear();
+        setProjects([]);
+        setIsLoaded(false);
+        setCurrentView(ViewState.DASHBOARD);
+        setActiveProjectId(null);
+        setActiveFileId(null);
+        return;
+    }
     const load = async () => {
         try {
-            await IDB.init();
-            const loaded = await IDB.loadAllProjects();
-            const savedAppState = await IDB.loadAppState();
-            const loadedProjects = await Promise.all(loaded.map(async (project) => {
-                if (!project.isLocal) {
-                    return project;
-                }
-
-                const handle = await IDB.loadHandle(project.id);
-                if (!handle) {
-                    return project;
-                }
-
-                projectHandlesRef.current.set(project.id, handle);
-                const diskProject = await loadProjectFromHandle(handle);
-                return diskProject || project;
-            }));
-            const normalizedLoaded = loadedProjects.map(normalizeProjectFiles);
+            const loaded = await api.listProjects();
+            const savedAppState = await api.loadAppState();
+            const normalizedLoaded = loaded.map(normalizeProjectFiles);
+            // When the database is empty, seed the demo project. The diff-save
+            // effect below persists it on first run.
             const hydratedProjects = normalizedLoaded.length > 0 ? normalizedLoaded : MOCK_PROJECTS.map(normalizeProjectFiles);
+            persistedProjectsRef.current = normalizedLoaded;
             setProjects(hydratedProjects);
 
             const hydratedProjectId = savedAppState?.activeProjectId && hydratedProjects.some(p => p.id === savedAppState.activeProjectId)
@@ -538,7 +310,8 @@ const App: React.FC = () => {
             }
         } catch (e) {
             console.error("Init error", e);
-            setProjects(MOCK_PROJECTS.map(normalizeProjectFiles));
+            setLoadError("Could not reach the backend API. Start the server (docker compose up) and reload.");
+            setProjects([]);
             setCurrentView(ViewState.DASHBOARD);
             setActiveProjectId(null);
             setActiveFileId(null);
@@ -547,22 +320,50 @@ const App: React.FC = () => {
         }
     };
     load();
-  }, [setActiveFileId, setActiveProjectId, setCurrentView, setIsLoaded, setProjects]);
+  }, [authReady, authUser, setActiveFileId, setActiveProjectId, setCurrentView, setIsLoaded, setProjects]);
 
-  useEffect(() => {
-    if (isLoaded && projects.length > 0) {
-        projects.forEach(p => IDB.saveProject(p));
-    }
-  }, [projects, isLoaded]);
+  // Persist only projects that actually changed since the last save. Mutations
+  // always produce new project objects, so reference equality is sufficient.
+  // Saves are debounced and coalesced per project since editors save per keystroke.
+  const pendingSavesRef = React.useRef<Map<string, Project>>(new Map());
+  const saveTimerRef = React.useRef<number | null>(null);
+
+  const flushPendingSaves = async () => {
+    const batch = Array.from(pendingSavesRef.current.values());
+    pendingSavesRef.current.clear();
+    await Promise.all(batch.map(p =>
+        api.saveProject(p).catch(err => console.error("Failed to save project:", p.id, err))
+    ));
+  };
 
   useEffect(() => {
     if (!isLoaded) return;
-    IDB.saveAppState({
+    const persistedById = new Map(persistedProjectsRef.current.map(p => [p.id, p]));
+    projects.forEach(p => {
+        if (persistedById.get(p.id) !== p) {
+            pendingSavesRef.current.set(p.id, p);
+        }
+    });
+    persistedProjectsRef.current = projects;
+    if (pendingSavesRef.current.size === 0) return;
+    if (saveTimerRef.current) window.clearTimeout(saveTimerRef.current);
+    saveTimerRef.current = window.setTimeout(() => {
+        saveTimerRef.current = null;
+        flushPendingSaves();
+    }, 800);
+  }, [projects, isLoaded]);
+
+  // Flush any pending writes when the app unmounts.
+  useEffect(() => () => { void flushPendingSaves(); }, []);
+
+  useEffect(() => {
+    if (!isLoaded) return;
+    api.saveAppState({
       currentView,
       activeProjectId,
       activeFileId,
       sidebarCollapsed: isSidebarCollapsed
-    });
+    }).catch(err => console.error("Failed to save app state:", err));
   }, [isLoaded, currentView, activeProjectId, activeFileId, isSidebarCollapsed]);
 
   useEffect(() => {
@@ -654,140 +455,12 @@ const App: React.FC = () => {
     setShowGuide(true);
   };
 
-  // --- DISK OPS ---
-
-  const saveProjectToDisk = async (project: Project) => {
-    const handle = projectHandlesRef.current.get(project.id);
-    if (!handle) {
-        return; 
-    }
-
-    try {
-        await writeProjectToHandle(handle, project);
-    } catch (err) {
-        console.error("Failed to save to disk:", err);
-    }
-  };
-
-  const processSaveQueue = async () => {
-    if (isSavingRef.current || !saveQueueRef.current) return;
-    
-    const projectToSave = saveQueueRef.current;
-    saveQueueRef.current = null;
-    isSavingRef.current = true;
-
-    try {
-        await saveProjectToDisk(projectToSave);
-    } catch (e) {
-        console.error("Save queue error:", e);
-    } finally {
-        isSavingRef.current = false;
-        if (saveQueueRef.current) {
-            processSaveQueue();
-        }
-    }
-  };
-
-  const deleteProjectFromDisk = async (project: Project) => {
-      await IDB.delete(project.id);
-      projectHandlesRef.current.delete(project.id);
-  };
-
   // --- ACTIONS ---
 
-  const handleImportLocalFolder = async () => {
-      // @ts-ignore
-      if (typeof window.showDirectoryPicker !== 'function') {
-        alert("Browser not supported. Please use Chrome, Edge, or Opera on desktop.");
-        return;
-      }
-
-      try {
-          // @ts-ignore
-          const handle = await window.showDirectoryPicker({
-            id: 'devarchitect_open',
-            mode: 'readwrite'
-          });
-
-          let rootProject = await loadProjectFromHandle(handle);
-          const newProjects: Project[] = [];
-
-          if (rootProject) {
-              newProjects.push(rootProject);
-              await IDB.saveHandle(rootProject.id, handle);
-              projectHandlesRef.current.set(rootProject.id, handle);
-          }
-
-          if (newProjects.length > 0) {
-              const newIds = new Set(newProjects.map(p => p.id));
-              setProjects(prev => [...newProjects, ...prev.filter(p => !newIds.has(p.id))]);
-              newProjects.forEach(p => IDB.saveProject(p));
-          } else {
-              alert("No 'project.json' found in selected folder.");
-          }
-      } catch (err: any) {
-          if (err.name === 'AbortError') return;
-          console.error("Error opening folder:", err);
-      }
-  };
-
-  const handleLinkProjectToLocalFolder = async (projectId: string) => {
-      // @ts-ignore
-      if (typeof window.showDirectoryPicker !== 'function') {
-        alert("Browser not supported. Please use Chrome, Edge, or Opera on desktop.");
-        return;
-      }
-
-      const project = projectsRef.current.find(p => p.id === projectId);
-      if (!project) {
-        return;
-      }
-
-      try {
-          // @ts-ignore
-          const handle = await window.showDirectoryPicker({
-            id: `devarchitect_link_${project.id}`,
-            mode: 'readwrite'
-          });
-
-          const hasProjectJson = await folderHasProjectFile(handle);
-          const diskProject = hasProjectJson ? await loadProjectFromHandle(handle) : null;
-
-          if (hasProjectJson && !diskProject) {
-            alert("This folder already contains a project.json file that could not be read safely. To avoid overwriting data, choose a different folder or import that project first.");
-            return;
-          }
-
-          if (diskProject && diskProject.id !== project.id) {
-            alert(`This folder already contains another project named "${diskProject.name}". To avoid overwriting it, choose an empty folder or use Import Local Folder instead.`);
-            return;
-          }
-
-          if (diskProject && diskProject.id === project.id) {
-            const confirmed = confirm(
-              `This folder already contains "${diskProject.name}".\n\nCurrent in-app version: ${formatProjectTimestamp(project.lastModified)}\nFolder version: ${formatProjectTimestamp(diskProject.lastModified)}\n\nContinue and overwrite the folder with the current in-app version?`
-            );
-            if (!confirmed) {
-              return;
-            }
-          }
-
-          await writeProjectToHandle(handle, project);
-          await IDB.saveHandle(project.id, handle);
-          projectHandlesRef.current.set(project.id, handle);
-
-          const linkedProject = normalizeProjectFiles({ ...project, isLocal: true });
-          setProjects(prev => {
-              const next = prev.map(p => p.id === project.id ? linkedProject : p);
-              projectsRef.current = next;
-              return next;
-          });
-          IDB.saveProject(linkedProject);
-      } catch (err: any) {
-          if (err.name === 'AbortError') return;
-          console.error("Error linking folder:", err);
-          alert("Failed to link this project to a local folder.");
-      }
+  const handleLogout = async () => {
+      // Flush queued saves while the session token is still valid.
+      await flushPendingSaves();
+      await logout();
   };
 
   const handleSelectProject = async (id: string) => {
@@ -817,7 +490,6 @@ const App: React.FC = () => {
     });
     
     setProjects(prev => [newProject, ...prev]);
-    IDB.saveProject(newProject);
   };
 
   const handleUpdateProject = (id: string, updates: { name: string; description: string }) => {
@@ -843,8 +515,15 @@ const App: React.FC = () => {
     if (!project) return;
     
     if (confirm("Delete project?")) {
-      await IDB.delete(id);
-      projectHandlesRef.current.delete(id);
+      try {
+        await api.deleteProject(id);
+      } catch (err) {
+        console.error("Failed to delete project:", err);
+        alert("Failed to delete the project on the server.");
+        return;
+      }
+      // Drop any queued debounced save so the upsert can't resurrect it.
+      pendingSavesRef.current.delete(id);
       setProjects(prev => prev.filter(p => p.id !== id));
       if (activeProjectId === id) { setActiveProjectId(null); setCurrentView(ViewState.DASHBOARD); }
     }
@@ -880,12 +559,6 @@ const App: React.FC = () => {
           projectsRef.current = next;
           return next;
       });
-      
-      if (normalizedProject.isLocal) {
-          saveQueueRef.current = normalizedProject;
-          processSaveQueue();
-      }
-      IDB.saveProject(normalizedProject);
   };
 
   // --- FOLDER & FILE LOGIC ---
@@ -1462,6 +1135,10 @@ const App: React.FC = () => {
           <button onClick={() => { setShowGuide(false); setGuideSection('overview'); }} className={`p-3 rounded-xl transition-colors ${!showGuide ? 'bg-accent/15 text-accent shadow-soft' : 'text-faint hover:bg-surface-hover hover:text-content'}`} title="Dashboard"><LayoutDashboard className="w-5 h-5" /></button>
           <button onClick={() => openGuideSection('overview')} className={`p-3 rounded-xl transition-colors ${showGuide ? 'bg-accent/15 text-accent shadow-soft' : 'text-faint hover:bg-surface-hover hover:text-content'}`} title="Guide & Documentation"><BookOpen className="w-5 h-5" /></button>
           <button onClick={openSettings} className="mt-auto p-3 rounded-xl text-faint hover:bg-surface-hover hover:text-content transition-colors" title="Settings"><SettingsIcon className="w-5 h-5" /></button>
+          {authUser?.isAdmin && (
+            <button onClick={() => setShowAdminUsers(true)} className="p-3 rounded-xl text-faint hover:bg-surface-hover hover:text-content transition-colors" title="Manage Users"><Users className="w-5 h-5" /></button>
+          )}
+          <button onClick={handleLogout} className="p-3 rounded-xl text-faint hover:bg-surface-hover hover:text-danger transition-colors" title={`Sign out (${authUser?.username})`}><LogOut className="w-5 h-5" /></button>
         </aside>
       );
     }
@@ -1500,8 +1177,16 @@ const App: React.FC = () => {
             <button onClick={openSettings} className="p-2 rounded-lg text-faint hover:bg-surface-hover hover:text-content transition-colors" title="Settings">
               <SettingsIcon className="w-4 h-4" />
             </button>
+            {authUser?.isAdmin && (
+              <button onClick={() => setShowAdminUsers(true)} className="p-2 rounded-lg text-faint hover:bg-surface-hover hover:text-content transition-colors" title="Manage Users">
+                <Users className="w-4 h-4" />
+              </button>
+            )}
             <button onClick={() => setIsHelpOpen(true)} className="p-2 rounded-lg text-faint hover:bg-surface-hover hover:text-content transition-colors" title="Help">
               <HelpCircle className="w-4 h-4" />
+            </button>
+            <button onClick={handleLogout} className="p-2 rounded-lg text-faint hover:bg-surface-hover hover:text-danger transition-colors" title={`Sign out (${authUser?.username})`}>
+              <LogOut className="w-4 h-4" />
             </button>
           </div>
         </aside>
@@ -1582,23 +1267,56 @@ const App: React.FC = () => {
         </div>
 
         <div className="p-4 border-t border-border space-y-1">
+             {authUser && (
+               <div className="px-3 pb-1 font-mono text-[11px] uppercase tracking-wide text-faint truncate" title={authUser.username}>
+                 {authUser.username}
+               </div>
+             )}
              <button onClick={openSettings} className="flex items-center gap-3 px-3 py-2 text-faint hover:text-content hover:bg-surface-hover rounded-lg w-full transition-colors">
                 <SettingsIcon className="w-4 h-4" />
                 <span className="text-sm">Settings</span>
              </button>
+             {authUser?.isAdmin && (
+               <button onClick={() => setShowAdminUsers(true)} className="flex items-center gap-3 px-3 py-2 text-faint hover:text-content hover:bg-surface-hover rounded-lg w-full transition-colors">
+                  <Users className="w-4 h-4" />
+                  <span className="text-sm">Manage Users</span>
+               </button>
+             )}
              <button onClick={() => setIsHelpOpen(true)} className="flex items-center gap-3 px-3 py-2 text-faint hover:text-content hover:bg-surface-hover rounded-lg w-full transition-colors">
                 <HelpCircle className="w-4 h-4" />
                 <span className="text-sm">Guide & Help</span>
+             </button>
+             <button onClick={handleLogout} className="flex items-center gap-3 px-3 py-2 text-faint hover:text-danger hover:bg-surface-hover rounded-lg w-full transition-colors">
+                <LogOut className="w-4 h-4" />
+                <span className="text-sm">Sign out</span>
              </button>
         </div>
       </aside>
     );
   };
 
+  if (!authReady) {
+    return (
+      <div className="flex h-screen bg-bg text-content font-sans items-center justify-center">
+        <div className="w-10 h-10 bg-accent-soft rounded-xl flex items-center justify-center shadow-soft" title="DevArchitect"><span className="font-display text-sm font-extrabold tracking-tight text-accent-content">DA</span></div>
+      </div>
+    );
+  }
+
+  if (!authUser) {
+    return <AuthView />;
+  }
+
   return (
     <div className="flex h-screen bg-bg text-content font-sans overflow-hidden">
       {renderSidebar()}
       <main className="flex-1 flex flex-col min-w-0 bg-bg">
+        {loadError && (
+          <div className="shrink-0 flex items-center gap-3 px-4 py-2.5 border-b border-danger/40 bg-danger/10 text-sm text-content">
+            <span className="flex-1 min-w-0 truncate">{loadError}</span>
+            <button onClick={() => setLoadError(null)} className="text-faint hover:text-content" title="Dismiss"><X className="w-4 h-4" /></button>
+          </div>
+        )}
         <div className="flex-1 overflow-hidden relative">
           {currentView === ViewState.DASHBOARD ? (
             showGuide ? (
@@ -1610,10 +1328,8 @@ const App: React.FC = () => {
               onCreateProject={handleCreateProject}
               onUpdateProject={handleUpdateProject}
               onOpenWhatsNew={() => openGuideSection('updates')}
-              onLinkProjectToFolder={handleLinkProjectToLocalFolder}
-              onExportProject={handleExportProject} 
+              onExportProject={handleExportProject}
               onDeleteProject={handleDeleteProject}
-              onImportFolder={handleImportLocalFolder}
             />
             )
           ) : (
@@ -1700,6 +1416,7 @@ const App: React.FC = () => {
         <HelpModal isOpen={isHelpOpen} onClose={() => setIsHelpOpen(false)} />
 
         <SettingsModal />
+        <AdminUsersModal open={showAdminUsers} onClose={() => setShowAdminUsers(false)} />
 
         {/* Rename File Modal */}
         <Modal

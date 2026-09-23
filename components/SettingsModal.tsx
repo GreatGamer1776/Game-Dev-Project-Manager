@@ -1,5 +1,5 @@
 import React from 'react';
-import { Sun, Moon, Monitor, Check, Gamepad2, HardDrive, RotateCcw, Plus } from 'lucide-react';
+import { Sun, Moon, Monitor, Check, Gamepad2, RotateCcw, Plus } from 'lucide-react';
 import { Modal, Button, Eyebrow, TickFrame, cn } from './ui';
 import { useSettingsStore } from '../stores/useSettingsStore';
 import {
@@ -149,9 +149,6 @@ const Preview: React.FC = () => (
       <div className="mb-3 flex items-start justify-between">
         <span className="flex h-10 w-10 items-center justify-center rounded-lg border border-border bg-surface-raised">
           <Gamepad2 className="h-5 w-5 text-accent" />
-        </span>
-        <span className="flex items-center gap-1 rounded border border-accent/30 bg-accent/10 px-1.5 py-0.5 font-mono text-[10px] font-semibold uppercase tracking-wider text-accent">
-          <HardDrive className="h-3 w-3" /> Local
         </span>
       </div>
       <Eyebrow className="mb-1 block">Game</Eyebrow>

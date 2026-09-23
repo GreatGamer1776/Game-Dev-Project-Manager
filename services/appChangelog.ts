@@ -8,6 +8,31 @@ export interface AppChangelogEntry {
 
 export const APP_CHANGELOG: AppChangelogEntry[] = [
   {
+    id: '2026-09-22-admin-managed-accounts',
+    title: 'Admin-Managed Accounts',
+    date: 'September 22, 2026',
+    summary: 'Accounts are now invite-only, managed by an admin.',
+    changes: [
+      'The first account created becomes the admin; open registration is then disabled.',
+      'Admins can create, promote, reset passwords for, and delete accounts from Manage Users in the sidebar.',
+      'HTTPS is now served by default — the app redirects to a secure connection automatically.',
+      'Fixed a crash when the app was served over plain HTTP (missing secure-context browser APIs).'
+    ]
+  },
+  {
+    id: '2026-09-21-accounts-and-server',
+    title: 'Accounts & Server Storage',
+    date: 'September 21, 2026',
+    summary: 'DevArchitect now runs as a full-stack app with accounts and a real database.',
+    changes: [
+      'Added username/password sign-in — no email or personal info required.',
+      'Projects now persist in a PostgreSQL database through the backend API, so they follow your account across browsers and devices.',
+      'Each account only sees its own projects.',
+      'Removed local folder linking; browser storage is no longer used for project data.',
+      'Added a one-command Docker Compose deployment (web + API + database).'
+    ]
+  },
+  {
     id: '2026-04-03-local-folder-update',
     title: 'Local Folder Workflow Update',
     date: 'April 3, 2026',

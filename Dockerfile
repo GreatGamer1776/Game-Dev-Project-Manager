@@ -13,5 +13,5 @@ COPY nginx.conf /etc/nginx/templates/default.conf.template
 COPY nginx.http.conf /etc/nginx/http-only.conf
 COPY docker/40-selfsigned-cert.sh /docker-entrypoint.d/40-selfsigned-cert.sh
 RUN chmod +x /docker-entrypoint.d/40-selfsigned-cert.sh
-ENV HTTPS_PORT=4444
+ENV HTTPS_PORT=4443
 EXPOSE 80 443

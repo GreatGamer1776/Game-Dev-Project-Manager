@@ -1,6 +1,6 @@
 import React, { useState } from 'react';
 import { Project } from '../types';
-import { Plus, Code, Gamepad2, Globe, FileCode, Download, Trash2, HardDrive, Import, Pencil, BookOpen, Settings as SettingsIcon, Search } from 'lucide-react';
+import { Plus, Code, Gamepad2, Globe, FileCode, Download, Trash2, Pencil, BookOpen, Settings as SettingsIcon, Search } from 'lucide-react';
 import { Button, Card, Modal, Input, Textarea, Field, Select, Eyebrow, TickFrame, cn } from './ui';
 import { useSettingsStore } from '../stores/useSettingsStore';
 
@@ -18,10 +18,8 @@ interface DashboardProps {
   onCreateProject: (name: string, type: Project['type'], description: string) => void;
   onUpdateProject: (id: string, updates: { name: string; description: string }) => void;
   onOpenWhatsNew: () => void;
-  onLinkProjectToFolder: (id: string) => void;
   onExportProject: (project: Project) => void;
   onDeleteProject: (id: string) => void;
-  onImportFolder: () => void;
 }
 
 const Dashboard: React.FC<DashboardProps> = ({
@@ -30,10 +28,8 @@ const Dashboard: React.FC<DashboardProps> = ({
     onCreateProject,
     onUpdateProject,
     onOpenWhatsNew,
-    onLinkProjectToFolder,
     onExportProject,
-    onDeleteProject,
-    onImportFolder
+    onDeleteProject
 }) => {
   const [isModalOpen, setIsModalOpen] = useState(false);
   const [newProjectName, setNewProjectName] = useState('');
@@ -128,9 +124,6 @@ const Dashboard: React.FC<DashboardProps> = ({
             <Button variant="secondary" icon={BookOpen} onClick={onOpenWhatsNew}>
               What's new
             </Button>
-            <Button variant="secondary" icon={Import} onClick={onImportFolder}>
-              Import folder
-            </Button>
             <Button variant="primary" icon={Plus} onClick={() => setIsModalOpen(true)}>
               New project
             </Button>
@@ -141,13 +134,10 @@ const Dashboard: React.FC<DashboardProps> = ({
         <TickFrame className="bg-blueprint text-center py-20 px-6 border border-dashed border-border-strong rounded-2xl">
           <FileCode className="w-14 h-14 text-faint mx-auto mb-4" />
           <h3 className="font-display text-2xl font-semibold text-content">Your drafting table is empty</h3>
-          <p className="text-muted mt-2 max-w-sm mx-auto">Create a project to start planning, or import a folder you already have on disk.</p>
+          <p className="text-muted mt-2 max-w-sm mx-auto">Create a project to start planning your next build.</p>
           <div className="flex items-center justify-center gap-3 mt-6">
             <Button variant="primary" icon={Plus} onClick={() => setIsModalOpen(true)}>
               New project
-            </Button>
-            <Button variant="secondary" icon={Import} onClick={onImportFolder}>
-              Import folder
             </Button>
           </div>
         </TickFrame>
@@ -199,14 +189,6 @@ const Dashboard: React.FC<DashboardProps> = ({
                     <div className="p-2.5 bg-surface-raised rounded-lg inline-block border border-border group-hover:border-accent/50 transition-colors">
                       {getTypeIcon(project.type)}
                     </div>
-
-                    {/* Local Indicator */}
-                    {project.isLocal && (
-                        <div className="flex items-center gap-1 bg-accent/10 border border-accent/30 px-2 py-1 rounded font-mono text-[10px] text-accent font-semibold uppercase tracking-wider">
-                            <HardDrive className="w-3 h-3" />
-                            Local
-                        </div>
-                    )}
                 </div>
 
                 <Eyebrow className="block mb-1.5">{project.type}</Eyebrow>
@@ -224,15 +206,11 @@ const Dashboard: React.FC<DashboardProps> = ({
                       onClick={(e) => { e.preventDefault(); e.stopPropagation(); openEditModal(project); }}>
                       <Pencil className="w-4 h-4" />
                     </IconAction>
-                    <IconAction title={project.isLocal ? "Relink Local Folder" : "Link to Local Folder"} hoverClass="hover:text-success"
-                      onClick={(e) => { e.preventDefault(); e.stopPropagation(); onLinkProjectToFolder(project.id); }}>
-                      <HardDrive className="w-4 h-4" />
-                    </IconAction>
                     <IconAction title="Export JSON" hoverClass="hover:text-accent"
                       onClick={(e) => { e.preventDefault(); e.stopPropagation(); onExportProject(project); }}>
                       <Download className="w-4 h-4" />
                     </IconAction>
-                    <IconAction title={project.isLocal ? "Remove from List" : "Delete Permanently"} hoverClass="hover:text-danger"
+                    <IconAction title="Delete Permanently" hoverClass="hover:text-danger"
                       onClick={(e) => { e.preventDefault(); e.stopPropagation(); onDeleteProject(project.id); }}>
                       <Trash2 className="w-4 h-4" />
                     </IconAction>

@@ -1,6 +1,6 @@
 import React, { useState } from 'react';
 import { Project } from '../types';
-import { Plus, Code, Gamepad2, Globe, FileCode, Download, Trash2, Pencil, BookOpen, Search, ArrowRight, Clock, Layers } from 'lucide-react';
+import { Plus, Code, Gamepad2, Globe, FileCode, Download, Trash2, Pencil, Search, ArrowRight, Clock, Layers } from 'lucide-react';
 import { Button, Card, Modal, Input, Textarea, Field, Select, Eyebrow, TickFrame, cn } from './ui';
 
 type SortKey = 'recent' | 'name' | 'files';
@@ -29,7 +29,6 @@ interface DashboardProps {
   onSelectProject: (id: string) => void;
   onCreateProject: (name: string, type: Project['type'], description: string) => void;
   onUpdateProject: (id: string, updates: { name: string; description: string }) => void;
-  onOpenWhatsNew: () => void;
   onExportProject: (project: Project) => void;
   onDeleteProject: (id: string) => void;
 }
@@ -46,7 +45,6 @@ const Dashboard: React.FC<DashboardProps> = ({
     onSelectProject,
     onCreateProject,
     onUpdateProject,
-    onOpenWhatsNew,
     onExportProject,
     onDeleteProject
 }) => {
@@ -138,9 +136,6 @@ const Dashboard: React.FC<DashboardProps> = ({
               <p className="text-muted mt-2">Plan, document, and architect your software and games.</p>
             </div>
             <div className="flex items-center gap-3 flex-wrap">
-              <Button variant="secondary" icon={BookOpen} onClick={onOpenWhatsNew}>
-                What's new
-              </Button>
               <Button variant="primary" icon={Plus} onClick={() => setIsModalOpen(true)}>
                 New project
               </Button>

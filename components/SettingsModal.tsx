@@ -2,6 +2,7 @@ import React from 'react';
 import { Sun, Moon, Monitor, Check, Gamepad2, RotateCcw, Plus } from 'lucide-react';
 import { Modal, Button, Eyebrow, TickFrame, cn } from './ui';
 import { useSettingsStore } from '../stores/useSettingsStore';
+import { useUiStore, DocViewMode } from '../stores/useUiStore';
 import {
   useThemeStore,
   ThemePreference,
@@ -10,6 +11,10 @@ import {
   CORNER_STYLES,
   DENSITIES,
   TYPEFACES,
+  TEXT_SCALES,
+  MOTION_MODES,
+  PANEL_WIDTHS,
+  EDITOR_TEXT_SIZES,
 } from '../stores/useThemeStore';
 
 const THEME_OPTIONS: {
@@ -137,6 +142,40 @@ const SchemeChooser: React.FC = () => {
   );
 };
 
+/** Switch row for boolean behavior prefs. */
+const ToggleRow: React.FC<{
+  label: string;
+  hint?: string;
+  checked: boolean;
+  onChange: (value: boolean) => void;
+}> = ({ label, hint, checked, onChange }) => (
+  <button
+    type="button"
+    role="switch"
+    aria-checked={checked}
+    onClick={() => onChange(!checked)}
+    className="flex w-full items-center gap-3 px-3 py-2.5 text-left hover:bg-surface-hover transition-colors"
+  >
+    <span className="flex-1 min-w-0">
+      <span className="block text-sm font-medium text-content">{label}</span>
+      {hint && <span className="block text-xs text-faint">{hint}</span>}
+    </span>
+    <span
+      className={cn(
+        'relative inline-flex h-5 w-9 shrink-0 rounded-full transition-colors',
+        checked ? 'bg-accent' : 'bg-border-strong'
+      )}
+    >
+      <span
+        className={cn(
+          'absolute top-0.5 h-4 w-4 rounded-full bg-white shadow transition-transform',
+          checked ? 'translate-x-4' : 'translate-x-0.5'
+        )}
+      />
+    </span>
+  </button>
+);
+
 /** Live, self-contained scene that re-renders against the global tokens. */
 const Preview: React.FC = () => (
   <div className="bg-blueprint rounded-xl border border-border p-4">
@@ -184,14 +223,25 @@ export const SettingsModal: React.FC = () => {
   const setDensity = useThemeStore((s) => s.setDensity);
   const typeface = useThemeStore((s) => s.typeface);
   const setTypeface = useThemeStore((s) => s.setTypeface);
+  const textScale = useThemeStore((s) => s.textScale);
+  const setTextScale = useThemeStore((s) => s.setTextScale);
+  const motion = useThemeStore((s) => s.motion);
+  const setMotion = useThemeStore((s) => s.setMotion);
+  const panelWidth = useThemeStore((s) => s.panelWidth);
+  const setPanelWidth = useThemeStore((s) => s.setPanelWidth);
+  const editorText = useThemeStore((s) => s.editorText);
+  const setEditorText = useThemeStore((s) => s.setEditorText);
   const resetAppearance = useThemeStore((s) => s.resetAppearance);
+
+  const prefs = useUiStore((s) => s.prefs);
+  const setPref = useUiStore((s) => s.setPref);
 
   return (
     <Modal
       open={isOpen}
       onClose={closeSettings}
-      title="Appearance"
-      description="Tune how DevArchitect looks. Every change applies instantly."
+      title="Settings"
+      description="Tune how DevArchitect looks and behaves. Every change applies instantly."
       size="xl"
       footer={
         <>
@@ -219,6 +269,42 @@ export const SettingsModal: React.FC = () => {
           </Group>
           <Group label="Typeface">
             <Seg options={TYPEFACES} value={typeface} onChange={setTypeface} columns={3} />
+          </Group>
+          <Group label="UI scale">
+            <Seg options={TEXT_SCALES} value={textScale} onChange={setTextScale} columns={3} />
+          </Group>
+          <Group label="Motion">
+            <Seg options={MOTION_MODES} value={motion} onChange={setMotion} columns={2} />
+          </Group>
+          <Group label="File panel width">
+            <Seg options={PANEL_WIDTHS} value={panelWidth} onChange={setPanelWidth} columns={3} />
+          </Group>
+          <Group label="Editor text size">
+            <Seg options={EDITOR_TEXT_SIZES} value={editorText} onChange={setEditorText} columns={3} />
+          </Group>
+
+          <Group label="Behavior">
+            <div className="rounded-lg border border-border bg-surface-raised divide-y divide-border">
+              <ToggleRow
+                label="Confirm destructive actions"
+                hint="Ask before deletes, clears, and replacements"
+                checked={prefs.confirmActions}
+                onChange={(v) => setPref('confirmActions', v)}
+              />
+            </div>
+            <div className="pt-2">
+              <Seg
+                options={[
+                  { id: 'edit' as DocViewMode, label: 'Edit', hint: 'Source only' },
+                  { id: 'split' as DocViewMode, label: 'Split', hint: 'Side-by-side' },
+                  { id: 'preview' as DocViewMode, label: 'Preview', hint: 'Rendered' },
+                ]}
+                value={prefs.docViewMode}
+                onChange={(v) => setPref('docViewMode', v)}
+                columns={3}
+              />
+              <p className="text-xs text-faint mt-1.5">Default view when a document opens. The toolbar toggle still updates it.</p>
+            </div>
           </Group>
         </div>
 

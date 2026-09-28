@@ -44,10 +44,45 @@ interface PromptRequest extends PromptOptions {
 
 const TOAST_DURATION_MS = 4500;
 
+export type DocViewMode = 'edit' | 'split' | 'preview';
+
+/** Behavior preferences — persisted to localStorage, editable in Settings. */
+export interface UiPrefs {
+  /** When false, confirmDialog() resolves immediately without asking. */
+  confirmActions: boolean;
+  /** Default view mode when a document editor opens. */
+  docViewMode: DocViewMode;
+}
+
+const PREF_KEYS = {
+  confirmActions: 'devarchitect-confirm-actions',
+  docViewMode: 'devarchitect-doc-view',
+} as const;
+
+const readBool = (key: string, fallback: boolean) => {
+  try {
+    const v = window.localStorage.getItem(key);
+    return v === null ? fallback : v === 'true';
+  } catch {
+    return fallback;
+  }
+};
+
+const readDocViewMode = (): DocViewMode => {
+  try {
+    const v = window.localStorage.getItem(PREF_KEYS.docViewMode);
+    return v === 'split' || v === 'preview' ? v : 'edit';
+  } catch {
+    return 'edit';
+  }
+};
+
 interface UiStoreState {
   toasts: Toast[];
   confirmRequest: ConfirmRequest | null;
   promptRequest: PromptRequest | null;
+  prefs: UiPrefs;
+  setPref: <K extends keyof UiPrefs>(key: K, value: UiPrefs[K]) => void;
   pushToast: (kind: ToastKind, message: string) => void;
   dismissToast: (id: string) => void;
   requestConfirm: (options: ConfirmOptions) => Promise<boolean>;
@@ -60,6 +95,17 @@ export const useUiStore = create<UiStoreState>((set, get) => ({
   toasts: [],
   confirmRequest: null,
   promptRequest: null,
+  prefs: {
+    confirmActions: readBool(PREF_KEYS.confirmActions, true),
+    docViewMode: readDocViewMode(),
+  },
+
+  setPref: (key, value) => {
+    try {
+      window.localStorage.setItem(PREF_KEYS[key], String(value));
+    } catch { /* storage unavailable — pref still applies in-memory */ }
+    set(state => ({ prefs: { ...state.prefs, [key]: value } }));
+  },
 
   pushToast: (kind, message) => {
     const id = uid();
@@ -75,6 +121,8 @@ export const useUiStore = create<UiStoreState>((set, get) => ({
   // promise never hangs.
   requestConfirm: (options) => {
     get().confirmRequest?.resolve(false);
+    // User opted out of confirmations — resolve immediately.
+    if (!get().prefs.confirmActions) return Promise.resolve(true);
     return new Promise<boolean>((resolve) => {
       set({ confirmRequest: { ...options, resolve } });
     });

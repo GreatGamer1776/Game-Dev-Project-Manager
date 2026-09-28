@@ -182,6 +182,31 @@
     --font-display: 'JetBrains Mono', ui-monospace, monospace;
   }
 
+  /* UI scale — shifts the root font size; every rem-based spacing/text follows. */
+  [data-scale="small"] { font-size: 15px; }
+  [data-scale="large"] { font-size: 17.5px; }
+
+  /* File panel width — feeds w-[var(--panel-w)] on the docked sidebar. */
+  :root { --panel-w: 20rem; }
+  [data-panel="narrow"] { --panel-w: 16rem; }
+  [data-panel="wide"] { --panel-w: 24rem; }
+
+  /* Editor text size — doc source textarea + markdown preview body. */
+  :root { --editor-fs: 0.875rem; }
+  [data-editortext="small"] { --editor-fs: 0.8125rem; }
+  [data-editortext="large"] { --editor-fs: 1rem; }
+  .doc-source, .doc-md { font-size: var(--editor-fs) !important; }
+
+  /* Reduced motion — kill transitions/animations globally. */
+  [data-motion="reduced"] *,
+  [data-motion="reduced"] *::before,
+  [data-motion="reduced"] *::after {
+    animation-duration: 0.01ms !important;
+    animation-iteration-count: 1 !important;
+    transition-duration: 0.01ms !important;
+    scroll-behavior: auto !important;
+  }
+
   /*
    * Color schemes — override only the accent ramp. `[data-scheme]` blocks hold
    * light values; `.dark[data-scheme]` hold the brighter dark-mode values.

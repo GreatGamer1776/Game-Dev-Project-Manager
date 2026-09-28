@@ -307,9 +307,8 @@ const App: React.FC = () => {
               setActiveProjectId(null);
               setActiveFileId(null);
             }
-            if (savedAppState?.filePanelOpen) {
-              setFilePanelOpen(true);
-            }
+            // Docked by default — only a persisted `false` keeps it hidden.
+            setFilePanelOpen(savedAppState?.filePanelOpen !== false);
         } catch (e) {
             console.error("Init error", e);
             setLoadError("Could not reach the backend API. Start the server (docker compose up) and reload.");
@@ -1153,17 +1152,11 @@ const App: React.FC = () => {
     );
   };
 
-  // Slide-over file panel — the only persistent navigation is the top bar now.
+  // Docked file panel — always part of the project layout; Ctrl+\ toggles it.
   const renderFilePanel = () => {
     if (!activeProject || !filePanelOpen) return null;
     return (
-      <>
-        <div
-          className="fixed inset-0 top-14 z-30 bg-overlay/40 animate-fade-in"
-          onClick={() => setFilePanelOpen(false)}
-          aria-hidden
-        />
-        <aside className="fixed left-0 top-14 bottom-0 w-80 max-w-[85vw] bg-surface border-r border-border flex flex-col z-40 shadow-pop animate-slide-in">
+        <aside className="w-[var(--panel-w)] shrink-0 bg-surface border-r border-border flex flex-col animate-slide-in overflow-hidden">
           {/* Actions Bar */}
           <div className="px-3 py-3 border-b border-border flex gap-2 shrink-0">
               <Button size="sm" icon={FilePlus} className="flex-1" onClick={() => openCreateFileModal(null)}>
@@ -1227,7 +1220,6 @@ const App: React.FC = () => {
             )}
           </div>
         </aside>
-      </>
     );
   };
 
@@ -1264,7 +1256,6 @@ const App: React.FC = () => {
         user={authUser}
       />
       <main className="flex-1 flex flex-col min-w-0 bg-bg relative">
-        {renderFilePanel()}
         {loadError && (
           <div className="shrink-0 flex items-center gap-3 px-4 py-2.5 border-b border-danger/40 bg-danger/10 text-sm text-content">
             <span className="flex-1 min-w-0 truncate">{loadError}</span>
@@ -1282,13 +1273,14 @@ const App: React.FC = () => {
               onSelectProject={handleSelectProject}
               onCreateProject={handleCreateProject}
               onUpdateProject={handleUpdateProject}
-              onOpenWhatsNew={() => openGuideSection('updates')}
               onExportProject={handleExportProject}
               onDeleteProject={handleDeleteProject}
             />
             )
           ) : (
-            <div className="h-full flex flex-col">
+            <div className="h-full flex">
+              {renderFilePanel()}
+              <div className="flex-1 flex flex-col min-w-0">
               {renderFileTabs()}
               <div className="flex-1 min-h-0 overflow-hidden relative">
             {activeProject && activeFile && activeEditorPlugin ? (
@@ -1353,6 +1345,7 @@ const App: React.FC = () => {
                 </div>
               </div>
             )}
+              </div>
               </div>
             </div>
           )}

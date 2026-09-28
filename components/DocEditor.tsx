@@ -9,7 +9,7 @@ import {
 import ReactMarkdown, { defaultUrlTransform } from 'react-markdown';
 import type { Components } from 'react-markdown';
 import remarkGfm from 'remark-gfm';
-import { confirmDialog, toast } from '../stores/useUiStore';
+import { confirmDialog, toast, useUiStore } from '../stores/useUiStore';
 import rehypeRaw from 'rehype-raw';
 import rehypeSanitize, { defaultSchema } from 'rehype-sanitize';
 import { EditorProps, TodoItem, TodoStatus } from '../types';
@@ -89,7 +89,14 @@ const DocEditor: React.FC<EditorProps> = ({ initialContent, onSave, fileName, as
   const [content, setContent] = useState(initialContent);
   const undoRedo = useUndoRedo<string>(initialContent);
   // OPTIMIZATION: Default to 'edit' mode to prevent initial render lag
-  const [viewMode, setViewMode] = useState<'edit' | 'preview' | 'split'>('edit');
+  const [viewMode, setViewModeState] = useState<'edit' | 'preview' | 'split'>(() => useUiStore.getState().prefs.docViewMode);
+  const setUiPref = useUiStore((s) => s.setPref);
+  // The toolbar buttons and Settings share the same pref, so the last-chosen
+  // mode becomes the default for the next document.
+  const setViewMode = (mode: 'edit' | 'preview' | 'split') => {
+    setViewModeState(mode);
+    setUiPref('docViewMode', mode);
+  };
   const [isUploading, setIsUploading] = useState(false);
   const [previewSource, setPreviewSource] = useState(content);
   
@@ -1028,7 +1035,7 @@ const DocEditor: React.FC<EditorProps> = ({ initialContent, onSave, fileName, as
           <div className={`h-full flex flex-col ${viewMode === 'split' ? 'w-1/2 border-r border-border' : 'w-full'}`}>
             <textarea
               ref={textareaRef}
-              className="w-full h-full bg-bg p-6 text-content font-mono text-sm resize-none focus:outline-none leading-relaxed custom-scrollbar selection:bg-accent/30"
+              className="doc-source w-full h-full bg-bg p-6 text-content font-mono resize-none focus:outline-none leading-relaxed custom-scrollbar selection:bg-accent/30"
               value={content}
               onChange={(e) => setContent(e.target.value)}
               onDragOver={handleEditorDragOver}

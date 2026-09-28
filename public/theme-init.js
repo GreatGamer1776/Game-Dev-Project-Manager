@@ -20,4 +20,8 @@
   root.setAttribute('data-corners', get('devarchitect-corners', 'precise'));
   root.setAttribute('data-density', get('devarchitect-density', 'comfortable'));
   root.setAttribute('data-type', get('devarchitect-typeface', 'technical'));
+  root.setAttribute('data-scale', get('devarchitect-scale', 'default'));
+  root.setAttribute('data-motion', get('devarchitect-motion', 'full'));
+  root.setAttribute('data-panel', get('devarchitect-panel', 'default'));
+  root.setAttribute('data-editortext', get('devarchitect-editor-text', 'default'));
 })();

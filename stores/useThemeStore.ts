@@ -14,6 +14,10 @@ export type SurfaceTint = 'neutral' | 'warm' | 'cool';
 export type CornerStyle = 'sharp' | 'precise' | 'rounded';
 export type Density = 'comfortable' | 'compact';
 export type Typeface = 'technical' | 'editorial' | 'mono';
+export type TextScale = 'small' | 'default' | 'large';
+export type Motion = 'full' | 'reduced';
+export type PanelWidth = 'narrow' | 'default' | 'wide';
+export type EditorText = 'small' | 'default' | 'large';
 
 /** Accent schemes offered in Settings. `swatch` is a solid color for the chip. */
 export const COLOR_SCHEMES: { id: ColorScheme; label: string; swatch: string }[] = [
@@ -50,6 +54,29 @@ export const TYPEFACES: { id: Typeface; label: string; hint: string }[] = [
   { id: 'mono', label: 'Mono', hint: 'JetBrains' },
 ];
 
+export const TEXT_SCALES: { id: TextScale; label: string; hint: string }[] = [
+  { id: 'small', label: 'Small', hint: '15px base' },
+  { id: 'default', label: 'Default', hint: '16px base' },
+  { id: 'large', label: 'Large', hint: '17.5px base' },
+];
+
+export const MOTION_MODES: { id: Motion; label: string; hint: string }[] = [
+  { id: 'full', label: 'Full', hint: 'All animations' },
+  { id: 'reduced', label: 'Reduced', hint: 'Minimal motion' },
+];
+
+export const PANEL_WIDTHS: { id: PanelWidth; label: string; hint: string }[] = [
+  { id: 'narrow', label: 'Narrow', hint: '256px' },
+  { id: 'default', label: 'Default', hint: '320px' },
+  { id: 'wide', label: 'Wide', hint: '384px' },
+];
+
+export const EDITOR_TEXT_SIZES: { id: EditorText; label: string; hint: string }[] = [
+  { id: 'small', label: 'Small', hint: '13px' },
+  { id: 'default', label: 'Default', hint: '14px' },
+  { id: 'large', label: 'Large', hint: '16px' },
+];
+
 const KEYS = {
   theme: 'devarchitect-theme',
   scheme: 'devarchitect-scheme',
@@ -57,6 +84,10 @@ const KEYS = {
   corners: 'devarchitect-corners',
   density: 'devarchitect-density',
   typeface: 'devarchitect-typeface',
+  scale: 'devarchitect-scale',
+  motion: 'devarchitect-motion',
+  panel: 'devarchitect-panel',
+  editorText: 'devarchitect-editor-text',
 } as const;
 
 const DEFAULTS = {
@@ -65,6 +96,10 @@ const DEFAULTS = {
   corners: 'precise' as CornerStyle,
   density: 'comfortable' as Density,
   typeface: 'technical' as Typeface,
+  scale: 'default' as TextScale,
+  motion: 'full' as Motion,
+  panel: 'default' as PanelWidth,
+  editorText: 'default' as EditorText,
 };
 
 const prefersDark = () =>
@@ -105,12 +140,20 @@ interface ThemeStoreState {
   corners: CornerStyle;
   density: Density;
   typeface: Typeface;
+  textScale: TextScale;
+  motion: Motion;
+  panelWidth: PanelWidth;
+  editorText: EditorText;
   setPreference: (preference: ThemePreference) => void;
   setScheme: (scheme: ColorScheme) => void;
   setTint: (tint: SurfaceTint) => void;
   setCorners: (corners: CornerStyle) => void;
   setDensity: (density: Density) => void;
   setTypeface: (typeface: Typeface) => void;
+  setTextScale: (scale: TextScale) => void;
+  setMotion: (motion: Motion) => void;
+  setPanelWidth: (width: PanelWidth) => void;
+  setEditorText: (size: EditorText) => void;
   toggle: () => void;
   /** Reset every appearance axis to its default. */
   resetAppearance: () => void;
@@ -132,6 +175,10 @@ export const useThemeStore = create<ThemeStoreState>((set, get) => ({
   corners: read(KEYS.corners, CORNER_STYLES.map((s) => s.id), DEFAULTS.corners),
   density: read(KEYS.density, DENSITIES.map((s) => s.id), DEFAULTS.density),
   typeface: read(KEYS.typeface, TYPEFACES.map((s) => s.id), DEFAULTS.typeface),
+  textScale: read(KEYS.scale, TEXT_SCALES.map((s) => s.id), DEFAULTS.scale),
+  motion: read(KEYS.motion, MOTION_MODES.map((s) => s.id), DEFAULTS.motion),
+  panelWidth: read(KEYS.panel, PANEL_WIDTHS.map((s) => s.id), DEFAULTS.panel),
+  editorText: read(KEYS.editorText, EDITOR_TEXT_SIZES.map((s) => s.id), DEFAULTS.editorText),
 
   setPreference: (preference) => {
     persist(KEYS.theme, preference);
@@ -163,17 +210,41 @@ export const useThemeStore = create<ThemeStoreState>((set, get) => ({
     setAttr('data-type', typeface);
     set({ typeface });
   },
+  setTextScale: (scale) => {
+    persist(KEYS.scale, scale);
+    setAttr('data-scale', scale);
+    set({ textScale: scale });
+  },
+  setMotion: (motion) => {
+    persist(KEYS.motion, motion);
+    setAttr('data-motion', motion);
+    set({ motion });
+  },
+  setPanelWidth: (width) => {
+    persist(KEYS.panel, width);
+    setAttr('data-panel', width);
+    set({ panelWidth: width });
+  },
+  setEditorText: (size) => {
+    persist(KEYS.editorText, size);
+    setAttr('data-editortext', size);
+    set({ editorText: size });
+  },
   toggle: () => {
     const next: ThemePreference = get().isDark ? 'light' : 'dark';
     get().setPreference(next);
   },
   resetAppearance: () => {
-    const { setScheme, setTint, setCorners, setDensity, setTypeface } = get();
+    const { setScheme, setTint, setCorners, setDensity, setTypeface, setTextScale, setMotion, setPanelWidth, setEditorText } = get();
     setScheme(DEFAULTS.scheme);
     setTint(DEFAULTS.tint);
     setCorners(DEFAULTS.corners);
     setDensity(DEFAULTS.density);
     setTypeface(DEFAULTS.typeface);
+    setTextScale(DEFAULTS.scale);
+    setMotion(DEFAULTS.motion);
+    setPanelWidth(DEFAULTS.panel);
+    setEditorText(DEFAULTS.editorText);
   },
   syncSystem: () => {
     if (get().preference !== 'system') return;

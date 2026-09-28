@@ -1,12 +1,10 @@
 import React, { useEffect, useState } from 'react';
-import { FileText, Network, CheckSquare, Bug, Map, Table, PenTool, Image as ImageIcon, Box, Keyboard, Lightbulb, FolderOpen, Workflow, HardDrive, ChevronDown, ChevronRight, BookOpen } from 'lucide-react';
-import { APP_CHANGELOG } from '../services/appChangelog';
+import { FileText, Network, CheckSquare, Bug, Map, Table, PenTool, Image as ImageIcon, Box, Keyboard, Lightbulb, FolderOpen, Workflow, HardDrive, ChevronDown, ChevronRight } from 'lucide-react';
 
-export type GuideSectionId = 'overview' | 'updates' | 'tools' | 'shortcuts' | 'workflows' | 'storage' | 'tips';
+export type GuideSectionId = 'overview' | 'tools' | 'shortcuts' | 'workflows' | 'storage' | 'tips';
 
 const sections: { id: GuideSectionId; label: string }[] = [
   { id: 'overview', label: 'Overview' },
-  { id: 'updates', label: "What's New" },
   { id: 'tools', label: 'File Types & Tools' },
   { id: 'shortcuts', label: 'Keyboard Shortcuts' },
   { id: 'workflows', label: 'Workflows' },
@@ -283,48 +281,6 @@ const GuideView: React.FC<GuideViewProps> = ({ initialSection = 'overview' }) =>
     </div>
   );
 
-  const renderUpdates = () => (
-    <div className="space-y-6">
-      <div className="bg-surface-raised/40 border border-border rounded-xl p-6">
-        <h3 className="text-xl font-semibold text-content mb-2">App Changelog</h3>
-        <p className="text-muted leading-relaxed">
-          This section tracks updates to DevArchitect itself so users can quickly see what changed between releases.
-        </p>
-      </div>
-
-      {APP_CHANGELOG.map((entry, index) => (
-        <div key={entry.id} className="relative border border-border rounded-xl bg-surface overflow-hidden">
-          <div className="px-5 py-4 border-b border-border bg-bg/70">
-            <div className="flex flex-col gap-2 md:flex-row md:items-center md:justify-between">
-              <div>
-                <h4 className="text-lg font-semibold text-content">{entry.title}</h4>
-                <p className="text-sm text-muted mt-1">{entry.summary}</p>
-              </div>
-              <span className="shrink-0 text-xs uppercase tracking-wide text-blue-400 bg-blue-500/10 border border-blue-500/20 rounded-full px-3 py-1">
-                {entry.date}
-              </span>
-            </div>
-          </div>
-          <div className="px-5 py-4">
-            <ul className="space-y-2">
-              {entry.changes.map((change, changeIndex) => (
-                <li key={`${entry.id}-${changeIndex}`} className="text-sm text-muted flex gap-2">
-                  <span className="text-emerald-400 shrink-0 mt-1">•</span>
-                  <span>{change}</span>
-                </li>
-              ))}
-            </ul>
-          </div>
-          {index === 0 && (
-            <div className="absolute top-4 right-4 md:right-28">
-              <span className="text-[10px] uppercase tracking-[0.2em] text-faint">Latest</span>
-            </div>
-          )}
-        </div>
-      ))}
-    </div>
-  );
-
   const renderTools = () => (
     <div className="space-y-4">
       <p className="text-muted text-sm mb-2">
@@ -544,7 +500,6 @@ const GuideView: React.FC<GuideViewProps> = ({ initialSection = 'overview' }) =>
 
   const contentMap: Record<GuideSectionId, () => React.ReactNode> = {
     overview: renderOverview,
-    updates: renderUpdates,
     tools: renderTools,
     shortcuts: renderShortcuts,
     workflows: renderWorkflows,
@@ -554,7 +509,6 @@ const GuideView: React.FC<GuideViewProps> = ({ initialSection = 'overview' }) =>
 
   const sectionIcons: Record<GuideSectionId, React.ReactNode> = {
     overview: <Box className="w-4 h-4" />,
-    updates: <BookOpen className="w-4 h-4" />,
     tools: <FolderOpen className="w-4 h-4" />,
     shortcuts: <Keyboard className="w-4 h-4" />,
     workflows: <Workflow className="w-4 h-4" />,

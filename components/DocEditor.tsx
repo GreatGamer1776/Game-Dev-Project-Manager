@@ -9,6 +9,7 @@ import {
 import ReactMarkdown, { defaultUrlTransform } from 'react-markdown';
 import type { Components } from 'react-markdown';
 import remarkGfm from 'remark-gfm';
+import { confirmDialog, toast } from '../stores/useUiStore';
 import rehypeRaw from 'rehype-raw';
 import rehypeSanitize, { defaultSchema } from 'rehype-sanitize';
 import { EditorProps, TodoItem, TodoStatus } from '../types';
@@ -451,7 +452,12 @@ const DocEditor: React.FC<EditorProps> = ({ initialContent, onSave, fileName, as
   }, [content, undoRedo]);
 
   const handleClear = () => {
-    if (confirm('Are you sure you want to clear the entire document?')) setContent('');
+    void confirmDialog({
+      title: 'Clear the entire document?',
+      message: 'This removes all content and cannot be undone.',
+      confirmText: 'Clear document',
+      danger: true,
+    }).then(confirmed => { if (confirmed) setContent(''); });
   };
 
   const insertText = (before: string, after: string = '') => {
@@ -485,7 +491,7 @@ const DocEditor: React.FC<EditorProps> = ({ initialContent, onSave, fileName, as
         insertText(`\n![${safeName}](${assetUrl})\n`);
     } catch (error) {
         console.error("Upload failed", error);
-        alert("Failed to add media.");
+        toast.error("Failed to add media.");
     } finally {
         setIsUploading(false);
         if (fileInputRef.current) fileInputRef.current.value = '';

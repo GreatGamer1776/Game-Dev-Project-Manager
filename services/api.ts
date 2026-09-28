@@ -4,7 +4,9 @@ export type PersistedAppState = {
   currentView: ViewState;
   activeProjectId: string | null;
   activeFileId: string | null;
+  /** @deprecated superseded by filePanelOpen; kept for old saved state. */
   sidebarCollapsed?: boolean;
+  filePanelOpen?: boolean;
 };
 
 export interface AuthUser {

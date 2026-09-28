@@ -18,6 +18,7 @@ import {
 } from 'lucide-react';
 import { EditorProps } from '../types';
 import { useUndoRedo } from '../hooks/useUndoRedo';
+import { confirmDialog, toast } from '../stores/useUiStore';
 import { uid } from '../utils/id';
 
 interface GridColumn {
@@ -393,10 +394,15 @@ const DataGridEditor: React.FC<EditorProps> = ({ initialContent, onSave, fileNam
     );
   };
 
-  const deleteColumn = (columnId: string) => {
+  const deleteColumn = async (columnId: string) => {
     const column = columns.find(c => c.id === columnId);
     if (!column) return;
-    const confirmed = confirm(`Delete "${column.name}" column? This removes all values in that column.`);
+    const confirmed = await confirmDialog({
+      title: `Delete "${column.name}" column?`,
+      message: 'This removes all values in that column.',
+      confirmText: 'Delete column',
+      danger: true,
+    });
     if (!confirmed) return;
 
     setColumns(prev => prev.filter(c => c.id !== columnId));
@@ -423,9 +429,13 @@ const DataGridEditor: React.FC<EditorProps> = ({ initialContent, onSave, fileNam
     });
   };
 
-  const deleteSelectedRows = () => {
+  const deleteSelectedRows = async () => {
     if (selectedRowIds.size === 0) return;
-    const confirmed = confirm(`Delete ${selectedRowIds.size} selected row${selectedRowIds.size === 1 ? '' : 's'}?`);
+    const confirmed = await confirmDialog({
+      title: `Delete ${selectedRowIds.size} selected row${selectedRowIds.size === 1 ? '' : 's'}?`,
+      confirmText: 'Delete rows',
+      danger: true,
+    });
     if (!confirmed) return;
     setRows(prev => prev.filter(row => !selectedRowIds.has(row.id)));
     setSelectedRowIds(new Set());
@@ -503,7 +513,12 @@ const DataGridEditor: React.FC<EditorProps> = ({ initialContent, onSave, fileNam
         const text = await file.text();
         const parsed = parseCsvToGrid(text);
         if (rows.length > 0 || columns.length > 0) {
-          const confirmed = confirm('Replace current grid with imported CSV data?');
+          const confirmed = await confirmDialog({
+            title: 'Replace current grid?',
+            message: 'The imported CSV will replace all existing columns and rows.',
+            confirmText: 'Replace',
+            danger: true,
+          });
           if (!confirmed) return;
         }
         setColumns(parsed.columns);
@@ -514,7 +529,7 @@ const DataGridEditor: React.FC<EditorProps> = ({ initialContent, onSave, fileNam
         setSearchQuery('');
       } catch (error) {
         console.error(error);
-        alert('Failed to import CSV.');
+        toast.error('Failed to import CSV.');
       }
     };
     input.click();

@@ -2,6 +2,7 @@ import React, { useState, useEffect, useRef } from 'react';
 import { Save, Plus, Trash2, CheckSquare, Square, Calendar, ChevronDown, ChevronUp, ListChecks, Loader2, Check, AlertCircle, MoreHorizontal, Link as LinkIcon, Tags, X, Search, Filter, ArrowUpDown, Undo2, Redo2 } from 'lucide-react';
 import { TodoItem, Priority, SubTask, EditorProps, TodoStatus } from '../types';
 import { useUndoRedo } from '../hooks/useUndoRedo';
+import { confirmDialog } from '../stores/useUiStore';
 import { uid } from '../utils/id';
 
 const FILE_LINK_DRAG_MIME = 'application/x-gdpm-file-id';
@@ -464,9 +465,14 @@ const TodoEditor: React.FC<EditorProps> = ({ initialContent, onSave, fileName, p
     setNewItemSubTasks(prev => prev.filter(sub => sub.id !== subTaskId));
   };
 
-  const deleteItem = (e: React.MouseEvent, id: string) => {
+  const deleteItem = async (e: React.MouseEvent, id: string) => {
     e.stopPropagation();
-    if (confirm("Delete this task?")) {
+    const confirmed = await confirmDialog({
+      title: 'Delete this task?',
+      confirmText: 'Delete',
+      danger: true,
+    });
+    if (confirmed) {
       setItems(items.filter(item => item.id !== id));
     }
   };
@@ -669,9 +675,14 @@ const TodoEditor: React.FC<EditorProps> = ({ initialContent, onSave, fileName, p
     setSelectedItemIds([]);
   };
 
-  const deleteSelectedItems = () => {
+  const deleteSelectedItems = async () => {
     if (selectedItemIds.length === 0) return;
-    if (!confirm(`Delete ${selectedItemIds.length} selected task${selectedItemIds.length === 1 ? '' : 's'}?`)) return;
+    const confirmed = await confirmDialog({
+      title: `Delete ${selectedItemIds.length} selected task${selectedItemIds.length === 1 ? '' : 's'}?`,
+      confirmText: 'Delete',
+      danger: true,
+    });
+    if (!confirmed) return;
 
     const selectedSet = new Set(selectedItemIds);
     setItems(currentItems => currentItems.filter(item => !selectedSet.has(item.id)));

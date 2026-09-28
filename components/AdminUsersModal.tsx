@@ -3,6 +3,7 @@ import { Shield, ShieldCheck, KeyRound, Trash2, UserPlus, RefreshCw } from 'luci
 import { Modal, Button, Input, Field } from './ui';
 import { api, AdminUser, ApiError } from '../services/api';
 import { useAuthStore } from '../stores/useAuthStore';
+import { confirmDialog, promptDialog, toast } from '../stores/useUiStore';
 
 interface AdminUsersModalProps {
   open: boolean;
@@ -59,11 +60,17 @@ const AdminUsersModal: React.FC<AdminUsersModalProps> = ({ open, onClose }) => {
   };
 
   const handleResetPassword = async (user: AdminUser) => {
-    const password = prompt(`New password for ${user.username} (min 8 characters):`);
+    const password = await promptDialog({
+      title: `Reset password — ${user.username}`,
+      label: 'New password (min 8 characters)',
+      inputType: 'password',
+      confirmText: 'Reset',
+    });
     if (password === null) return;
     try {
       await api.adminUpdateUser(user.id, { password });
       await refresh();
+      toast.success(`Password reset for ${user.username}.`);
     } catch (err) {
       setError(err instanceof ApiError ? err.message : 'Could not reset password.');
     }
@@ -79,10 +86,17 @@ const AdminUsersModal: React.FC<AdminUsersModalProps> = ({ open, onClose }) => {
   };
 
   const handleDelete = async (user: AdminUser) => {
-    if (!confirm(`Delete ${user.username}? All of their projects will be permanently deleted.`)) return;
+    const confirmed = await confirmDialog({
+      title: `Delete ${user.username}?`,
+      message: 'All of their projects will be permanently deleted.',
+      confirmText: 'Delete user',
+      danger: true,
+    });
+    if (!confirmed) return;
     try {
       await api.adminDeleteUser(user.id);
       await refresh();
+      toast.success(`Deleted ${user.username}.`);
     } catch (err) {
       setError(err instanceof ApiError ? err.message : 'Could not delete user.');
     }

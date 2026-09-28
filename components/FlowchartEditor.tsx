@@ -25,6 +25,7 @@ import {
   Undo2, Redo2
 } from 'lucide-react';
 import { EditorProps } from '../types';
+import { promptDialog } from '../stores/useUiStore';
 import { useUndoRedo } from '../hooks/useUndoRedo';
 import { uid } from '../utils/id';
 
@@ -287,8 +288,13 @@ const FlowchartEditorContent: React.FC<EditorProps> = ({ initialContent, onSave,
     deleteElements({ nodes: selectedNodes, edges: selectedEdges });
   };
 
-  const handleNodeDoubleClick = (event: React.MouseEvent, node: Node) => {
-    const newLabel = prompt("Enter text for this node:", node.data.label);
+  const handleNodeDoubleClick = async (event: React.MouseEvent, node: Node) => {
+    const newLabel = await promptDialog({
+      title: 'Edit node',
+      label: 'Node text',
+      defaultValue: node.data.label,
+      confirmText: 'Save',
+    });
     if (newLabel !== null) {
       setNodes((nds) =>
         nds.map((n) => {
@@ -302,9 +308,15 @@ const FlowchartEditorContent: React.FC<EditorProps> = ({ initialContent, onSave,
   };
 
   // NEW: Double-click edge to add label (Yes/No/True/False)
-  const handleEdgeDoubleClick = (event: React.MouseEvent, edge: Edge) => {
+  const handleEdgeDoubleClick = async (event: React.MouseEvent, edge: Edge) => {
       const existingLabel = typeof edge.label === 'string' ? edge.label : edge.label != null ? String(edge.label) : '';
-      const newLabel = prompt("Enter label for this connection (e.g., 'Yes', 'No', 'True'):", existingLabel);
+      const newLabel = await promptDialog({
+        title: 'Edit connection label',
+        label: "Label (e.g., 'Yes', 'No', 'True') — empty clears it",
+        defaultValue: existingLabel,
+        confirmText: 'Save',
+        allowEmpty: true,
+      });
       if (newLabel !== null) {
           setEdges((eds) => eds.map((e) => {
               if (e.id === edge.id) {

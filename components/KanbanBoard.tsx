@@ -2,6 +2,7 @@ import React, { useState, useEffect, useRef } from 'react';
 import { Save, Plus, AlertCircle, ChevronLeft, ChevronRight, X, Trash2, Bug as BugIcon, Search, Filter, Pencil, Loader2, Check, Link as LinkIcon, ArrowUpDown, Calendar, Undo2, Redo2 } from 'lucide-react';
 import { Bug, BugSeverity, BugStatus, EditorProps } from '../types';
 import { useUndoRedo } from '../hooks/useUndoRedo';
+import { confirmDialog } from '../stores/useUiStore';
 import { uid } from '../utils/id';
 
 const FILE_LINK_DRAG_MIME = 'application/x-gdpm-file-id';
@@ -281,8 +282,13 @@ const KanbanBoard: React.FC<EditorProps> = ({ initialContent, onSave, fileName, 
     setBugs(prev => prev.map(b => b.id === id ? { ...b, status: newStatus } : b));
   };
 
-  const deleteBug = (id: string) => {
-    if (confirm("Delete this bug ticket?")) {
+  const deleteBug = async (id: string) => {
+    const confirmed = await confirmDialog({
+      title: 'Delete this bug ticket?',
+      confirmText: 'Delete',
+      danger: true,
+    });
+    if (confirmed) {
       setBugs(prev => prev.filter(b => b.id !== id));
     }
   };
@@ -436,9 +442,14 @@ const KanbanBoard: React.FC<EditorProps> = ({ initialContent, onSave, fileName, 
     setSelectedBugIds([]);
   };
 
-  const deleteSelectedBugs = () => {
+  const deleteSelectedBugs = async () => {
     if (selectedBugIds.length === 0) return;
-    if (!confirm(`Delete ${selectedBugIds.length} selected bug${selectedBugIds.length === 1 ? '' : 's'}?`)) return;
+    const confirmed = await confirmDialog({
+      title: `Delete ${selectedBugIds.length} selected bug${selectedBugIds.length === 1 ? '' : 's'}?`,
+      confirmText: 'Delete',
+      danger: true,
+    });
+    if (!confirmed) return;
 
     const selectedSet = new Set(selectedBugIds);
     setBugs(currentBugs => currentBugs.filter(bug => !selectedSet.has(bug.id)));

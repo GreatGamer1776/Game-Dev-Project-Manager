@@ -315,6 +315,24 @@
   }
 }
 
+/* Slide-over panels (file drawer, etc.) */
+@keyframes slide-in {
+  from { transform: translateX(-16px); opacity: 0; }
+  to { transform: translateX(0); opacity: 1; }
+}
+.animate-slide-in {
+  animation: slide-in 0.18s ease-out;
+}
+
+/* Staggered card / view entrances */
+@keyframes fade-in {
+  from { opacity: 0; transform: translateY(6px); }
+  to { opacity: 1; transform: translateY(0); }
+}
+.animate-fade-in {
+  animation: fade-in 0.28s ease-out both;
+}
+
 /* Markdown preview: the inline `code` style must not leak into fenced blocks. */
 .doc-md pre code {
   background: transparent;

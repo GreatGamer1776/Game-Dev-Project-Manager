@@ -1,6 +1,7 @@
 import React, { useRef, useState, useEffect, useMemo } from 'react';
 import { Save, Eraser, Pen, Highlighter, Trash2, Loader2, Check, AlertCircle, Image as ImageIcon, X, Maximize2, Undo2, Redo2, Type as TypeIcon, Upload } from 'lucide-react';
 import { EditorProps } from '../types';
+import { confirmDialog } from '../stores/useUiStore';
 import { uid } from '../utils/id';
 
 type ToolType = 'pen' | 'highlighter' | 'eraser' | 'text';
@@ -921,8 +922,14 @@ const WhiteboardEditor: React.FC<EditorProps> = ({ initialContent, onSave, fileN
     return () => window.removeEventListener('keydown', handleKeyDown);
   }, [selectedElement, editingTextId]);
 
-  const clearCanvas = () => {
-    if (!confirm('Clear whiteboard? This cannot be undone.')) return;
+  const clearCanvas = async () => {
+    const confirmed = await confirmDialog({
+      title: 'Clear whiteboard?',
+      message: 'This cannot be undone.',
+      confirmText: 'Clear',
+      danger: true,
+    });
+    if (!confirmed) return;
     const refs = getCanvasContexts();
     if (!refs) return;
     fillCanvasBackground(refs.baseCtx, refs.baseCanvas);

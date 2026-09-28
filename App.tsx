@@ -1,7 +1,8 @@
 import React, { useState, useEffect } from 'react';
-import { LayoutDashboard, FileText, Network, ArrowLeft, Folder, File, CheckSquare, Bug as BugIcon, Trash2, Download, Map as MapIcon, Table, PenTool, Image as ImageIcon, HelpCircle, ChevronRight, ChevronDown, FolderPlus, FilePlus, Copy as CopyIcon, Pencil, PanelLeftClose, PanelLeftOpen, BookOpen, Settings as SettingsIcon, X, Pin, LogOut, Users } from 'lucide-react';
+import { FileText, Network, Folder, File, CheckSquare, Bug as BugIcon, Trash2, Map as MapIcon, Table, PenTool, Image as ImageIcon, ChevronRight, ChevronDown, FolderPlus, FilePlus, Copy as CopyIcon, Pencil, X, Pin } from 'lucide-react';
 import JSZip from 'jszip';
 import Dashboard from './components/Dashboard';
+import AppTopBar from './components/AppTopBar';
 import CommandPalette from './components/CommandPalette';
 import HelpModal from './components/HelpModal';
 import GuideView, { GuideSectionId } from './components/GuideView';
@@ -9,9 +10,10 @@ import { Project, ViewState, ProjectFile, FileType, EditorProps, ProjectFolder, 
 import { useProjectStore } from './stores/useProjectStore';
 import { api, setUnauthorizedHandler } from './services/api';
 import { useAuthStore } from './stores/useAuthStore';
+import { confirmDialog, promptDialog, toast } from './stores/useUiStore';
 import AuthView from './components/AuthView';
 import AdminUsersModal from './components/AdminUsersModal';
-import { Button, Modal, Input, Select, Field, Eyebrow } from './components/ui';
+import { Button, Modal, Input, Select, Field, Eyebrow, UiFeedback } from './components/ui';
 import { SettingsModal } from './components/SettingsModal';
 import { useSettingsStore } from './stores/useSettingsStore';
 import { uid } from './utils/id';
@@ -219,7 +221,7 @@ const App: React.FC = () => {
   const [isPaletteOpen, setIsPaletteOpen] = useState(false);
   const [isHelpOpen, setIsHelpOpen] = useState(false);
   const [showAdminUsers, setShowAdminUsers] = useState(false);
-  const [isSidebarCollapsed, setIsSidebarCollapsed] = useState(false);
+  const [filePanelOpen, setFilePanelOpen] = useState(false);
   const [showGuide, setShowGuide] = useState(false);
   const [guideSection, setGuideSection] = useState<GuideSectionId>('overview');
   
@@ -305,8 +307,8 @@ const App: React.FC = () => {
               setActiveProjectId(null);
               setActiveFileId(null);
             }
-            if (savedAppState?.sidebarCollapsed) {
-              setIsSidebarCollapsed(true);
+            if (savedAppState?.filePanelOpen) {
+              setFilePanelOpen(true);
             }
         } catch (e) {
             console.error("Init error", e);
@@ -362,9 +364,9 @@ const App: React.FC = () => {
       currentView,
       activeProjectId,
       activeFileId,
-      sidebarCollapsed: isSidebarCollapsed
+      filePanelOpen
     }).catch(err => console.error("Failed to save app state:", err));
-  }, [isLoaded, currentView, activeProjectId, activeFileId, isSidebarCollapsed]);
+  }, [isLoaded, currentView, activeProjectId, activeFileId, filePanelOpen]);
 
   useEffect(() => {
     const handleKeyDown = (e: KeyboardEvent) => {
@@ -375,7 +377,7 @@ const App: React.FC = () => {
       }
       if (mod && e.key === '\\') {
         e.preventDefault();
-        setIsSidebarCollapsed(prev => !prev);
+        setFilePanelOpen(prev => !prev);
       }
       if (mod && e.key === 'n' && !e.shiftKey) {
         e.preventDefault();
@@ -383,10 +385,13 @@ const App: React.FC = () => {
           openCreateFileModal(null);
         }
       }
+      if (e.key === 'Escape' && filePanelOpen) {
+        setFilePanelOpen(false);
+      }
     };
     window.addEventListener('keydown', handleKeyDown);
     return () => window.removeEventListener('keydown', handleKeyDown);
-  }, [currentView, activeProjectId]);
+  }, [currentView, activeProjectId, filePanelOpen]);
 
   useEffect(() => {
     setTaskNavigationTarget(null);
@@ -498,7 +503,7 @@ const App: React.FC = () => {
 
     const trimmedName = updates.name.trim();
     if (!trimmedName) {
-      alert("Project name is required.");
+      toast.error("Project name is required.");
       return;
     }
 
@@ -514,19 +519,26 @@ const App: React.FC = () => {
     const project = projects.find(p => p.id === id);
     if (!project) return;
     
-    if (confirm("Delete project?")) {
-      try {
-        await api.deleteProject(id);
-      } catch (err) {
-        console.error("Failed to delete project:", err);
-        alert("Failed to delete the project on the server.");
-        return;
-      }
-      // Drop any queued debounced save so the upsert can't resurrect it.
-      pendingSavesRef.current.delete(id);
-      setProjects(prev => prev.filter(p => p.id !== id));
-      if (activeProjectId === id) { setActiveProjectId(null); setCurrentView(ViewState.DASHBOARD); }
+    const confirmed = await confirmDialog({
+      title: `Delete "${project.name}"?`,
+      message: "This permanently deletes the project and every file inside it. This cannot be undone.",
+      confirmText: 'Delete project',
+      danger: true,
+    });
+    if (!confirmed) return;
+
+    try {
+      await api.deleteProject(id);
+    } catch (err) {
+      console.error("Failed to delete project:", err);
+      toast.error("Failed to delete the project on the server.");
+      return;
     }
+    // Drop any queued debounced save so the upsert can't resurrect it.
+    pendingSavesRef.current.delete(id);
+    setProjects(prev => prev.filter(p => p.id !== id));
+    if (activeProjectId === id) { setActiveProjectId(null); setCurrentView(ViewState.DASHBOARD); }
+    toast.success(`Deleted "${project.name}".`);
   };
 
   const handleExportProject = async (project: Project) => {
@@ -563,9 +575,14 @@ const App: React.FC = () => {
 
   // --- FOLDER & FILE LOGIC ---
 
-  const handleCreateFolder = (parentId: string | null) => {
+  const handleCreateFolder = async (parentId: string | null) => {
     if (!activeProjectId) return;
-    const name = prompt("Folder Name:");
+    const name = await promptDialog({
+      title: parentId ? 'New subfolder' : 'New folder',
+      label: 'Folder name',
+      placeholder: 'e.g. Concepts',
+      confirmText: 'Create',
+    });
     if (!name) return;
     
     const project = projects.find(p => p.id === activeProjectId);
@@ -579,7 +596,7 @@ const App: React.FC = () => {
     }
   };
 
-  const handleDeleteFolder = (folderId: string) => {
+  const handleDeleteFolder = async (folderId: string) => {
       if (!activeProjectId) return;
       const project = projects.find(p => p.id === activeProjectId);
       if (project) {
@@ -602,9 +619,12 @@ const App: React.FC = () => {
           const folderLabel = folderCount === 1 ? 'folder' : 'folders';
           const fileLabel = fileCount === 1 ? 'file' : 'files';
 
-          const confirmed = confirm(
-            `Delete this folder and all of its contents?\n\nThis will permanently delete ${folderCount} ${folderLabel} and ${fileCount} ${fileLabel}.`
-          );
+          const confirmed = await confirmDialog({
+            title: 'Delete folder and contents?',
+            message: `This will permanently delete ${folderCount} ${folderLabel} and ${fileCount} ${fileLabel}.`,
+            confirmText: 'Delete',
+            danger: true,
+          });
           if (!confirmed) return;
 
           const newFolders = project.folders.filter(f => !folderIdsToDelete.has(f.id));
@@ -641,7 +661,7 @@ const App: React.FC = () => {
 
     if (isProtectedMainFile(file, activeProject)) {
       const plugin = EDITOR_PLUGINS.find(p => p.type === file.type);
-      alert(`${plugin?.label || file.type} is a required main file and cannot be renamed.`);
+      toast.info(`${plugin?.label || file.type} is a required main file and cannot be renamed.`);
       return;
     }
 
@@ -662,7 +682,7 @@ const App: React.FC = () => {
     }
     if (isProtectedMainFile(file, activeProject)) {
       const plugin = EDITOR_PLUGINS.find(p => p.type === file.type);
-      alert(`${plugin?.label || file.type} is a required main file and cannot be renamed.`);
+      toast.info(`${plugin?.label || file.type} is a required main file and cannot be renamed.`);
       closeRenameFileModal();
       return;
     }
@@ -690,7 +710,7 @@ const App: React.FC = () => {
 
       if (preferredType && !canCreateFileType(preferredType, project)) {
           const plugin = EDITOR_PLUGINS.find(p => p.type === preferredType);
-          alert(`Only one ${plugin?.label || preferredType} is allowed per project.`);
+          toast.info(`Only one ${plugin?.label || preferredType} is allowed per project.`);
       }
 
       setCreateFileModal({ open: true, folderId });
@@ -705,7 +725,7 @@ const App: React.FC = () => {
       if (!project) return;
       if (!canCreateFileType(newFileType, project)) {
           const plugin = EDITOR_PLUGINS.find(p => p.type === newFileType);
-          alert(`Only one ${plugin?.label || newFileType} is allowed per project.`);
+          toast.info(`Only one ${plugin?.label || newFileType} is allowed per project.`);
           return;
       }
 
@@ -728,7 +748,7 @@ const App: React.FC = () => {
       setCreateFileModal({ open: false, folderId: null });
   };
 
-  const handleDeleteFile = (e: React.MouseEvent, fileId: string) => {
+  const handleDeleteFile = async (e: React.MouseEvent, fileId: string) => {
     e.stopPropagation();
     if (!activeProjectId) return;
     const project = projects.find(p => p.id === activeProjectId);
@@ -737,16 +757,21 @@ const App: React.FC = () => {
     if (!file) return;
     if (isProtectedMainFile(file, project)) {
         const plugin = EDITOR_PLUGINS.find(p => p.type === file.type);
-        alert(`${plugin?.label || file.type} is required in every project and cannot be deleted.`);
+        toast.info(`${plugin?.label || file.type} is required in every project and cannot be deleted.`);
         return;
     }
-    if (confirm("Delete file?")) {
-        const remainingFiles = project.files.filter(f => f.id !== fileId);
-        updateProjectState({ ...project, files: remainingFiles });
-        if (activeFileId === fileId) {
-            const nextFile = remainingFiles.find(f => f.type !== ASSET_LIBRARY_TYPE) || remainingFiles.find(f => f.type === ASSET_LIBRARY_TYPE);
-            setActiveFileId(nextFile?.id || null);
-        }
+    const confirmed = await confirmDialog({
+      title: `Delete "${file.name}"?`,
+      message: 'This file will be permanently deleted.',
+      confirmText: 'Delete',
+      danger: true,
+    });
+    if (!confirmed) return;
+    const remainingFiles = project.files.filter(f => f.id !== fileId);
+    updateProjectState({ ...project, files: remainingFiles });
+    if (activeFileId === fileId) {
+        const nextFile = remainingFiles.find(f => f.type !== ASSET_LIBRARY_TYPE) || remainingFiles.find(f => f.type === ASSET_LIBRARY_TYPE);
+        setActiveFileId(nextFile?.id || null);
     }
   };
 
@@ -838,7 +863,7 @@ const App: React.FC = () => {
   const handleOpenFileFromLink = (fileId: string) => {
     if (!activeProject) return;
     if (!activeProject.files.some(f => f.id === fileId)) {
-      alert("Linked file was not found in this project.");
+      toast.error("Linked file was not found in this project.");
       return;
     }
     setTaskNavigationTarget(null);
@@ -850,14 +875,14 @@ const App: React.FC = () => {
 
     const file = activeProject.files.find(projectFile => projectFile.id === fileId);
     if (!file || file.type !== 'todo') {
-      alert("Linked task was not found in this project.");
+      toast.error("Linked task was not found in this project.");
       return;
     }
 
     const todoContent = file.content as { items?: Array<{ id?: string }> };
     const hasTask = Array.isArray(todoContent?.items) && todoContent.items.some(item => item?.id === taskId);
     if (!hasTask) {
-      alert("Linked task was not found in this project.");
+      toast.error("Linked task was not found in this project.");
       return;
     }
 
@@ -901,8 +926,9 @@ const App: React.FC = () => {
   const handleCopyFileId = async (fileId: string) => {
     try {
       await navigator.clipboard?.writeText(fileId);
+      toast.success("File ID copied.");
     } catch {
-      alert("Failed to copy file ID.");
+      toast.error("Failed to copy file ID.");
     }
   };
 
@@ -1127,171 +1153,81 @@ const App: React.FC = () => {
     );
   };
 
-  const renderSidebar = () => {
-    if (currentView === ViewState.DASHBOARD || !activeProject) {
-      return (
-        <aside className="w-16 md:w-20 bg-surface border-r border-border flex flex-col items-center py-6 gap-6 z-20">
-          <div className="w-10 h-10 bg-accent-soft rounded-xl flex items-center justify-center shadow-soft mb-4" title="DevArchitect"><span className="font-display text-sm font-extrabold tracking-tight text-accent-content">DA</span></div>
-          <button onClick={() => { setShowGuide(false); setGuideSection('overview'); }} className={`p-3 rounded-xl transition-colors ${!showGuide ? 'bg-accent/15 text-accent shadow-soft' : 'text-faint hover:bg-surface-hover hover:text-content'}`} title="Dashboard"><LayoutDashboard className="w-5 h-5" /></button>
-          <button onClick={() => openGuideSection('overview')} className={`p-3 rounded-xl transition-colors ${showGuide ? 'bg-accent/15 text-accent shadow-soft' : 'text-faint hover:bg-surface-hover hover:text-content'}`} title="Guide & Documentation"><BookOpen className="w-5 h-5" /></button>
-          <button onClick={openSettings} className="mt-auto p-3 rounded-xl text-faint hover:bg-surface-hover hover:text-content transition-colors" title="Settings"><SettingsIcon className="w-5 h-5" /></button>
-          {authUser?.isAdmin && (
-            <button onClick={() => setShowAdminUsers(true)} className="p-3 rounded-xl text-faint hover:bg-surface-hover hover:text-content transition-colors" title="Manage Users"><Users className="w-5 h-5" /></button>
-          )}
-          <button onClick={handleLogout} className="p-3 rounded-xl text-faint hover:bg-surface-hover hover:text-danger transition-colors" title={`Sign out (${authUser?.username})`}><LogOut className="w-5 h-5" /></button>
-        </aside>
-      );
-    }
-    if (isSidebarCollapsed) {
-      return (
-        <aside className="w-14 bg-surface border-r border-border flex flex-col items-center z-20 transition-all duration-200">
-          <div className="h-16 flex items-center justify-center border-b border-border shrink-0 w-full">
-            <button onClick={() => setIsSidebarCollapsed(false)} className="p-2 hover:bg-surface-hover rounded-lg text-muted hover:text-content transition-colors" title="Expand Sidebar (Ctrl+\\)">
-              <PanelLeftOpen className="w-4 h-4" />
-            </button>
-          </div>
-          <div className="py-3 flex flex-col items-center gap-1 w-full border-b border-border">
-            <button onClick={() => { setActiveProjectId(null); setCurrentView(ViewState.DASHBOARD); }} className="p-2 hover:bg-surface-hover rounded-lg text-muted hover:text-content transition-colors" title="Back to Dashboard">
-              <ArrowLeft className="w-4 h-4" />
-            </button>
-          </div>
-          {systemFiles.length > 0 && (
-            <div className="py-2 flex flex-col items-center gap-1 w-full">
-              {systemFiles.map(file => {
-                const plugin = EDITOR_PLUGINS.find(p => p.type === file.type);
-                const Icon = plugin?.icon || File;
-                return (
-                  <button
-                    key={file.id}
-                    onClick={() => setActiveFileId(file.id)}
-                    className={`p-2 rounded-lg transition-colors ${activeFileId === file.id ? 'bg-accent/15 text-accent' : 'text-faint hover:text-content hover:bg-surface-hover'}`}
-                    title={file.name}
-                  >
-                    <Icon className="w-4 h-4" />
-                  </button>
-                );
-              })}
-            </div>
-          )}
-          <div className="mt-auto pb-4 flex flex-col items-center gap-1">
-            <button onClick={openSettings} className="p-2 rounded-lg text-faint hover:bg-surface-hover hover:text-content transition-colors" title="Settings">
-              <SettingsIcon className="w-4 h-4" />
-            </button>
-            {authUser?.isAdmin && (
-              <button onClick={() => setShowAdminUsers(true)} className="p-2 rounded-lg text-faint hover:bg-surface-hover hover:text-content transition-colors" title="Manage Users">
-                <Users className="w-4 h-4" />
-              </button>
-            )}
-            <button onClick={() => setIsHelpOpen(true)} className="p-2 rounded-lg text-faint hover:bg-surface-hover hover:text-content transition-colors" title="Help">
-              <HelpCircle className="w-4 h-4" />
-            </button>
-            <button onClick={handleLogout} className="p-2 rounded-lg text-faint hover:bg-surface-hover hover:text-danger transition-colors" title={`Sign out (${authUser?.username})`}>
-              <LogOut className="w-4 h-4" />
-            </button>
-          </div>
-        </aside>
-      );
-    }
+  // Slide-over file panel — the only persistent navigation is the top bar now.
+  const renderFilePanel = () => {
+    if (!activeProject || !filePanelOpen) return null;
     return (
-      <aside className="w-80 bg-surface border-r border-border flex flex-col z-20 transition-all duration-200">
-        <div className="h-16 flex items-center px-4 border-b border-border shrink-0 gap-2">
-          <button onClick={() => { setActiveProjectId(null); setCurrentView(ViewState.DASHBOARD); }} className="p-2 hover:bg-surface-hover rounded-lg text-muted hover:text-content" title="Back to dashboard"><ArrowLeft className="w-4 h-4" /></button>
-          <div className="min-w-0 flex-1">
-            <Eyebrow className="block leading-none">Project</Eyebrow>
-            <span className="font-display font-semibold text-content truncate block leading-tight mt-0.5">{activeProject.name}</span>
-          </div>
-          <button onClick={() => setIsSidebarCollapsed(true)} className="p-2 hover:bg-surface-hover rounded-lg text-muted hover:text-content transition-colors" title="Collapse Sidebar (Ctrl+\\)">
-            <PanelLeftClose className="w-4 h-4" />
-          </button>
-        </div>
-
-        {/* Actions Bar */}
-        <div className="px-3 py-3 border-b border-border flex gap-2">
-            <Button size="sm" icon={FilePlus} className="flex-1" onClick={() => openCreateFileModal(null)}>
-                New File
-            </Button>
-            <Button size="sm" variant="secondary" onClick={() => handleCreateFolder(null)} title="New Folder">
-                <FolderPlus className="w-3.5 h-3.5" />
-            </Button>
-        </div>
-
-        {/* Project Systems */}
-        {systemFiles.length > 0 && (
-          <div className="px-3 pt-3">
-            <Eyebrow className="block px-2 pb-1.5">Project systems</Eyebrow>
-            <div className="space-y-1">
-              {systemFiles.map(file => {
-                const plugin = EDITOR_PLUGINS.find(p => p.type === file.type);
-                const Icon = plugin?.icon || File;
-                return (
-                  <button
-                    key={file.id}
-                    onClick={() => setActiveFileId(file.id)}
-                    draggable
-                    onDragStart={(e) => handleFileDragStart(e, file.id, file.name)}
-                    onDragEnd={handleFileDragEnd}
-                    className={`group relative w-full flex items-start gap-2 px-2 py-2 rounded-lg text-sm transition-colors border cursor-grab active:cursor-grabbing ${activeFileId === file.id ? 'bg-accent/10 text-content border-accent/50' : 'text-content hover:text-content hover:bg-surface-hover border-border'}`}
-                    title={`Drag to create link to ${file.name}`}
-                  >
-                    <Icon className={`w-4 h-4 mt-0.5 shrink-0 ${activeFileId === file.id ? 'text-accent' : 'text-faint'}`} />
-                    <span className="min-w-0 flex-1 break-words leading-snug text-left">{file.name}</span>
-                    <span
-                      onClick={(e) => { e.stopPropagation(); handleCopyFileId(file.id); }}
-                      className="absolute right-1 top-1/2 -translate-y-1/2 p-1 text-faint hover:text-accent hover:bg-surface-hover rounded border border-border bg-surface/95 opacity-0 pointer-events-none group-hover:opacity-100 group-hover:pointer-events-auto transition-opacity"
-                      title="Copy File ID"
-                    >
-                      <CopyIcon className="w-3.5 h-3.5" />
-                    </span>
-                  </button>
-                );
-              })}
-            </div>
-            <div className="my-3 border-t border-border" />
-            <Eyebrow className="block px-2 pb-1.5">Project files</Eyebrow>
-          </div>
-        )}
-
-        {/* Tree */}
+      <>
         <div
-          className={`p-3 flex-1 overflow-y-auto custom-scrollbar transition-colors ${activeDropFolderId === 'root' ? 'bg-accent/5 ring-1 ring-inset ring-accent/30 rounded-lg' : ''}`}
-          onDragOver={handleRootDragOver}
-          onDrop={handleRootDrop}
-        >
-          {renderFileTree(null)}
-
-          {nonSystemFileCount === 0 && activeProject.folders.length === 0 && (
-              <div className="text-center py-8 text-faint text-xs italic">
-                  Project is empty. Create a file or folder to get started.
+          className="fixed inset-0 top-14 z-30 bg-overlay/40 animate-fade-in"
+          onClick={() => setFilePanelOpen(false)}
+          aria-hidden
+        />
+        <aside className="fixed left-0 top-14 bottom-0 w-80 max-w-[85vw] bg-surface border-r border-border flex flex-col z-40 shadow-pop animate-slide-in">
+          {/* Actions Bar */}
+          <div className="px-3 py-3 border-b border-border flex gap-2 shrink-0">
+              <Button size="sm" icon={FilePlus} className="flex-1" onClick={() => openCreateFileModal(null)}>
+                  New File
+              </Button>
+              <Button size="sm" variant="secondary" onClick={() => handleCreateFolder(null)} title="New Folder">
+                  <FolderPlus className="w-3.5 h-3.5" />
+              </Button>
+              <Button size="sm" variant="ghost" onClick={() => setFilePanelOpen(false)} title="Close panel (Ctrl+\)">
+                  <X className="w-3.5 h-3.5" />
+              </Button>
+          </div>
+          {/* Project Systems */}
+          {systemFiles.length > 0 && (
+            <div className="px-3 pt-3 shrink-0">
+              <Eyebrow className="block px-2 pb-1.5">Project systems</Eyebrow>
+              <div className="space-y-1">
+                {systemFiles.map(file => {
+                  const plugin = EDITOR_PLUGINS.find(p => p.type === file.type);
+                  const Icon = plugin?.icon || File;
+                  return (
+                    <button
+                      key={file.id}
+                      onClick={() => setActiveFileId(file.id)}
+                      draggable
+                      onDragStart={(e) => handleFileDragStart(e, file.id, file.name)}
+                      onDragEnd={handleFileDragEnd}
+                      className={`group relative w-full flex items-start gap-2 px-2 py-2 rounded-lg text-sm transition-colors border cursor-grab active:cursor-grabbing ${activeFileId === file.id ? 'bg-accent/10 text-content border-accent/50' : 'text-content hover:text-content hover:bg-surface-hover border-border'}`}
+                      title={`Drag to create link to ${file.name}`}
+                    >
+                      <Icon className={`w-4 h-4 mt-0.5 shrink-0 ${activeFileId === file.id ? 'text-accent' : 'text-faint'}`} />
+                      <span className="min-w-0 flex-1 break-words leading-snug text-left">{file.name}</span>
+                      <span
+                        onClick={(e) => { e.stopPropagation(); handleCopyFileId(file.id); }}
+                        className="absolute right-1 top-1/2 -translate-y-1/2 p-1 text-faint hover:text-accent hover:bg-surface-hover rounded border border-border bg-surface/95 opacity-0 pointer-events-none group-hover:opacity-100 group-hover:pointer-events-auto transition-opacity"
+                        title="Copy File ID"
+                      >
+                        <CopyIcon className="w-3.5 h-3.5" />
+                      </span>
+                    </button>
+                  );
+                })}
               </div>
+              <div className="my-3 border-t border-border" />
+              <Eyebrow className="block px-2 pb-1.5">Project files</Eyebrow>
+            </div>
           )}
-        </div>
 
-        <div className="p-4 border-t border-border space-y-1">
-             {authUser && (
-               <div className="px-3 pb-1 font-mono text-[11px] uppercase tracking-wide text-faint truncate" title={authUser.username}>
-                 {authUser.username}
-               </div>
-             )}
-             <button onClick={openSettings} className="flex items-center gap-3 px-3 py-2 text-faint hover:text-content hover:bg-surface-hover rounded-lg w-full transition-colors">
-                <SettingsIcon className="w-4 h-4" />
-                <span className="text-sm">Settings</span>
-             </button>
-             {authUser?.isAdmin && (
-               <button onClick={() => setShowAdminUsers(true)} className="flex items-center gap-3 px-3 py-2 text-faint hover:text-content hover:bg-surface-hover rounded-lg w-full transition-colors">
-                  <Users className="w-4 h-4" />
-                  <span className="text-sm">Manage Users</span>
-               </button>
-             )}
-             <button onClick={() => setIsHelpOpen(true)} className="flex items-center gap-3 px-3 py-2 text-faint hover:text-content hover:bg-surface-hover rounded-lg w-full transition-colors">
-                <HelpCircle className="w-4 h-4" />
-                <span className="text-sm">Guide & Help</span>
-             </button>
-             <button onClick={handleLogout} className="flex items-center gap-3 px-3 py-2 text-faint hover:text-danger hover:bg-surface-hover rounded-lg w-full transition-colors">
-                <LogOut className="w-4 h-4" />
-                <span className="text-sm">Sign out</span>
-             </button>
-        </div>
-      </aside>
+          {/* Tree */}
+          <div
+            className={`p-3 flex-1 overflow-y-auto custom-scrollbar transition-colors ${activeDropFolderId === 'root' ? 'bg-accent/5 ring-1 ring-inset ring-accent/30 rounded-lg' : ''}`}
+            onDragOver={handleRootDragOver}
+            onDrop={handleRootDrop}
+          >
+            {renderFileTree(null)}
+
+            {nonSystemFileCount === 0 && activeProject.folders.length === 0 && (
+                <div className="text-center py-8 text-faint text-xs italic">
+                    Project is empty. Create a file or folder to get started.
+                </div>
+            )}
+          </div>
+        </aside>
+      </>
     );
   };
 
@@ -1307,10 +1243,28 @@ const App: React.FC = () => {
     return <AuthView />;
   }
 
+  const inProject = currentView === ViewState.PROJECT && Boolean(activeProject);
+
   return (
-    <div className="flex h-screen bg-bg text-content font-sans overflow-hidden">
-      {renderSidebar()}
-      <main className="flex-1 flex flex-col min-w-0 bg-bg">
+    <div className="flex h-screen flex-col bg-bg text-content font-sans overflow-hidden">
+      <AppTopBar
+        inProject={inProject}
+        projectName={activeProject?.name}
+        drawerOpen={filePanelOpen}
+        onToggleDrawer={() => setFilePanelOpen(prev => !prev)}
+        onBack={() => { setActiveProjectId(null); setCurrentView(ViewState.DASHBOARD); }}
+        onOpenPalette={() => setIsPaletteOpen(true)}
+        onNewFile={() => openCreateFileModal(null)}
+        onNewFolder={() => handleCreateFolder(null)}
+        onOpenGuide={() => openGuideSection('overview')}
+        onOpenHelp={() => setIsHelpOpen(true)}
+        onOpenSettings={openSettings}
+        onOpenAdmin={() => setShowAdminUsers(true)}
+        onLogout={handleLogout}
+        user={authUser}
+      />
+      <main className="flex-1 flex flex-col min-w-0 bg-bg relative">
+        {renderFilePanel()}
         {loadError && (
           <div className="shrink-0 flex items-center gap-3 px-4 py-2.5 border-b border-danger/40 bg-danger/10 text-sm text-content">
             <span className="flex-1 min-w-0 truncate">{loadError}</span>
@@ -1324,6 +1278,7 @@ const App: React.FC = () => {
             ) : (
             <Dashboard
               projects={projects}
+              username={authUser?.username}
               onSelectProject={handleSelectProject}
               onCreateProject={handleCreateProject}
               onUpdateProject={handleUpdateProject}
@@ -1417,6 +1372,7 @@ const App: React.FC = () => {
 
         <SettingsModal />
         <AdminUsersModal open={showAdminUsers} onClose={() => setShowAdminUsers(false)} />
+        <UiFeedback />
 
         {/* Rename File Modal */}
         <Modal

@@ -2,6 +2,7 @@ import React, { useEffect, useMemo, useRef, useState } from 'react';
 import { AlertCircle, Calendar, Check, ChevronLeft, ChevronRight, Filter, Flag, Loader2, Pencil, Plus, RotateCcw, Save, Search, Trash2, Undo2, Redo2 } from 'lucide-react';
 import { EditorProps, RoadmapItem, RoadmapItemType, RoadmapStatus } from '../types';
 import { useUndoRedo } from '../hooks/useUndoRedo';
+import { confirmDialog } from '../stores/useUiStore';
 import { uid } from '../utils/id';
 
 const ROADMAP_STATUS_OPTIONS: RoadmapStatus[] = ['planned', 'in-progress', 'completed', 'delayed', 'dropped'];
@@ -274,8 +275,13 @@ const RoadmapEditor: React.FC<EditorProps> = ({ initialContent, onSave, fileName
     setEditingId(null);
   };
 
-  const handleDelete = (id: string) => {
-    if (!confirm('Delete this roadmap item?')) return;
+  const handleDelete = async (id: string) => {
+    const confirmed = await confirmDialog({
+      title: 'Delete this roadmap item?',
+      confirmText: 'Delete',
+      danger: true,
+    });
+    if (!confirmed) return;
     setItems(prev => prev.filter(item => item.id !== id));
     setSelectedId(prev => (prev === id ? null : prev));
     if (editingId === id) closeModal();

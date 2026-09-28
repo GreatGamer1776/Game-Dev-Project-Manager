@@ -2,6 +2,7 @@ import React, { useEffect, useMemo, useState } from 'react';
 import { Upload, Trash2, Image as ImageIcon, Copy, Search, Grid, Check, Download, FolderOpen, FolderPlus, Folder, ChevronRight, ChevronDown, Music, File as FileIcon, Pencil } from 'lucide-react';
 import { EditorProps } from '../types';
 import { ASSET_LINK_DRAG_MIME, AssetKind, getAssetExtensionFromMime, getAssetKindFromMime, getAssetMimeType } from '../services/assetUtils';
+import { confirmDialog, promptDialog, toast } from '../stores/useUiStore';
 import { uid } from '../utils/id';
 
 interface AssetFolderItem {
@@ -107,8 +108,12 @@ const AssetBrowser: React.FC<EditorProps> = ({ initialContent, assets = {}, onAd
       .filter(f => f.parentId === parentId)
       .sort((a, b) => a.name.localeCompare(b.name, undefined, { sensitivity: 'base' }));
 
-  const createFolder = (parentId: string | null) => {
-    const name = prompt('Folder name:');
+  const createFolder = async (parentId: string | null) => {
+    const name = await promptDialog({
+      title: parentId ? 'New subfolder' : 'New folder',
+      label: 'Folder name',
+      confirmText: 'Create',
+    });
     const trimmedName = name?.trim();
     if (!trimmedName) return;
     const newId = uid();
@@ -252,7 +257,7 @@ const AssetBrowser: React.FC<EditorProps> = ({ initialContent, assets = {}, onAd
     if (!selected || !onAddAsset) return;
     const mediaFiles = Array.from(selected).filter(isLikelyMediaFile);
     if (mediaFiles.length === 0) {
-      alert(`No media files found in selected ${source}.`);
+      toast.info(`No media files found in selected ${source}.`);
       return;
     }
 
@@ -344,12 +349,18 @@ const AssetBrowser: React.FC<EditorProps> = ({ initialContent, assets = {}, onAd
     setTimeout(() => setCopiedId(null), 2000);
   };
 
-  const handleDelete = (id: string) => {
+  const handleDelete = async (id: string) => {
       if (!onDeleteAsset) {
-          alert("Delete functionality not available.");
+          toast.error("Delete functionality not available.");
           return;
       }
-      if (confirm("Delete this asset permanently? It will disappear from all documents/whiteboards using it.")) {
+      const confirmed = await confirmDialog({
+        title: 'Delete this asset?',
+        message: 'It will disappear from all documents and whiteboards using it.',
+        confirmText: 'Delete asset',
+        danger: true,
+      });
+      if (confirmed) {
           onDeleteAsset(id);
           commitLibraryContent(prev => {
             const nextMap = { ...prev.assetFolderMap };
@@ -361,13 +372,18 @@ const AssetBrowser: React.FC<EditorProps> = ({ initialContent, assets = {}, onAd
       }
   };
 
-  const handleRename = (id: string) => {
+  const handleRename = async (id: string) => {
       const currentName = libraryContent.assetNameMap[id] || id;
-      const nextName = prompt('Asset name:', currentName);
+      const nextName = await promptDialog({
+        title: 'Rename asset',
+        label: 'Asset name',
+        defaultValue: currentName,
+        confirmText: 'Rename',
+      });
       if (nextName === null) return;
       const trimmedName = nextName.trim();
       if (!trimmedName) {
-        alert('Asset name cannot be empty.');
+        toast.error('Asset name cannot be empty.');
         return;
       }
       if (trimmedName === currentName) return;

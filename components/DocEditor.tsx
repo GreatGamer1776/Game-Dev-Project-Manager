@@ -15,6 +15,7 @@ import rehypeSanitize, { defaultSchema } from 'rehype-sanitize';
 import { EditorProps, TodoItem, TodoStatus } from '../types';
 import { useUndoRedo } from '../hooks/useUndoRedo';
 import { ASSET_LINK_DRAG_MIME, AssetKind, getAssetDisplayName, getAssetKindFromMime, getAssetMimeType, sanitizeAssetLabel } from '../services/assetUtils';
+import { REVEAL_HEADING_EVENT, RevealHeadingDetail } from '../utils/events';
 
 // --- CUSTOM PARSER LOGIC ---
 const FILE_LINK_DRAG_MIME = 'application/x-gdpm-file-id';
@@ -57,6 +58,8 @@ const urlTransform = (url: string) =>
 
 // rehype-raw lets the toolbar's <u> and <span style="color:..."> through;
 // rehype-sanitize (GitHub schema + these two tags) keeps raw HTML safe.
+// The GitHub schema only allows http(s)/mailto URLs, which would strip the
+// app's own file:/task:/asset: links and embeds — allow those explicitly.
 const sanitizeSchema = {
     ...defaultSchema,
     tagNames: [...(defaultSchema.tagNames || []), 'u', 'span', 'input'],
@@ -64,6 +67,11 @@ const sanitizeSchema = {
         ...defaultSchema.attributes,
         span: [...(defaultSchema.attributes?.span || []), 'style'],
         input: [...(defaultSchema.attributes?.input || []), 'type', 'checked', 'disabled'],
+    },
+    protocols: {
+        ...defaultSchema.protocols,
+        href: [...(defaultSchema.protocols?.href || []), 'file', 'task', 'asset'],
+        src: [...(defaultSchema.protocols?.src || []), 'asset'],
     },
 };
 
@@ -89,7 +97,11 @@ const DocEditor: React.FC<EditorProps> = ({ initialContent, onSave, fileName, as
   const [content, setContent] = useState(initialContent);
   const undoRedo = useUndoRedo<string>(initialContent);
   // OPTIMIZATION: Default to 'edit' mode to prevent initial render lag
-  const [viewMode, setViewModeState] = useState<'edit' | 'preview' | 'split'>(() => useUiStore.getState().prefs.docViewMode);
+  // An empty document has nothing to read yet, so it always opens for editing.
+  const [viewMode, setViewModeState] = useState<'edit' | 'preview' | 'split'>(() => {
+    const pref = useUiStore.getState().prefs.docViewMode;
+    return pref === 'preview' && !String(initialContent ?? '').trim() ? 'edit' : pref;
+  });
   const setUiPref = useUiStore((s) => s.setPref);
   // The toolbar buttons and Settings share the same pref, so the last-chosen
   // mode becomes the default for the next document.
@@ -245,13 +257,13 @@ const DocEditor: React.FC<EditorProps> = ({ initialContent, onSave, fileName, as
   }, [content]);
 
   const markdownComponents = React.useMemo<Components>(() => ({
-    h1: ({ children }) => <h1 className="text-3xl font-bold text-content mb-4 pb-2 border-b border-border mt-6 first:mt-0">{children}</h1>,
-    h2: ({ children }) => <h2 className="text-2xl font-semibold text-content mb-3 mt-8 first:mt-0">{children}</h2>,
-    h3: ({ children }) => <h3 className="text-xl font-medium text-content mb-2 mt-6 first:mt-0">{children}</h3>,
-    h4: ({ children }) => <h4 className="text-lg font-medium text-content mb-2 mt-4">{children}</h4>,
-    h5: ({ children }) => <h5 className="text-base font-medium text-content mb-2 mt-4">{children}</h5>,
-    h6: ({ children }) => <h6 className="text-sm font-medium uppercase tracking-wide text-muted mb-2 mt-4">{children}</h6>,
-    p: ({ children }) => <p className="mb-3 leading-relaxed text-content last:mb-0">{children}</p>,
+    h1: ({ children }) => <h1 className="font-display text-[1.75em] font-bold leading-tight text-content mb-3 mt-7 first:mt-0 scroll-mt-4">{children}</h1>,
+    h2: ({ children }) => <h2 className="font-display text-[1.5em] font-semibold leading-tight text-content mb-2.5 mt-7 first:mt-0 scroll-mt-4">{children}</h2>,
+    h3: ({ children }) => <h3 className="font-display text-[1.3em] font-semibold leading-snug text-content mb-2 mt-6 first:mt-0 scroll-mt-4">{children}</h3>,
+    h4: ({ children }) => <h4 className="font-display text-[1.15em] font-semibold text-content mb-2 mt-5 scroll-mt-4">{children}</h4>,
+    h5: ({ children }) => <h5 className="font-display text-[1.05em] font-semibold text-content mb-2 mt-4 scroll-mt-4">{children}</h5>,
+    h6: ({ children }) => <h6 className="font-display text-[1em] font-semibold text-muted mb-2 mt-4 scroll-mt-4">{children}</h6>,
+    p: ({ children }) => <p className="mb-3 leading-[1.7] text-content last:mb-0">{children}</p>,
     a: ({ href, children }) => {
       const url = typeof href === 'string' ? href : '';
       if (url.startsWith('file://')) {
@@ -322,10 +334,10 @@ const DocEditor: React.FC<EditorProps> = ({ initialContent, onSave, fileName, as
     ol: ({ children }) => <ol className="list-decimal pl-6 mb-3 space-y-1 text-content marker:text-faint">{children}</ol>,
     li: ({ children }) => <li className="leading-relaxed pl-1">{children}</li>,
     input: ({ checked }) => <input type="checkbox" checked={Boolean(checked)} readOnly disabled className="mr-1.5 align-middle accent-accent" />,
-    blockquote: ({ children }) => <blockquote className="border-l-4 border-accent pl-4 py-2 my-4 text-muted italic bg-surface-raised/40 rounded-r">{children}</blockquote>,
+    blockquote: ({ children }) => <blockquote className="border-l-2 border-accent pl-4 py-0.5 my-4 text-muted">{children}</blockquote>,
     hr: () => <hr className="border-border my-8" />,
     pre: ({ children }) => <pre className="bg-bg p-4 rounded-lg my-4 border border-border font-mono text-sm text-content overflow-x-auto">{children}</pre>,
-    code: ({ children }) => <code className="bg-surface-raised text-danger px-1.5 py-0.5 rounded text-sm font-mono border border-border">{children}</code>,
+    code: ({ children }) => <code className="bg-surface-raised text-content px-1 py-0.5 rounded text-[0.875em] font-mono">{children}</code>,
     table: ({ children }) => <div className="my-4 overflow-x-auto"><table className="w-full border-collapse text-sm text-content">{children}</table></div>,
     th: ({ children }) => <th className="border border-border bg-surface-raised/60 px-3 py-2 text-left font-semibold text-content">{children}</th>,
     td: ({ children }) => <td className="border border-border px-3 py-2 align-top text-content">{children}</td>,
@@ -457,6 +469,34 @@ const DocEditor: React.FC<EditorProps> = ({ initialContent, onSave, fileName, as
     }, 400);
     return () => { if (undoDebounceRef.current) clearTimeout(undoDebounceRef.current); };
   }, [content, undoRedo]);
+
+  // Outline (right sidebar) asks to scroll to a heading.
+  useEffect(() => {
+    const onReveal = (event: Event) => {
+      const detail = (event as CustomEvent<RevealHeadingDetail>).detail;
+      if (!detail || detail.fileId !== activeFileId) return;
+      const pane = previewPaneRef.current;
+      if (pane) {
+        const headings = Array.from(pane.querySelectorAll<HTMLElement>('h1, h2, h3, h4, h5, h6'));
+        const target = headings[detail.index]?.textContent?.trim() === detail.text
+          ? headings[detail.index]
+          : headings.find(h => h.textContent?.trim() === detail.text) || headings[detail.index];
+        target?.scrollIntoView({ block: 'start', behavior: 'smooth' });
+      }
+      const ta = textareaRef.current;
+      if (ta) {
+        const value = ta.value;
+        const lines = value.split('\n');
+        const pos = lines.slice(0, detail.line).reduce((sum, l) => sum + l.length + 1, 0);
+        ta.focus({ preventScroll: true });
+        ta.setSelectionRange(pos, pos + (lines[detail.line]?.length ?? 0));
+        // Approximate the caret's offset (lines wrap, so measure by characters).
+        ta.scrollTop = Math.max(0, (pos / Math.max(1, value.length)) * ta.scrollHeight - ta.clientHeight / 4);
+      }
+    };
+    window.addEventListener(REVEAL_HEADING_EVENT, onReveal);
+    return () => window.removeEventListener(REVEAL_HEADING_EVENT, onReveal);
+  }, [activeFileId]);
 
   const handleClear = () => {
     void confirmDialog({
@@ -717,16 +757,17 @@ const DocEditor: React.FC<EditorProps> = ({ initialContent, onSave, fileName, as
       onOpenFile(fileId);
   };
 
-  const ToolbarButton = ({ icon: Icon, onClick, title, active = false, disabled = false, color }: any) => (
+  const ToolbarButton = ({ icon: Icon, onClick, title, active = false, disabled = false }: any) => (
     <button
       onClick={onClick}
       disabled={disabled}
-      className={`p-1.5 rounded-md transition-all flex items-center justify-center shrink-0 ${
-        active ? 'bg-accent text-accent-content shadow-sm' : 'text-muted hover:text-content hover:bg-surface-hover'
-      } ${disabled ? 'opacity-50 cursor-not-allowed' : ''}`}
+      className={`p-1.5 rounded-md transition-colors flex items-center justify-center shrink-0 ${
+        active ? 'bg-accent/15 text-accent' : 'text-faint hover:text-content hover:bg-surface-hover'
+      } ${disabled ? 'opacity-40 cursor-not-allowed' : ''}`}
       title={title}
+      aria-label={title}
     >
-      <Icon className={`w-4 h-4 ${color}`} />
+      <Icon className="w-4 h-4" />
     </button>
   );
 
@@ -743,14 +784,12 @@ const DocEditor: React.FC<EditorProps> = ({ initialContent, onSave, fileName, as
   ];
 
   return (
-    <div className="h-full flex flex-col bg-surface">
+    <div className="h-full flex flex-col bg-bg">
       {/* Top Bar - Fixed Layout & Overflow */}
-      <div className="min-h-[3.5rem] border-b border-border flex flex-wrap items-center justify-between px-4 py-2 bg-bg/90 backdrop-blur-sm sticky top-0 z-30 shrink-0 gap-y-2">
+      <div className="min-h-[2.75rem] border-b border-border/70 flex flex-wrap items-center justify-between px-3 py-1 bg-bg sticky top-0 z-30 shrink-0 gap-y-1">
         <div className="flex items-center gap-4 flex-1 min-w-0">
-           <h3 className="text-content font-medium mr-2 truncate shrink-0 max-w-[150px]">{fileName}</h3>
-           <div className="h-6 w-px bg-surface-raised hidden sm:block shrink-0"></div>
-           
-           <div className="flex items-center gap-1 flex-wrap">
+           {/* Formatting only applies to the source, so reading view hides it. */}
+           <div className={`items-center gap-1 flex-wrap ${viewMode === 'preview' ? 'hidden' : 'flex'}`}>
               {/* Text Style */}
               <ToolbarButton icon={Bold} onClick={() => insertText('**', '**')} title="Bold" />
               <ToolbarButton icon={Italic} onClick={() => insertText('*', '*')} title="Italic" />
@@ -762,8 +801,7 @@ const DocEditor: React.FC<EditorProps> = ({ initialContent, onSave, fileName, as
                    <ToolbarButton 
                      icon={Palette} 
                      onClick={() => setShowColorPicker(!showColorPicker)} 
-                    title="Text Color" 
-                    color="text-pink-400" 
+                    title="Text Color"  
                     active={showColorPicker}
                   />
                   
@@ -817,7 +855,6 @@ const DocEditor: React.FC<EditorProps> = ({ initialContent, onSave, fileName, as
                    icon={CheckSquare}
                    onClick={toggleTaskLinkPicker}
                    title={linkableTasks.length === 0 ? 'No tasks available to link' : 'Insert Task Link'}
-                   color="text-emerald-400"
                    disabled={linkableTasks.length === 0}
                    active={showTaskLinkPicker}
                  />
@@ -867,7 +904,6 @@ const DocEditor: React.FC<EditorProps> = ({ initialContent, onSave, fileName, as
                     icon={LinkIcon}
                    onClick={toggleLinkPicker}
                   title={linkableFiles.length === 0 ? 'No files available to link' : 'Insert File Link'}
-                  color="text-cyan-400"
                   disabled={linkableFiles.length === 0}
                   active={showLinkPicker}
                  />
@@ -913,7 +949,6 @@ const DocEditor: React.FC<EditorProps> = ({ initialContent, onSave, fileName, as
                    icon={FolderOpen}
                    onClick={toggleAssetPicker}
                    title={linkableAssets.length === 0 ? 'No library assets available' : 'Insert Media from Asset Library'}
-                   color="text-violet-400"
                    disabled={linkableAssets.length === 0}
                    active={showAssetPicker}
                  />
@@ -985,24 +1020,21 @@ const DocEditor: React.FC<EditorProps> = ({ initialContent, onSave, fileName, as
                   icon={ImageIcon} 
                   onClick={() => fileInputRef.current?.click()} 
                   title="Insert Image"
-                  color="text-emerald-400"
               />
               <ToolbarButton 
                   icon={Video} 
                   onClick={() => fileInputRef.current?.click()} 
                   title="Insert Video"
-                  color="text-blue-400"
               />
               <ToolbarButton 
                   icon={Music} 
                   onClick={() => fileInputRef.current?.click()} 
                   title="Insert Audio"
-                  color="text-purple-400"
               />
            </div>
         </div>
 
-        <div className="flex items-center gap-3 shrink-0 ml-auto">
+        <div className="flex items-center gap-1.5 shrink-0 ml-auto">
           <div className="flex items-center gap-0.5 mr-1">
             <button onClick={() => { const prev = undoRedo.undo(); if (prev !== undefined) { setContent(prev); lastUndoPushRef.current = prev; } }} disabled={!undoRedo.canUndo} className="p-1.5 rounded text-faint hover:text-content hover:bg-surface-hover disabled:opacity-30 disabled:pointer-events-none transition-colors" title="Undo (Ctrl+Z)"><Undo2 className="w-4 h-4" /></button>
             <button onClick={() => { const next = undoRedo.redo(); if (next !== undefined) { setContent(next); lastUndoPushRef.current = next; } }} disabled={!undoRedo.canRedo} className="p-1.5 rounded text-faint hover:text-content hover:bg-surface-hover disabled:opacity-30 disabled:pointer-events-none transition-colors" title="Redo (Ctrl+Y)"><Redo2 className="w-4 h-4" /></button>
@@ -1013,16 +1045,17 @@ const DocEditor: React.FC<EditorProps> = ({ initialContent, onSave, fileName, as
             {saveStatus === 'unsaved' && <span className="text-xs text-warning flex items-center gap-1"><AlertCircle className="w-3 h-3" /></span>}
           </div>
 
-          <div className="flex bg-surface-raised p-1 rounded-lg border border-border-strong hidden sm:flex">
-            <button onClick={() => setViewMode('edit')} className={`p-1.5 rounded transition-all ${viewMode === 'edit' ? 'bg-accent text-accent-content' : 'text-muted'}`} title="Edit Only"><PenTool className="w-4 h-4" /></button>
-            <button onClick={() => setViewMode('split')} className={`p-1.5 rounded transition-all ${viewMode === 'split' ? 'bg-accent text-accent-content' : 'text-muted'}`} title="Split View"><Columns className="w-4 h-4" /></button>
-            <button onClick={() => setViewMode('preview')} className={`p-1.5 rounded transition-all ${viewMode === 'preview' ? 'bg-accent text-accent-content' : 'text-muted'}`} title="Preview Only"><Eye className="w-4 h-4" /></button>
+          <div className="flex rounded-md border border-border bg-surface-raised p-0.5" role="radiogroup" aria-label="Document view">
+            <button onClick={() => setViewMode('edit')} role="radio" aria-checked={viewMode === 'edit'} className={`p-1 rounded transition-colors ${viewMode === 'edit' ? 'bg-surface-hover text-content' : 'text-faint hover:text-content'}`} title="Source mode"><PenTool className="w-4 h-4" /></button>
+            <button onClick={() => setViewMode('split')} role="radio" aria-checked={viewMode === 'split'} className={`p-1 rounded transition-colors hidden sm:block ${viewMode === 'split' ? 'bg-surface-hover text-content' : 'text-faint hover:text-content'}`} title="Split view"><Columns className="w-4 h-4" /></button>
+            <button onClick={() => setViewMode('preview')} role="radio" aria-checked={viewMode === 'preview'} className={`p-1 rounded transition-colors ${viewMode === 'preview' ? 'bg-surface-hover text-content' : 'text-faint hover:text-content'}`} title="Reading view"><Eye className="w-4 h-4" /></button>
           </div>
-          <button onClick={handleClear} className="p-2 hover:bg-danger/10 rounded text-faint hover:text-danger transition-colors" title="Clear Document"><Trash2 className="w-4 h-4" /></button>
-          
-          <button 
-            onClick={handleManualSave} 
-            className={`flex items-center gap-2 px-3 py-1.5 rounded-md text-sm font-medium transition-colors shadow-lg ${saveStatus === 'unsaved' ? 'bg-accent text-accent-content' : 'bg-surface-raised text-content'}`}
+          <button onClick={handleClear} className="p-1.5 hover:bg-danger/10 rounded-md text-faint hover:text-danger transition-colors" title="Clear document" aria-label="Clear document"><Trash2 className="w-4 h-4" /></button>
+          <button
+            onClick={handleManualSave}
+            className={`p-1.5 rounded-md transition-colors ${saveStatus === 'unsaved' ? 'text-accent hover:bg-accent/15' : 'text-faint hover:text-content hover:bg-surface-hover'}`}
+            title="Save now (Ctrl+S)"
+            aria-label="Save now"
           >
             <Save className="w-4 h-4" />
           </button>
@@ -1035,12 +1068,12 @@ const DocEditor: React.FC<EditorProps> = ({ initialContent, onSave, fileName, as
           <div className={`h-full flex flex-col ${viewMode === 'split' ? 'w-1/2 border-r border-border' : 'w-full'}`}>
             <textarea
               ref={textareaRef}
-              className="doc-source w-full h-full bg-bg p-6 text-content font-mono resize-none focus:outline-none leading-relaxed custom-scrollbar selection:bg-accent/30"
+              className="doc-source w-full h-full bg-bg py-8 px-[max(1.5rem,calc((100%-var(--editor-lw))/2))] text-content font-sans resize-none focus:outline-none leading-[1.7] placeholder:text-faint"
               value={content}
               onChange={(e) => setContent(e.target.value)}
               onDragOver={handleEditorDragOver}
               onDrop={handleEditorDrop}
-              placeholder="# Start writing..."
+              placeholder="Start writing… (Markdown supported)"
               spellCheck={false}
             />
           </div>
@@ -1048,11 +1081,11 @@ const DocEditor: React.FC<EditorProps> = ({ initialContent, onSave, fileName, as
 
         {/* Preview Pane - Custom Render */}
         {(viewMode === 'preview' || viewMode === 'split') && (
-          <div className={`h-full overflow-auto custom-scrollbar bg-surface ${viewMode === 'split' ? 'w-1/2' : 'w-full'}`}>
+          <div className={`h-full overflow-auto bg-bg ${viewMode === 'split' ? 'w-1/2' : 'w-full'}`}>
              <div
                 ref={previewPaneRef}
                 onClick={handlePreviewClick}
-                className="doc-md max-w-3xl mx-auto p-8"
+                className="doc-md max-w-[var(--editor-lw)] mx-auto px-6 py-8 sm:px-8"
              >
                 <ReactMarkdown
                   remarkPlugins={[remarkGfm]}

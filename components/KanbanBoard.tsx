@@ -1,5 +1,5 @@
 import React, { useState, useEffect, useRef } from 'react';
-import { Save, Plus, AlertCircle, ChevronLeft, ChevronRight, X, Trash2, Bug as BugIcon, Search, Filter, Pencil, Loader2, Check, Link as LinkIcon, ArrowUpDown, Calendar, Undo2, Redo2 } from 'lucide-react';
+import { Save, Plus, AlertCircle, ChevronLeft, ChevronRight, X, Trash2, Search, Filter, Pencil, Loader2, Check, Link as LinkIcon, ArrowUpDown, Calendar, Undo2, Redo2 } from 'lucide-react';
 import { Bug, BugSeverity, BugStatus, EditorProps } from '../types';
 import { useUndoRedo } from '../hooks/useUndoRedo';
 import { confirmDialog } from '../stores/useUiStore';
@@ -550,14 +550,8 @@ const KanbanBoard: React.FC<EditorProps> = ({ initialContent, onSave, fileName, 
   };
 
   return (
-    <div className="h-full flex flex-col bg-surface">
-      <div className="h-16 border-b border-border flex items-center justify-between px-6 bg-surface/60 backdrop-blur-sm sticky top-0 z-10 shrink-0">
-        <div className="flex items-center gap-3">
-          <div className="p-2 bg-red-500/10 rounded-lg">
-             <BugIcon className="w-5 h-5 text-red-500" />
-          </div>
-          <h3 className="text-content font-medium">{fileName}</h3>
-        </div>
+    <div className="h-full flex flex-col bg-bg">
+      <div className="h-11 border-b border-border flex items-center justify-between px-6 bg-bg sticky top-0 z-10 shrink-0">
         <div className="flex gap-3">
           <div className="flex items-center gap-3">
             <div className="flex items-center gap-0.5 mr-1">

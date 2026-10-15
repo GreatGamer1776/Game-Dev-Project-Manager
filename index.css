@@ -3,42 +3,47 @@
 @tailwind utilities;
 
 /*
- * DevArchitect design tokens — "Drafting Studio"
- * ----------------------------------------------
+ * DevArchitect design tokens — "Vault"
+ * ------------------------------------
+ * An Obsidian-style workspace: flat chrome (ribbon, side docks, tab header,
+ * status bar) one step lighter than the editor pane in dark mode, a muted
+ * violet accent, small radii, and restrained monoline icons.
+ *
  * Everything visual is a CSS variable so the whole app can be re-themed live
- * from the Appearance studio in Settings. There are five independent axes:
+ * from Settings. Independent axes:
  *
  *   theme     light / dark / system   -> :root vs .dark
- *   accent    8 schemes               -> [data-scheme]      (accent ramp only)
+ *   accent    9 schemes               -> [data-scheme]      (accent ramp only)
  *   tint      neutral / warm / cool   -> [data-tint]        (grey ramp temperature)
  *   corners   sharp / precise / round -> [data-corners]     (radius scale)
  *   density   comfortable / compact   -> [data-density]     (spacing/height scale)
- *   typeface  technical / editorial / mono -> [data-type]   (display face)
+ *   typeface  interface / technical / editorial / mono -> [data-type] (display face)
  *
  * Colors are space-separated RGB channels so Tailwind's `/<alpha>` modifiers
- * keep working (e.g. `bg-surface/80`). The init script in index.html applies
- * the persisted axes before paint; useThemeStore keeps them in sync.
+ * keep working (e.g. `bg-surface/80`). public/theme-init.js applies the
+ * persisted axes before paint; useThemeStore keeps them in sync.
  */
 @layer base {
   :root {
     /* Surfaces — neutral, light (default tint) */
-    --color-bg: 246 246 247;
-    --color-surface: 255 255 255;
-    --color-surface-raised: 250 250 251;
-    --color-surface-hover: 240 240 242;
+    --color-bg: 255 255 255;            /* editor / primary pane */
+    --color-chrome: 246 246 246;        /* ribbon, docks, tab header, status bar */
+    --color-surface: 252 252 252;       /* cards and panels inside editors */
+    --color-surface-raised: 245 245 245;
+    --color-surface-hover: 235 235 235;
     --color-overlay: 17 17 19;
     /* Borders */
-    --color-border: 226 226 230;
-    --color-border-strong: 205 205 211;
+    --color-border: 224 224 224;
+    --color-border-strong: 200 200 200;
     /* Text */
-    --color-content: 24 24 28;
-    --color-muted: 88 88 96;
-    --color-faint: 148 148 158;
-    /* Accent — default (Indigo). Overridden per color scheme below. */
-    --color-accent: 79 70 229;
-    --color-accent-grad: 99 102 241;
-    --color-accent-hover: 67 56 202;
-    --color-accent-muted: 224 231 255;
+    --color-content: 34 34 34;
+    --color-muted: 92 92 92;
+    --color-faint: 150 150 150;
+    /* Accent — default (Amethyst). Overridden per color scheme below. */
+    --color-accent: 109 71 235;
+    --color-accent-grad: 132 99 240;
+    --color-accent-hover: 93 56 214;
+    --color-accent-muted: 237 233 254;
     --color-accent-content: 255 255 255;
     /* Status */
     --color-success: 22 163 74;
@@ -47,55 +52,62 @@
     --color-info: 37 99 235;
 
     /* Typography roles (typeface axis swaps --font-display) */
-    --font-display: 'Archivo', 'Inter', system-ui, sans-serif;
-    --font-body: 'Inter', system-ui, sans-serif;
-    --font-mono: 'JetBrains Mono', ui-monospace, 'SFMono-Regular', monospace;
+    --font-display: 'Inter', system-ui, -apple-system, 'Segoe UI', sans-serif;
+    --font-body: 'Inter', system-ui, -apple-system, 'Segoe UI', sans-serif;
+    --font-mono: 'JetBrains Mono', ui-monospace, 'SFMono-Regular', Consolas, monospace;
 
-    /* Radius scale — "precise" default (drafting-table crisp, not pill) */
+    /* Radius scale — "precise" default */
     --r-sm: 3px;
-    --r: 5px;
-    --r-md: 6px;
-    --r-lg: 8px;
-    --r-xl: 11px;
-    --r-2xl: 14px;
-    --r-3xl: 18px;
+    --r: 4px;
+    --r-md: 5px;
+    --r-lg: 6px;
+    --r-xl: 8px;
+    --r-2xl: 10px;
+    --r-3xl: 14px;
 
     /* Spacing/height scale — "comfortable" default */
-    --ctl-h: 2.5rem;
-    --ctl-h-sm: 2rem;
-    --field-py: 0.5rem;
-    --row-py: 0.375rem;
-    --tab-py: 0.625rem;
-    --card-pad: 1.5rem;
-    --grid-gap: 1.5rem;
+    --ctl-h: 2.25rem;
+    --ctl-h-sm: 1.875rem;
+    --field-py: 0.4375rem;
+    --row-py: 0.25rem;
+    --tab-py: 0.5rem;
+    --card-pad: 1.25rem;
+    --grid-gap: 1.25rem;
+
+    /* Shell geometry */
+    --ribbon-w: 44px;
+    --header-h: 40px;
+    --statusbar-h: 26px;
 
     color-scheme: light;
   }
 
   .dark {
-    /* Surfaces — neutral, dark (default tint) */
-    --color-bg: 12 12 14;
-    --color-surface: 22 22 25;
-    --color-surface-raised: 31 31 35;
-    --color-surface-hover: 38 38 43;
+    /* Surfaces — neutral, dark (default tint). Obsidian-like: the editor is
+       the darkest plane, chrome sits one step above it. */
+    --color-bg: 30 30 30;
+    --color-chrome: 38 38 38;
+    --color-surface: 36 36 36;
+    --color-surface-raised: 44 44 44;
+    --color-surface-hover: 52 52 52;
     --color-overlay: 0 0 0;
     /* Borders */
-    --color-border: 38 38 43;
-    --color-border-strong: 56 56 63;
+    --color-border: 54 54 54;
+    --color-border-strong: 74 74 74;
     /* Text */
-    --color-content: 240 240 244;
-    --color-muted: 158 158 167;
-    --color-faint: 108 108 119;
-    /* Accent — default (Indigo, brighter on dark). Overridden per scheme below. */
-    --color-accent: 129 140 248;
-    --color-accent-grad: 165 180 252;
-    --color-accent-hover: 99 102 241;
-    --color-accent-muted: 49 46 129;
-    --color-accent-content: 9 9 11;
+    --color-content: 218 218 218;
+    --color-muted: 168 168 168;
+    --color-faint: 112 112 112;
+    /* Accent — default (Amethyst, brighter on dark). Overridden per scheme below. */
+    --color-accent: 138 108 239;
+    --color-accent-grad: 160 136 245;
+    --color-accent-hover: 158 132 245;
+    --color-accent-muted: 52 42 98;
+    --color-accent-content: 255 255 255;
     /* Status */
-    --color-success: 52 211 153;
-    --color-warning: 251 191 36;
-    --color-danger: 248 113 113;
+    --color-success: 74 201 136;
+    --color-warning: 232 182 72;
+    --color-danger: 235 104 96;
     --color-info: 96 165 250;
 
     color-scheme: dark;
@@ -108,48 +120,52 @@
    * Accent is untouched. Neutral is the default and needs no block.
    */
   [data-tint="warm"] {
-    --color-bg: 248 247 244;
-    --color-surface: 255 255 253;
-    --color-surface-raised: 251 250 246;
-    --color-surface-hover: 243 241 235;
-    --color-border: 231 227 220;
-    --color-border-strong: 212 207 197;
-    --color-content: 31 28 24;
-    --color-muted: 97 90 81;
-    --color-faint: 159 150 138;
+    --color-bg: 255 254 251;
+    --color-chrome: 246 243 236;
+    --color-surface: 252 250 246;
+    --color-surface-raised: 245 242 235;
+    --color-surface-hover: 236 232 223;
+    --color-border: 228 222 211;
+    --color-border-strong: 206 199 186;
+    --color-content: 38 34 28;
+    --color-muted: 99 91 80;
+    --color-faint: 155 146 133;
   }
   .dark[data-tint="warm"] {
-    --color-bg: 16 14 12;
-    --color-surface: 27 24 21;
-    --color-surface-raised: 37 33 28;
-    --color-surface-hover: 44 39 33;
-    --color-border: 44 39 33;
-    --color-border-strong: 62 55 47;
-    --color-content: 244 240 234;
-    --color-muted: 167 158 147;
-    --color-faint: 118 110 99;
+    --color-bg: 31 29 26;
+    --color-chrome: 40 37 33;
+    --color-surface: 38 35 31;
+    --color-surface-raised: 46 42 37;
+    --color-surface-hover: 55 50 44;
+    --color-border: 57 52 46;
+    --color-border-strong: 78 71 62;
+    --color-content: 226 220 210;
+    --color-muted: 173 165 153;
+    --color-faint: 117 110 99;
   }
   [data-tint="cool"] {
-    --color-bg: 244 246 249;
-    --color-surface: 255 255 255;
-    --color-surface-raised: 248 250 252;
-    --color-surface-hover: 237 240 245;
-    --color-border: 221 226 233;
-    --color-border-strong: 200 207 217;
-    --color-content: 21 26 33;
-    --color-muted: 82 90 102;
-    --color-faint: 142 151 165;
+    --color-bg: 253 254 255;
+    --color-chrome: 241 244 248;
+    --color-surface: 249 251 253;
+    --color-surface-raised: 241 244 248;
+    --color-surface-hover: 230 235 242;
+    --color-border: 219 225 233;
+    --color-border-strong: 196 205 217;
+    --color-content: 27 32 40;
+    --color-muted: 84 93 106;
+    --color-faint: 143 152 166;
   }
   .dark[data-tint="cool"] {
-    --color-bg: 11 13 16;
-    --color-surface: 20 23 28;
-    --color-surface-raised: 28 32 38;
-    --color-surface-hover: 35 40 47;
-    --color-border: 35 40 47;
-    --color-border-strong: 50 57 67;
-    --color-content: 237 240 245;
-    --color-muted: 150 158 169;
-    --color-faint: 104 112 125;
+    --color-bg: 26 29 34;
+    --color-chrome: 33 37 43;
+    --color-surface: 32 36 42;
+    --color-surface-raised: 39 44 51;
+    --color-surface-hover: 47 53 61;
+    --color-border: 48 54 63;
+    --color-border-strong: 68 76 88;
+    --color-content: 214 220 228;
+    --color-muted: 160 168 180;
+    --color-faint: 108 116 129;
   }
 
   /*
@@ -160,21 +176,26 @@
     --r-sm: 0px; --r: 1px; --r-md: 2px; --r-lg: 2px; --r-xl: 3px; --r-2xl: 4px; --r-3xl: 6px;
   }
   [data-corners="rounded"] {
-    --r-sm: 5px; --r: 7px; --r-md: 9px; --r-lg: 12px; --r-xl: 16px; --r-2xl: 20px; --r-3xl: 26px;
+    --r-sm: 5px; --r: 6px; --r-md: 8px; --r-lg: 10px; --r-xl: 12px; --r-2xl: 16px; --r-3xl: 22px;
   }
 
   /* Density — global spacing/height scale. */
   [data-density="compact"] {
-    --ctl-h: 2.25rem;
-    --ctl-h-sm: 1.75rem;
-    --field-py: 0.375rem;
-    --row-py: 0.1875rem;
+    --ctl-h: 2rem;
+    --ctl-h-sm: 1.625rem;
+    --field-py: 0.3125rem;
+    --row-py: 0.125rem;
     --tab-py: 0.375rem;
-    --card-pad: 1.125rem;
-    --grid-gap: 1rem;
+    --card-pad: 1rem;
+    --grid-gap: 0.875rem;
+    --header-h: 36px;
+    --statusbar-h: 24px;
   }
 
   /* Typeface — swaps the display face; body + mono stay constant. */
+  [data-type="technical"] {
+    --font-display: 'Archivo', 'Inter', system-ui, sans-serif;
+  }
   [data-type="editorial"] {
     --font-display: 'Fraunces', 'Archivo', Georgia, serif;
   }
@@ -183,19 +204,17 @@
   }
 
   /* UI scale — shifts the root font size; every rem-based spacing/text follows. */
-  [data-scale="small"] { font-size: 15px; }
+  [data-scale="small"] { font-size: 14.5px; }
   [data-scale="large"] { font-size: 17.5px; }
 
-  /* File panel width — feeds w-[var(--panel-w)] on the docked sidebar. */
-  :root { --panel-w: 20rem; }
-  [data-panel="narrow"] { --panel-w: 16rem; }
-  [data-panel="wide"] { --panel-w: 24rem; }
-
   /* Editor text size — doc source textarea + markdown preview body. */
-  :root { --editor-fs: 0.875rem; }
-  [data-editortext="small"] { --editor-fs: 0.8125rem; }
-  [data-editortext="large"] { --editor-fs: 1rem; }
+  :root { --editor-fs: 0.9375rem; --editor-lw: 46rem; }
+  [data-editortext="small"] { --editor-fs: 0.875rem; }
+  [data-editortext="large"] { --editor-fs: 1.0625rem; }
   .doc-source, .doc-md { font-size: var(--editor-fs) !important; }
+
+  /* Readable line length — caps the document column like Obsidian. */
+  [data-linewidth="full"] { --editor-lw: 100rem; }
 
   /* Reduced motion — kill transitions/animations globally. */
   [data-motion="reduced"] *,
@@ -212,6 +231,16 @@
    * light values; `.dark[data-scheme]` hold the brighter dark-mode values.
    */
 
+  /* Amethyst (default — Obsidian purple) */
+  [data-scheme="amethyst"] {
+    --color-accent: 109 71 235; --color-accent-grad: 132 99 240;
+    --color-accent-hover: 93 56 214; --color-accent-muted: 237 233 254; --color-accent-content: 255 255 255;
+  }
+  .dark[data-scheme="amethyst"] {
+    --color-accent: 138 108 239; --color-accent-grad: 160 136 245;
+    --color-accent-hover: 158 132 245; --color-accent-muted: 52 42 98; --color-accent-content: 255 255 255;
+  }
+
   /* Azure */
   [data-scheme="blue"] {
     --color-accent: 37 99 235; --color-accent-grad: 14 165 233;
@@ -219,7 +248,7 @@
   }
   .dark[data-scheme="blue"] {
     --color-accent: 96 165 250; --color-accent-grad: 56 189 248;
-    --color-accent-hover: 59 130 246; --color-accent-muted: 30 58 138; --color-accent-content: 9 9 11;
+    --color-accent-hover: 125 181 252; --color-accent-muted: 30 58 138; --color-accent-content: 9 9 11;
   }
 
   /* Cyan */
@@ -229,7 +258,7 @@
   }
   .dark[data-scheme="cyan"] {
     --color-accent: 34 211 238; --color-accent-grad: 45 212 191;
-    --color-accent-hover: 6 182 212; --color-accent-muted: 8 51 68; --color-accent-content: 9 9 11;
+    --color-accent-hover: 103 225 243; --color-accent-muted: 8 51 68; --color-accent-content: 9 9 11;
   }
 
   /* Teal */
@@ -239,7 +268,7 @@
   }
   .dark[data-scheme="teal"] {
     --color-accent: 45 212 191; --color-accent-grad: 52 211 153;
-    --color-accent-hover: 20 184 166; --color-accent-muted: 19 78 74; --color-accent-content: 9 9 11;
+    --color-accent-hover: 94 224 207; --color-accent-muted: 19 78 74; --color-accent-content: 9 9 11;
   }
 
   /* Emerald */
@@ -249,7 +278,7 @@
   }
   .dark[data-scheme="emerald"] {
     --color-accent: 52 211 153; --color-accent-grad: 74 222 128;
-    --color-accent-hover: 16 185 129; --color-accent-muted: 6 78 59; --color-accent-content: 9 9 11;
+    --color-accent-hover: 110 225 182; --color-accent-muted: 6 78 59; --color-accent-content: 9 9 11;
   }
 
   /* Violet */
@@ -259,17 +288,17 @@
   }
   .dark[data-scheme="violet"] {
     --color-accent: 167 139 250; --color-accent-grad: 232 121 249;
-    --color-accent-hover: 139 92 246; --color-accent-muted: 76 29 149; --color-accent-content: 9 9 11;
+    --color-accent-hover: 189 168 251; --color-accent-muted: 76 29 149; --color-accent-content: 9 9 11;
   }
 
-  /* Indigo (default) */
+  /* Indigo */
   [data-scheme="indigo"] {
     --color-accent: 79 70 229; --color-accent-grad: 139 92 246;
     --color-accent-hover: 67 56 202; --color-accent-muted: 224 231 255; --color-accent-content: 255 255 255;
   }
   .dark[data-scheme="indigo"] {
     --color-accent: 129 140 248; --color-accent-grad: 167 139 250;
-    --color-accent-hover: 99 102 241; --color-accent-muted: 49 46 129; --color-accent-content: 9 9 11;
+    --color-accent-hover: 156 165 250; --color-accent-muted: 49 46 129; --color-accent-content: 9 9 11;
   }
 
   /* Rose */
@@ -279,7 +308,7 @@
   }
   .dark[data-scheme="rose"] {
     --color-accent: 251 113 133; --color-accent-grad: 244 114 182;
-    --color-accent-hover: 244 63 94; --color-accent-muted: 136 19 55; --color-accent-content: 9 9 11;
+    --color-accent-hover: 252 146 161; --color-accent-muted: 136 19 55; --color-accent-content: 9 9 11;
   }
 
   /* Amber */
@@ -289,20 +318,32 @@
   }
   .dark[data-scheme="amber"] {
     --color-accent: 251 191 36; --color-accent-grad: 251 146 60;
-    --color-accent-hover: 245 158 11; --color-accent-muted: 120 53 15; --color-accent-content: 9 9 11;
+    --color-accent-hover: 252 207 99; --color-accent-muted: 120 53 15; --color-accent-content: 9 9 11;
+  }
+
+  html, body, #root {
+    height: 100%;
   }
 
   body {
     font-family: var(--font-body);
+    font-size: 0.875rem;
     background-color: rgb(var(--color-bg));
     color: rgb(var(--color-content));
     -webkit-font-smoothing: antialiased;
     text-rendering: optimizeLegibility;
+    -webkit-text-size-adjust: 100%;
+    text-size-adjust: 100%;
+  }
+
+  button, [role="button"], a {
+    -webkit-tap-highlight-color: transparent;
+    touch-action: manipulation;
   }
 
   /* Accent-tinted text selection across the app. */
   ::selection {
-    background-color: rgb(var(--color-accent) / 0.28);
+    background-color: rgb(var(--color-accent) / 0.3);
     color: rgb(var(--color-content));
   }
 
@@ -310,52 +351,95 @@
   body,
   body * {
     transition-property: background-color, border-color, color, fill, stroke;
-    transition-duration: 150ms;
+    transition-duration: 120ms;
     transition-timing-function: ease;
+  }
+
+  :focus-visible {
+    outline: 2px solid rgb(var(--color-accent) / 0.7);
+    outline-offset: 1px;
   }
 }
 
 @layer components {
-  /*
-   * Drafting-studio signature surfaces.
-   */
-
-  /* Faint engineered grid — used only on empty/hero/preview surfaces. */
-  .bg-blueprint {
-    background-image:
-      linear-gradient(to right, rgb(var(--color-border) / 0.7) 1px, transparent 1px),
-      linear-gradient(to bottom, rgb(var(--color-border) / 0.7) 1px, transparent 1px);
-    background-size: 26px 26px;
-    background-position: center;
-  }
-
-  /* A mono technical label: PROJECTS / 12, GAME, 04 FILES ... */
+  /* Small section label — Obsidian's sidebar/setting group heading voice. */
   .eyebrow {
-    font-family: var(--font-mono);
+    font-family: var(--font-body);
     font-size: 0.6875rem;
-    letter-spacing: 0.16em;
+    letter-spacing: 0.05em;
     text-transform: uppercase;
     color: rgb(var(--color-faint));
-    font-weight: 500;
+    font-weight: 600;
+  }
+
+  /* Icon-only chrome button (ribbon, dock headers, tab header, view header). */
+  .icon-btn {
+    @apply inline-flex shrink-0 items-center justify-center rounded-md text-faint transition-colors;
+    width: 1.75rem;
+    height: 1.75rem;
+  }
+  .icon-btn:hover:not(:disabled) {
+    @apply bg-surface-hover text-content;
+  }
+  .icon-btn:disabled {
+    opacity: 0.35;
+    cursor: default;
+  }
+  .icon-btn[aria-pressed="true"],
+  .icon-btn.is-active {
+    @apply bg-surface-hover text-content;
+  }
+
+  /* Tree / list row (file explorer, search results, outline). */
+  .nav-row {
+    @apply flex w-full min-w-0 items-center gap-1.5 rounded-md text-left text-[0.8125rem] text-muted transition-colors;
+    padding-top: var(--row-py);
+    padding-bottom: var(--row-py);
+  }
+  .nav-row:hover {
+    @apply bg-surface-hover text-content;
+  }
+  .nav-row.is-active {
+    @apply bg-surface-hover text-content;
+  }
+
+  /* Keyboard hint chip. */
+  .kbd {
+    @apply inline-flex items-center rounded border border-border bg-surface-raised px-1 font-mono text-[10px] leading-4 text-faint;
   }
 }
 
-/* Slide-over panels (file drawer, etc.) */
+/* Slide-over panels */
 @keyframes slide-in {
-  from { transform: translateX(-16px); opacity: 0; }
+  from { transform: translateX(-12px); opacity: 0; }
   to { transform: translateX(0); opacity: 1; }
 }
 .animate-slide-in {
-  animation: slide-in 0.18s ease-out;
+  animation: slide-in 0.16s ease-out;
+}
+@keyframes slide-in-right {
+  from { transform: translateX(12px); opacity: 0; }
+  to { transform: translateX(0); opacity: 1; }
+}
+.animate-slide-in-right {
+  animation: slide-in-right 0.16s ease-out;
 }
 
 /* Staggered card / view entrances */
-@keyframes fade-in {
+@keyframes fade-in-up {
   from { opacity: 0; transform: translateY(6px); }
   to { opacity: 1; transform: translateY(0); }
 }
-.animate-fade-in {
-  animation: fade-in 0.28s ease-out both;
+.animate-fade-in-up {
+  animation: fade-in-up 0.24s ease-out both;
+}
+
+@keyframes pulse-dot {
+  0%, 100% { opacity: 1; }
+  50% { opacity: 0.35; }
+}
+.animate-pulse-dot {
+  animation: pulse-dot 1s ease-in-out infinite;
 }
 
 /* Markdown preview: the inline `code` style must not leak into fenced blocks. */
@@ -371,21 +455,27 @@
   margin-left: -1.5rem;
 }
 
-/* Custom Scrollbar (token-driven) */
+/* Thin, Obsidian-style scrollbars (token-driven) */
+* {
+  scrollbar-width: thin;
+  scrollbar-color: rgb(var(--color-border-strong)) transparent;
+}
 ::-webkit-scrollbar {
-  width: 9px;
-  height: 9px;
+  width: 10px;
+  height: 10px;
 }
 ::-webkit-scrollbar-track {
   background: transparent;
 }
 ::-webkit-scrollbar-thumb {
   background: rgb(var(--color-border-strong));
-  border-radius: 9999px;
-  border: 2px solid rgb(var(--color-bg));
+  border-radius: 6px;
+  border: 2px solid transparent;
+  background-clip: padding-box;
 }
 ::-webkit-scrollbar-thumb:hover {
   background: rgb(var(--color-faint));
+  background-clip: padding-box;
 }
 
 @media (prefers-reduced-motion: reduce) {

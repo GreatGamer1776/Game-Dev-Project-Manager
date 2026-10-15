@@ -1,124 +1,75 @@
 import React from 'react';
-import { X, FileText, Network, CheckSquare, Bug, Map, Table, PenTool, Image as ImageIcon, LayoutDashboard, Box } from 'lucide-react';
+import { Modal } from './ui';
+import { FILE_TYPES } from './fileTypes';
 
 interface HelpModalProps {
   isOpen: boolean;
   onClose: () => void;
 }
 
-const HelpModal: React.FC<HelpModalProps> = ({ isOpen, onClose }) => {
-  if (!isOpen) return null;
+/** Every global shortcut, shared by this modal and Settings → Hotkeys. */
+export const SHORTCUTS: { keys: string; desc: string }[] = [
+  { keys: 'Ctrl + O', desc: 'Quick switcher — open a file or project (Ctrl + K also works)' },
+  { keys: 'Ctrl + P', desc: 'Command palette' },
+  { keys: 'Alt + N', desc: 'New document (Ctrl + N where the browser allows it)' },
+  { keys: 'F2', desc: 'Rename the current file' },
+  { keys: 'Ctrl + Shift + F', desc: 'Search in all files' },
+  { keys: 'Ctrl + \\', desc: 'Toggle left sidebar' },
+  { keys: 'Ctrl + Shift + \\', desc: 'Toggle right sidebar (outline, links, file info)' },
+  { keys: 'Ctrl + Alt + ←', desc: 'Navigate back in the current tab' },
+  { keys: 'Ctrl + Alt + →', desc: 'Navigate forward in the current tab' },
+  { keys: 'Ctrl + ,', desc: 'Open settings' },
+  { keys: 'Ctrl + S', desc: 'Save now (inside editors)' },
+  { keys: 'Ctrl + Z', desc: 'Undo (inside editors)' },
+  { keys: 'Ctrl + Y', desc: 'Redo (inside editors)' },
+];
 
-  const tools = [
-    {
-      icon: FileText,
-      color: "text-blue-400",
-      title: "Documents",
-      desc: "Markdown-based text editor. Use this for Game Design Documents (GDD), technical specifications, story drafts, and general notes. Supports inserting images from the Asset Library."
-    },
-    {
-      icon: Network,
-      color: "text-purple-400",
-      title: "Flowcharts",
-      desc: "Node-based diagram editor. Perfect for visualizing game loops, dialogue trees, quest branching, or finite state machines (FSM) for AI behavior."
-    },
-    {
-      icon: CheckSquare,
-      color: "text-emerald-400",
-      title: "Task Lists",
-      desc: "Simple, prioritized checklist for daily tasks. Supports sub-tasks and drag-and-drop reordering to keep track of immediate to-dos."
-    },
-    {
-      icon: Bug,
-      color: "text-red-400",
-      title: "Bug Tracker",
-      desc: "A Kanban board (To Do, In Progress, Done) designed for tracking bugs, glitches, and feature requests. Allows assigning severity levels to issues."
-    },
-    {
-      icon: Map,
-      color: "text-amber-400",
-      title: "Roadmap",
-      desc: "Timeline view for long-term project planning. Create phases and milestones to visualize your development schedule over weeks or months."
-    },
-    {
-      icon: Table,
-      color: "text-cyan-400",
-      title: "Data Grid",
-      desc: "Spreadsheet-like database editor. Essential for balancing game stats (e.g., weapon damage, enemy HP), managing item lists, or localized strings."
-    },
-    {
-      icon: PenTool,
-      color: "text-pink-400",
-      title: "Whiteboard",
-      desc: "Infinite canvas for freehand drawing and brainstorming. Great for quick level layout sketches, UI mockups, or scribbling ideas during meetings."
-    },
-    {
-      icon: ImageIcon,
-      color: "text-indigo-400",
-      title: "Asset Library",
-      desc: "Central repository for project images. Upload reference art or screenshots here to use them inside Documents and Whiteboards."
-    }
-  ];
+const TIPS = [
+  'Right-click files, folders, and tabs for more actions.',
+  'Drag a file from the sidebar into a document to insert a link to it.',
+  'Clicking a file opens it in the current tab; pinned tabs are never replaced.',
+  'Type ">" in the quick switcher to run a command instead.',
+  'Middle-click a tab to close it. Drag tabs to reorder them.',
+];
 
-  return (
-    <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/80 backdrop-blur-sm p-4 animate-in fade-in duration-200">
-      <div className="bg-surface border border-border rounded-2xl w-full max-w-4xl max-h-[90vh] flex flex-col shadow-2xl">
-        
-        {/* Header */}
-        <div className="flex items-center justify-between p-6 border-b border-border bg-bg/60 rounded-t-2xl">
-          <div className="flex items-center gap-3">
-            <div className="p-2 bg-accent/20 rounded-lg">
-                <Box className="w-6 h-6 text-blue-500" />
+const HelpModal: React.FC<HelpModalProps> = ({ isOpen, onClose }) => (
+  <Modal open={isOpen} onClose={onClose} title="Help" description="Keyboard shortcuts, file types, and tips." size="lg">
+    <div className="space-y-6">
+      <section>
+        <h3 className="eyebrow mb-2">Keyboard shortcuts</h3>
+        <div className="divide-y divide-border rounded-lg border border-border">
+          {SHORTCUTS.map(({ keys, desc }) => (
+            <div key={keys} className="flex items-center gap-4 px-3 py-2">
+              <span className="flex w-40 shrink-0 gap-1">
+                {keys.split(' + ').map(k => <kbd key={k} className="kbd px-1.5 py-0.5 text-[11px]">{k}</kbd>)}
+              </span>
+              <span className="text-[0.8125rem] text-muted">{desc}</span>
             </div>
-            <div>
-                <h2 className="text-xl font-bold text-content">DevArchitect Guide</h2>
-                <p className="text-sm text-muted">Project management suite for game developers</p>
+          ))}
+        </div>
+      </section>
+
+      <section>
+        <h3 className="eyebrow mb-2">File types</h3>
+        <div className="grid grid-cols-1 gap-x-6 gap-y-2 sm:grid-cols-2">
+          {FILE_TYPES.map(({ type, label, blurb, icon: Icon }) => (
+            <div key={type} className="flex items-center gap-2.5">
+              <Icon className="h-4 w-4 shrink-0 text-faint" />
+              <span className="text-[0.8125rem] text-content">{label}</span>
+              <span className="truncate text-xs text-faint">{blurb}</span>
             </div>
-          </div>
-          <button 
-            onClick={onClose}
-            className="p-2 text-faint hover:text-content hover:bg-surface-hover rounded-full transition-colors"
-          >
-            <X className="w-6 h-6" />
-          </button>
+          ))}
         </div>
+      </section>
 
-        {/* Content */}
-        <div className="flex-1 overflow-y-auto p-6 custom-scrollbar bg-surface/60">
-          
-          {/* Intro Section */}
-          <div className="mb-10 bg-surface-raised/40 border border-border rounded-xl p-6">
-            <h3 className="text-lg font-semibold text-content mb-2">What is this tool?</h3>
-            <p className="text-muted leading-relaxed">
-              DevArchitect is an offline-capable workspace designed to centralize the messy process of game development planning. 
-              Instead of scattering your GDDs in Word, tasks in Trello, and stats in Excel, this tool keeps everything in one project file 
-              that can be saved locally to your disk or version control system.
-            </p>
-          </div>
-
-          <h3 className="text-sm font-bold text-faint uppercase tracking-wider mb-4 px-2">Available Tools</h3>
-          
-          <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
-            {tools.map((tool) => (
-              <div key={tool.title} className="flex gap-4 p-4 rounded-xl border border-border bg-bg hover:border-border-strong transition-colors">
-                <div className={`shrink-0 p-3 rounded-lg bg-surface h-fit ${tool.color}`}>
-                   <tool.icon className="w-6 h-6" />
-                </div>
-                <div>
-                  <h4 className="font-semibold text-content mb-1">{tool.title}</h4>
-                  <p className="text-sm text-faint leading-snug">{tool.desc}</p>
-                </div>
-              </div>
-            ))}
-          </div>
-
-          <div className="mt-10 p-4 border-t border-border text-center text-xs text-faint">
-             <p>Use <span className="font-mono bg-surface-raised px-1 rounded text-muted">Ctrl + K</span> to open the Command Palette anywhere.</p>
-          </div>
-        </div>
-      </div>
+      <section>
+        <h3 className="eyebrow mb-2">Tips</h3>
+        <ul className="list-disc space-y-1 pl-5 text-[0.8125rem] text-muted marker:text-faint">
+          {TIPS.map(tip => <li key={tip}>{tip}</li>)}
+        </ul>
+      </section>
     </div>
-  );
-};
+  </Modal>
+);
 
 export default HelpModal;

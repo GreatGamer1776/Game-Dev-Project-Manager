@@ -6,10 +6,13 @@ The app keeps project documents, task planning, bug tracking, roadmaps, flowchar
 
 ## Current Feature Set
 
-- Multi-project dashboard for creating, opening, updating, exporting, and deleting projects
-- Nested project folders with drag-and-drop file organization
-- Command palette for quickly opening files and creating common project artifacts
-- In-app guide, help modal, and release notes
+- Obsidian-style workspace: icon ribbon, resizable file/search sidebar, right sidebar (outline, backlinks, file info), status bar, and right-click context menus everywhere
+- Tabs with per-tab back/forward history and pinning; the open workspace is restored on next sign-in
+- Quick switcher (`Ctrl+O`) with fuzzy matching and create-on-miss, plus a command palette (`Ctrl+P`)
+- Full-text search across every file type, and backlinks computed from cross-file links
+- Project picker for creating, opening, updating, exporting, and deleting projects
+- Nested project folders with drag-and-drop for files and folders, and inline renaming
+- In-app guide and keyboard-shortcut reference
 - Username/password accounts — no email or PII collected
 - Server-side persistence in PostgreSQL via a Fastify REST API, with per-user data isolation
 - ZIP export for portable project backups

@@ -12,18 +12,17 @@ export interface ButtonProps extends React.ButtonHTMLAttributes<HTMLButtonElemen
 }
 
 const base =
-  'inline-flex items-center justify-center gap-2 font-medium rounded-lg select-none ' +
-  'transition-all duration-150 outline-none focus-visible:ring-2 focus-visible:ring-accent/60 ' +
-  'focus-visible:ring-offset-2 focus-visible:ring-offset-bg ' +
-  'disabled:opacity-50 disabled:pointer-events-none active:scale-[0.98]';
+  'inline-flex items-center justify-center gap-1.5 font-medium rounded-md select-none whitespace-nowrap ' +
+  'transition-colors duration-100 outline-none focus-visible:ring-2 focus-visible:ring-accent/60 ' +
+  'disabled:opacity-50 disabled:pointer-events-none';
 
 const variants: Record<ButtonVariant, string> = {
   primary:
-    'bg-accent-soft text-accent-content shadow-soft hover:brightness-110 hover:shadow-raised',
+    'bg-accent text-accent-content shadow-soft hover:bg-accent-hover',
   secondary:
-    'bg-surface-raised text-content border border-border-strong hover:border-accent hover:text-accent',
+    'bg-surface-raised text-content border border-border shadow-soft hover:bg-surface-hover hover:border-border-strong',
   subtle:
-    'bg-surface-hover text-muted hover:text-content hover:bg-surface-raised',
+    'bg-surface-hover text-muted hover:text-content',
   ghost:
     'text-muted hover:text-content hover:bg-surface-hover',
   danger:
@@ -31,9 +30,9 @@ const variants: Record<ButtonVariant, string> = {
 };
 
 const sizes: Record<ButtonSize, string> = {
-  sm: 'h-[var(--ctl-h-sm)] px-3 text-xs',
-  md: 'h-[var(--ctl-h)] px-4 text-sm',
-  lg: 'h-11 px-5 text-base',
+  sm: 'h-[var(--ctl-h-sm)] px-2.5 text-xs',
+  md: 'h-[var(--ctl-h)] px-3.5 text-[0.8125rem]',
+  lg: 'h-10 px-5 text-sm',
   icon: 'h-[var(--ctl-h)] w-[var(--ctl-h)]',
 };
 

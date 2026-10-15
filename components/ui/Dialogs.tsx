@@ -5,6 +5,7 @@ import { Button } from './Button';
 import { Input, Field } from './Input';
 import { useUiStore, ToastKind } from '../../stores/useUiStore';
 import { cn } from './cn';
+import { MenuHost } from './Menu';
 
 /** Renders the pending confirm() dialog from useUiStore. Mount once at root. */
 export const ConfirmHost: React.FC = () => {
@@ -111,7 +112,7 @@ export const ToastHost: React.FC = () => {
 
   if (toasts.length === 0) return null;
   return (
-    <div className="fixed bottom-4 right-4 z-[80] flex w-80 flex-col gap-2">
+    <div className="fixed bottom-10 right-4 z-[80] flex w-80 max-w-[calc(100vw-2rem)] flex-col gap-2">
       {toasts.map(t => {
         const { icon: Icon, classes } = toastStyles[t.kind];
         return (
@@ -119,12 +120,12 @@ export const ToastHost: React.FC = () => {
             key={t.id}
             role="status"
             className={cn(
-              'flex items-start gap-2.5 rounded-xl border bg-surface px-3.5 py-3 shadow-pop animate-scale-in',
+              'flex items-start gap-2.5 rounded-lg border bg-surface-raised px-3 py-2.5 shadow-pop animate-scale-in',
               classes
             )}
           >
             <Icon className="mt-0.5 h-4 w-4 shrink-0" />
-            <p className="flex-1 text-sm leading-snug">{t.message}</p>
+            <p className="flex-1 text-[0.8125rem] leading-snug">{t.message}</p>
             <button
               onClick={() => dismissToast(t.id)}
               aria-label="Dismiss"
@@ -145,5 +146,6 @@ export const UiFeedback: React.FC = () => (
     <ConfirmHost />
     <PromptHost />
     <ToastHost />
+    <MenuHost />
   </>
 );

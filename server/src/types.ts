@@ -31,6 +31,10 @@ export interface AppState {
   activeProjectId: string | null;
   activeFileId: string | null;
   sidebarCollapsed?: boolean;
+  filePanelOpen?: boolean;
+  rightPanelOpen?: boolean;
+  tabs?: Array<{ fileId: string | null; pinned: boolean }>;
+  activeTabIndex?: number;
 }
 
 export interface UserRow {

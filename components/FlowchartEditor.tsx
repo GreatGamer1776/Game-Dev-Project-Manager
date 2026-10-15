@@ -346,11 +346,9 @@ const FlowchartEditorContent: React.FC<EditorProps> = ({ initialContent, onSave,
   );
 
   return (
-    <div className="h-full w-full flex flex-col bg-surface">
-      <div className="h-16 border-b border-border flex items-center px-4 justify-between bg-surface/60 backdrop-blur-sm z-10 shrink-0">
+    <div className="h-full w-full flex flex-col bg-bg">
+      <div className="h-11 border-b border-border flex items-center px-4 justify-between bg-bg z-10 shrink-0">
         <div className="flex items-center gap-4">
-          <h3 className="text-content font-medium ml-2">{fileName}</h3>
-          <div className="h-6 w-px bg-surface-raised"></div>
           
           <button 
              onClick={handleDeleteSelected}

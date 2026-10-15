@@ -7,6 +7,10 @@ export type PersistedAppState = {
   /** @deprecated superseded by filePanelOpen; kept for old saved state. */
   sidebarCollapsed?: boolean;
   filePanelOpen?: boolean;
+  rightPanelOpen?: boolean;
+  /** Open tabs (current file per tab) for the active project. */
+  tabs?: Array<{ fileId: string | null; pinned: boolean }>;
+  activeTabIndex?: number;
 };
 
 export interface AuthUser {

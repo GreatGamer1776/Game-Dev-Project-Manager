@@ -965,9 +965,7 @@ const WhiteboardEditor: React.FC<EditorProps> = ({ initialContent, onSave, fileN
       onMouseLeave={handleWindowMouseUp}
     >
       {/* Toolbar */}
-      <div className="h-16 border-b border-border flex items-center justify-between px-4 sm:px-6 bg-surface/60 backdrop-blur-sm sticky top-0 z-20 shrink-0 select-none">
-        <h3 className="text-content font-medium truncate max-w-[100px] sm:max-w-none">{fileName}</h3>
-
+      <div className="h-11 border-b border-border flex items-center justify-between px-4 sm:px-6 bg-bg sticky top-0 z-20 shrink-0 select-none">
         <div className="flex items-center gap-4">
           {/* Tools */}
           <div className="flex bg-surface-raised p-1 rounded-lg border border-border-strong">

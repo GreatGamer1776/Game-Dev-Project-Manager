@@ -1,5 +1,5 @@
 import React, { useEffect, useMemo, useState } from 'react';
-import { Upload, Trash2, Image as ImageIcon, Copy, Search, Grid, Check, Download, FolderOpen, FolderPlus, Folder, ChevronRight, ChevronDown, Music, File as FileIcon, Pencil } from 'lucide-react';
+import { Upload, Trash2, Copy, Search, Grid, Check, Download, FolderOpen, FolderPlus, Folder, ChevronRight, ChevronDown, Music, File as FileIcon, Pencil } from 'lucide-react';
 import { EditorProps } from '../types';
 import { ASSET_LINK_DRAG_MIME, AssetKind, getAssetExtensionFromMime, getAssetKindFromMime, getAssetMimeType } from '../services/assetUtils';
 import { confirmDialog, promptDialog, toast } from '../stores/useUiStore';
@@ -406,11 +406,8 @@ const AssetBrowser: React.FC<EditorProps> = ({ initialContent, assets = {}, onAd
   };
 
   return (
-    <div className="h-full flex flex-col bg-surface">
-      <div className="h-16 border-b border-border flex items-center justify-between px-6 bg-surface/60 backdrop-blur-sm sticky top-0 z-20">
-        <h3 className="text-content font-medium flex items-center gap-2">
-            <ImageIcon className="w-4 h-4 text-purple-500" /> {fileName}
-        </h3>
+    <div className="h-full flex flex-col bg-bg">
+      <div className="h-11 border-b border-border flex items-center justify-between px-6 bg-bg sticky top-0 z-20">
         <div className="flex items-center gap-3">
             <div className="relative">
                 <Search className="w-4 h-4 text-faint absolute left-3 top-1/2 -translate-y-1/2" />

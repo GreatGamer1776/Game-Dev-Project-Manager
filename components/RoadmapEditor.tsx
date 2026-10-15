@@ -442,13 +442,9 @@ const RoadmapEditor: React.FC<EditorProps> = ({ initialContent, onSave, fileName
   };
 
   return (
-    <div className="h-full flex flex-col bg-surface">
-      <div className="border-b border-border bg-surface/60 backdrop-blur-sm px-6 py-3 space-y-3 shrink-0">
+    <div className="h-full flex flex-col bg-bg">
+      <div className="border-b border-border bg-bg px-6 py-3 space-y-3 shrink-0">
         <div className="flex items-center justify-between gap-3">
-          <div className="flex items-center gap-2">
-            <Calendar className="w-4 h-4 text-cyan-400" />
-            <h3 className="text-content font-semibold">{fileName}</h3>
-          </div>
           <div className="flex items-center gap-2">
             <div className="flex items-center gap-0.5 mr-1">
               <button onClick={() => { const prev = undoRedo.undo(); if (prev !== undefined) setItems(prev); }} disabled={!undoRedo.canUndo} className="p-1.5 rounded text-faint hover:text-content hover:bg-surface-hover disabled:opacity-30 disabled:pointer-events-none transition-colors" title="Undo (Ctrl+Z)"><Undo2 className="w-4 h-4" /></button>

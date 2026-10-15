@@ -2,9 +2,9 @@ import React from 'react';
 import { cn } from './cn';
 
 const fieldBase =
-  'w-full rounded-lg bg-surface-raised text-content placeholder:text-faint ' +
-  'border border-border-strong px-3 py-[var(--field-py)] text-sm outline-none ' +
-  'transition-colors duration-150 focus:border-accent focus:ring-2 focus:ring-accent/40 ' +
+  'w-full rounded-md bg-surface-raised text-content placeholder:text-faint ' +
+  'border border-border px-2.5 py-[var(--field-py)] text-[0.8125rem] outline-none ' +
+  'transition-colors duration-100 hover:border-border-strong focus:border-accent focus:ring-2 focus:ring-accent/25 ' +
   'disabled:opacity-50';
 
 export interface InputProps extends React.InputHTMLAttributes<HTMLInputElement> {}

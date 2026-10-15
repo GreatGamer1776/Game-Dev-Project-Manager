@@ -825,10 +825,9 @@ const TodoEditor: React.FC<EditorProps> = ({ initialContent, onSave, fileName, p
   const boardMinWidth = visibleColumns.length === 1 ? 320 : visibleColumns.length * 300 + (visibleColumns.length - 1) * 24;
 
   return (
-    <div className="h-full flex flex-col bg-surface">
+    <div className="h-full flex flex-col bg-bg">
       {/* Header */}
-      <div className="h-16 border-b border-border flex items-center justify-between px-6 bg-surface/60 backdrop-blur-sm sticky top-0 z-10 shrink-0">
-        <h3 className="text-content font-medium">{fileName}</h3>
+      <div className="h-11 border-b border-border flex items-center justify-between px-6 bg-bg sticky top-0 z-10 shrink-0">
         <div className="flex items-center gap-3">
             <div className="flex items-center gap-0.5 mr-1">
               <button onClick={() => { const prev = undoRedo.undo(); if (prev !== undefined) setItems(prev); }} disabled={!undoRedo.canUndo} className="p-1.5 rounded text-faint hover:text-content hover:bg-surface-hover disabled:opacity-30 disabled:pointer-events-none transition-colors" title="Undo (Ctrl+Z)"><Undo2 className="w-4 h-4" /></button>

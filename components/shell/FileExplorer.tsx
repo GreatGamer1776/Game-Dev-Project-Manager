@@ -2,6 +2,7 @@ import React, { useEffect, useMemo, useRef, useState } from 'react';
 import {
   ChevronRight, Folder, FolderOpen, FilePlus2, FolderPlus, ArrowUpDown, ChevronsDownUp, ChevronsUpDown,
   Pencil, Trash2, Link2, Hash, ExternalLink, CornerLeftUp, Layers, Bookmark, BookmarkMinus, PanelRightOpen,
+  MoreHorizontal, Plus, Columns2, Crosshair,
 } from 'lucide-react';
 import { Project, ProjectFile, ProjectFolder, FileType } from '../../types';
 import { FILE_TYPES, getFileTypeMeta, SINGLE_INSTANCE_FILE_TYPES, MANDATORY_SINGLETON_FILES } from '../fileTypes';
@@ -39,6 +40,36 @@ const readSystemsOpen = (): boolean => {
   }
 };
 
+/** Ctrl/Cmd = new tab, Ctrl/Cmd+Alt = open to the right. */
+const openModeFor = (e: React.MouseEvent | React.KeyboardEvent): 'current' | 'new-tab' | 'split-right' =>
+  (e.ctrlKey || e.metaKey) ? (e.altKey ? 'split-right' : 'new-tab') : 'current';
+
+/** Hover buttons so row actions don't depend on discovering right-click. */
+const RowActions: React.FC<{ label: string; onAdd?: (e: React.MouseEvent) => void; onMore: (e: React.MouseEvent) => void }> = ({ label, onAdd, onMore }) => (
+  <span className="pointer-events-none absolute right-1 top-1/2 flex -translate-y-1/2 items-center gap-0.5 rounded bg-surface-hover pl-1 opacity-0 transition-opacity group-hover/row:pointer-events-auto group-hover/row:opacity-100 group-focus-within/row:pointer-events-auto group-focus-within/row:opacity-100">
+    {onAdd && (
+      <button
+        type="button"
+        title={`New file in ${label}`}
+        aria-label={`New file in ${label}`}
+        onClick={e => { e.stopPropagation(); onAdd(e); }}
+        className="rounded p-0.5 text-faint hover:bg-surface-raised hover:text-content"
+      >
+        <Plus className="h-3.5 w-3.5" />
+      </button>
+    )}
+    <button
+      type="button"
+      title="More actions"
+      aria-label={`More actions for ${label}`}
+      onClick={e => { e.stopPropagation(); onMore(e); }}
+      className="rounded p-0.5 text-faint hover:bg-surface-raised hover:text-content"
+    >
+      <MoreHorizontal className="h-3.5 w-3.5" />
+    </button>
+  </span>
+);
+
 interface FileExplorerProps {
   project: Project;
   activeFileId: string | null;
@@ -50,7 +81,7 @@ interface FileExplorerProps {
   onStartRename: (target: RenameTarget) => void;
   onCommitRename: (target: RenameTarget, name: string) => void;
   onCancelRename: () => void;
-  onOpenFile: (fileId: string, newTab: boolean) => void;
+  onOpenFile: (fileId: string, mode: 'current' | 'new-tab' | 'split-right') => void;
   bookmarkIds: string[];
   onToggleBookmark: (fileId: string) => void;
   onCreateFile: (type: FileType, folderId: string | null) => void;
@@ -64,6 +95,8 @@ interface FileExplorerProps {
   /** Scroll to + focus this file's row (ancestors are expanded by the caller). */
   revealRequest: { fileId: string; nonce: number } | null;
   onRevealHandled: () => void;
+  /** Shows the active tab's file in the tree (nav button). */
+  onRevealActive: (() => void) | null;
 }
 
 const FileExplorer: React.FC<FileExplorerProps> = ({
@@ -90,6 +123,7 @@ const FileExplorer: React.FC<FileExplorerProps> = ({
   onCopyId,
   revealRequest,
   onRevealHandled,
+  onRevealActive,
 }) => {
   const [sortOrder, setSortOrder] = useState<SortOrder>(readSort);
   const [systemsOpen, setSystemsOpen] = useState(readSystemsOpen);
@@ -219,8 +253,9 @@ const FileExplorer: React.FC<FileExplorerProps> = ({
   const fileMenu = (e: React.MouseEvent, file: ProjectFile) => {
     const isSystem = SINGLE_INSTANCE_FILE_TYPES.has(file.type);
     showMenu(e, [
-      { label: 'Open', icon: ExternalLink, onSelect: () => onOpenFile(file.id, false) },
-      { label: 'Open in new tab', icon: PanelRightOpen, hint: 'Ctrl+click', onSelect: () => onOpenFile(file.id, true) },
+      { label: 'Open', icon: ExternalLink, onSelect: () => onOpenFile(file.id, 'current') },
+      { label: 'Open in new tab', icon: PanelRightOpen, hint: 'Ctrl+click', onSelect: () => onOpenFile(file.id, 'new-tab') },
+      { label: 'Open to the right', icon: Columns2, hint: 'Ctrl+Alt+click', onSelect: () => onOpenFile(file.id, 'split-right') },
       { kind: 'separator' },
       bookmarkIds.includes(file.id)
         ? { label: 'Remove bookmark', icon: BookmarkMinus, onSelect: () => onToggleBookmark(file.id) }
@@ -282,10 +317,10 @@ const FileExplorer: React.FC<FileExplorerProps> = ({
         onDragEnd={endDrag}
         onDragOver={e => handleDragOver(e, file.folderId || 'root')}
         onDrop={e => handleDrop(e, file.folderId || null)}
-        onClick={e => onOpenFile(file.id, e.ctrlKey || e.metaKey)}
-        onAuxClick={e => { if (e.button === 1) { e.preventDefault(); onOpenFile(file.id, true); } }}
+        onClick={e => onOpenFile(file.id, openModeFor(e))}
+        onAuxClick={e => { if (e.button === 1) { e.preventDefault(); onOpenFile(file.id, 'new-tab'); } }}
         onKeyDown={e => {
-          if (e.key === 'Enter') onOpenFile(file.id, e.ctrlKey || e.metaKey);
+          if (e.key === 'Enter') onOpenFile(file.id, openModeFor(e));
           if (e.key === 'F2') {
             // Don't let the app-level F2 (rename active file) fire as well.
             e.preventDefault();
@@ -296,7 +331,7 @@ const FileExplorer: React.FC<FileExplorerProps> = ({
         onContextMenu={e => fileMenu(e, file)}
         title={file.name}
         className={cn(
-          'nav-row cursor-pointer pl-[22px] pr-2',
+          'nav-row group/row relative cursor-pointer pl-[22px] pr-2',
           active && 'is-active',
           draggingId === file.id && 'opacity-40',
         )}
@@ -311,6 +346,9 @@ const FileExplorer: React.FC<FileExplorerProps> = ({
           />
         ) : (
           <span className="truncate">{file.name}</span>
+        )}
+        {!isRenaming && (
+          <RowActions label={file.name} onMore={e => fileMenu(e, file)} />
         )}
       </div>
     );
@@ -328,6 +366,7 @@ const FileExplorer: React.FC<FileExplorerProps> = ({
           return (
             <div key={folder.id} role="group">
               <div
+                data-folder-id={folder.id}
                 role="treeitem"
                 aria-expanded={expanded}
                 tabIndex={0}
@@ -351,7 +390,7 @@ const FileExplorer: React.FC<FileExplorerProps> = ({
                 onContextMenu={e => folderMenu(e, folder)}
                 title={folder.name}
                 className={cn(
-                  'nav-row cursor-pointer pl-1 pr-2 font-medium',
+                  'nav-row group/row relative cursor-pointer pl-1 pr-2 font-medium',
                   dropTarget === folder.id && 'bg-accent/15 text-content ring-1 ring-inset ring-accent/50',
                   draggingId === folder.id && 'opacity-40',
                 )}
@@ -366,6 +405,13 @@ const FileExplorer: React.FC<FileExplorerProps> = ({
                   />
                 ) : (
                   <span className="truncate">{folder.name}</span>
+                )}
+                {!isRenaming && (
+                  <RowActions
+                    label={folder.name}
+                    onAdd={e => showMenu(e, [...newFileEntries(folder.id), { label: 'New folder', icon: FolderPlus, onSelect: () => onCreateFolder(folder.id) }], 'below')}
+                    onMore={e => folderMenu(e, folder)}
+                  />
                 )}
               </div>
               {expanded && (
@@ -392,6 +438,9 @@ const FileExplorer: React.FC<FileExplorerProps> = ({
         </button>
         <button className="icon-btn" title="New folder" aria-label="New folder" onClick={() => onCreateFolder(null)}>
           <FolderPlus className="h-4 w-4" />
+        </button>
+        <button className="icon-btn" title="Reveal active file" aria-label="Reveal active file" onClick={() => onRevealActive?.()} disabled={!onRevealActive}>
+          <Crosshair className="h-4 w-4" />
         </button>
         <button className="icon-btn" title="Change sort order" aria-label="Change sort order" onClick={sortMenu}>
           <ArrowUpDown className="h-4 w-4" />

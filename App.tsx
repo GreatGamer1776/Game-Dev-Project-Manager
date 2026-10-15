@@ -2,7 +2,7 @@ import React, { useCallback, useEffect, useMemo, useRef, useState } from 'react'
 import {
   Files, Search, ChevronsUpDown, X, BookOpen, FilePlus2, FolderPlus, PanelLeft, PanelRight, ArrowLeft, ArrowRight,
   Pencil, Trash2, Link2, Crosshair, Pin, Settings as SettingsIcon, HelpCircle, LayoutGrid, Download, LogOut, Users,
-  SunMoon, ListTree, FileSearch, Waypoints, CalendarDays, Bookmark, Hash, FileInput,
+  SunMoon, ListTree, FileSearch, Waypoints, CalendarDays, Bookmark, Hash, FileInput, Columns2, Rows2, Plus,
 } from 'lucide-react';
 import JSZip from 'jszip';
 import Dashboard from './components/Dashboard';
@@ -28,7 +28,8 @@ import {
   normalizeProject, createProjectFile, uniqueName, folderChain, descendantFolderIds, STARTER_PROJECT,
 } from './utils/projectModel';
 import { uid } from './utils/id';
-import { useWorkspaceTabs, PersistedLeaf } from './hooks/useWorkspaceTabs';
+import { useWorkspace, PersistedLeaf, PersistedWorkspace, Edge, OpenMode, currentFileOf } from './hooks/useWorkspace';
+import WorkspaceLayout, { TabDragPayload } from './components/shell/WorkspaceLayout';
 import Ribbon from './components/shell/Ribbon';
 import FileExplorer, { RenameTarget, CREATABLE_TYPES } from './components/shell/FileExplorer';
 import SearchPanel from './components/shell/SearchPanel';
@@ -144,8 +145,8 @@ const App: React.FC = () => {
   const clearSession = useAuthStore(state => state.clearSession);
   const logout = useAuthStore(state => state.logout);
 
-  const tabs = useWorkspaceTabs();
-  const activeFileId = tabs.activeFileId;
+  const ws = useWorkspace();
+  const activeFileId = ws.activeFileId;
 
   const isMobile = useMediaQuery('(max-width: 767px)');
 
@@ -186,7 +187,7 @@ const App: React.FC = () => {
 
   const activeProject = projects.find(p => p.id === activeProjectId);
   const activeFile = activeFileId === GRAPH_VIEW_ID && activeProject ? GRAPH_FILE : activeProject?.files.find(f => f.id === activeFileId);
-  const activeLeaf = tabs.leaves.find(l => l.id === tabs.activeLeafId);
+  const activeLeaf = ws.activeLeaf;
   const inProject = currentView === ViewState.PROJECT && Boolean(activeProject);
 
   // --- Session ---------------------------------------------------------------
@@ -256,7 +257,7 @@ const App: React.FC = () => {
       setIsLoaded(false);
       setCurrentView(ViewState.DASHBOARD);
       setActiveProjectId(null);
-      tabs.resetTabs([], -1);
+      ws.reset(null);
       setSaveState('saved');
       return;
     }
@@ -279,20 +280,31 @@ const App: React.FC = () => {
 
         if (project && savedAppState?.currentView === ViewState.PROJECT) {
           const exists = (id: string | null) => !id || id === GRAPH_VIEW_ID || project.files.some(f => f.id === id);
-          let saved: PersistedLeaf[] = (savedAppState.tabs || []).filter(t => exists(t.fileId));
-          let activeIndex = savedAppState.activeTabIndex ?? 0;
-          if (saved.length === 0) {
-            const fileId = savedAppState.activeFileId && exists(savedAppState.activeFileId) ? savedAppState.activeFileId : defaultFileOf(project);
-            saved = fileId ? [{ fileId, pinned: false }] : [];
-            activeIndex = 0;
-          }
           setCurrentView(ViewState.PROJECT);
           setActiveProjectId(project.id);
-          tabs.resetTabs(saved, activeIndex);
+          const savedWorkspace = savedAppState.workspace as PersistedWorkspace | undefined;
+          if (savedWorkspace?.layout && savedWorkspace.panes) {
+            // Split layout from the last session, minus deleted files.
+            const panes = Object.fromEntries(Object.entries(savedWorkspace.panes).map(([id, pane]) => [id, {
+              ...pane,
+              tabs: (pane.tabs || []).filter(t => exists(t.fileId)),
+            }]));
+            ws.reset({ ...savedWorkspace, panes });
+          } else {
+            // Older saved state: a single row of tabs.
+            let saved: PersistedLeaf[] = (savedAppState.tabs || []).filter(t => exists(t.fileId));
+            let activeIndex = savedAppState.activeTabIndex ?? 0;
+            if (saved.length === 0) {
+              const fileId = savedAppState.activeFileId && exists(savedAppState.activeFileId) ? savedAppState.activeFileId : defaultFileOf(project);
+              saved = fileId ? [{ fileId, pinned: false }] : [];
+              activeIndex = 0;
+            }
+            ws.resetTabs(saved, activeIndex);
+          }
         } else {
           setCurrentView(ViewState.DASHBOARD);
           setActiveProjectId(null);
-          tabs.resetTabs([], -1);
+          ws.reset(null);
         }
         setBookmarks(savedAppState?.bookmarks && typeof savedAppState.bookmarks === 'object' ? savedAppState.bookmarks : {});
         // Docked by default — only a persisted `false` keeps it hidden.
@@ -311,7 +323,7 @@ const App: React.FC = () => {
     };
     load();
     return () => { cancelled = true; };
-    // tabs.resetTabs is stable; re-running on its identity would reload.
+    // ws.reset/resetTabs are stable; re-running on their identity would reload.
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [authReady, authUser, setActiveProjectId, setCurrentView, setIsLoaded, setProjects]);
 
@@ -353,8 +365,9 @@ const App: React.FC = () => {
   }, [flushPendingSaves]);
 
   // Session layout (view, project, tabs, docks) — debounced, it changes often.
-  const persistedTabs = tabs.toPersisted();
-  const appStateKey = JSON.stringify([currentView, activeProjectId, activeFileId, leftOpen, rightOpen, persistedTabs, bookmarks]);
+  const persistedWorkspace = ws.toPersisted();
+  const activePersistedPane = persistedWorkspace.panes[persistedWorkspace.activePaneId];
+  const appStateKey = JSON.stringify([currentView, activeProjectId, activeFileId, leftOpen, rightOpen, persistedWorkspace, bookmarks]);
   useEffect(() => {
     if (!isLoaded || !authUser) return;
     const state: PersistedAppState = {
@@ -363,8 +376,10 @@ const App: React.FC = () => {
       activeFileId,
       filePanelOpen: leftOpen,
       rightPanelOpen: rightOpen,
-      tabs: persistedTabs.tabs,
-      activeTabIndex: persistedTabs.activeIndex,
+      workspace: persistedWorkspace,
+      // Kept for older clients that only understand one row of tabs.
+      tabs: activePersistedPane?.tabs ?? [],
+      activeTabIndex: activePersistedPane?.activeIndex ?? 0,
       bookmarks,
     };
     const handle = window.setTimeout(() => {
@@ -388,7 +403,7 @@ const App: React.FC = () => {
   useEffect(() => {
     if (!activeFiles) return;
     const ids = new Set(activeFiles.map(f => f.id));
-    tabs.pruneMissing(id => id === GRAPH_VIEW_ID || ids.has(id));
+    ws.pruneMissing(id => id === GRAPH_VIEW_ID || ids.has(id));
     setRecentFileIds(prev => (prev.every(id => ids.has(id)) ? prev : prev.filter(id => ids.has(id))));
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [activeFiles]);
@@ -424,7 +439,7 @@ const App: React.FC = () => {
     setCurrentView(ViewState.PROJECT);
     setGuide(g => ({ ...g, open: false }));
     const fileId = defaultFileOf(project);
-    tabs.resetTabs(fileId ? [{ fileId, pinned: false }] : [], 0);
+    ws.resetTabs(fileId ? [{ fileId, pinned: false }] : [], 0);
     if (!isMobile) setLeftOpen(true);
   };
 
@@ -437,7 +452,7 @@ const App: React.FC = () => {
     setGuide(g => ({ ...g, open: false }));
     setActiveProjectId(null);
     setCurrentView(ViewState.DASHBOARD);
-    tabs.resetTabs([], -1);
+    ws.reset(null);
   };
 
   const handleCreateProject = (name: string, type: Project['type'], description = '') => {
@@ -564,11 +579,78 @@ const App: React.FC = () => {
     });
   };
 
-  const openFile = (fileId: string, mode: 'current' | 'new-tab' = 'current') => {
+  /** Only documents and the graph re-sync live, so only they may show in two panes. */
+  const canDuplicate = (fileId: string | null) =>
+    !fileId || fileId === GRAPH_VIEW_ID || getActiveProject()?.files.find(f => f.id === fileId)?.type === 'doc';
+
+  const openFile = (fileId: string, mode: OpenMode = 'current') => {
     setTaskNavigationTarget(null);
     setGuide(g => (g.open ? { ...g, open: false } : g));
-    tabs.openFile(fileId, mode);
+    if ((mode === 'split-right' || mode === 'split-down') && !canDuplicate(fileId)) {
+      // Move the existing tab into the split instead of opening a second editor.
+      const existing = ws.findLeaf(fileId);
+      if (existing) {
+        if (existing.paneId === ws.activePaneId && ws.panes[existing.paneId]?.leaves.length === 1) {
+          ws.setActiveLeaf(existing.paneId, existing.leafId);
+          toast.info('Already open here — only documents can be shown in two panes at once.');
+          return;
+        }
+        ws.moveLeaf(existing.paneId, existing.leafId, ws.activePaneId, { edge: mode === 'split-right' ? 'right' : 'bottom' });
+        return;
+      }
+    }
+    ws.openFile(fileId, isMobile && mode.startsWith('split') ? 'new-tab' : mode);
     if (isMobile) setLeftOpen(false);
+  };
+
+  /** "Split right/down": documents duplicate, everything else opens an empty tab. */
+  const splitPane = (paneId: string, edge: Edge) => {
+    const pane = ws.panes[paneId];
+    const leaf = pane?.leaves.find(l => l.id === pane.activeLeafId);
+    const fileId = currentFileOf(leaf);
+    ws.splitPane(paneId, edge, canDuplicate(fileId) ? fileId : null);
+  };
+
+  const focusNextPane = (delta: 1 | -1) => {
+    const ids = ws.paneIds;
+    if (ids.length < 2) return;
+    const i = ids.indexOf(ws.activePaneId);
+    ws.focusPane(ids[(i + delta + ids.length) % ids.length]);
+  };
+
+  /** Breadcrumb click: show that folder in the file sidebar. */
+  const revealFolder = (file: ProjectFile, index: number) => {
+    const project = getActiveProject();
+    if (!project) return;
+    const folder = folderChain(project.folders, file.folderId)[index];
+    if (!folder) return;
+    setLeftOpen(true);
+    setLeftTab('files');
+    expandChain(folder.id);
+    window.setTimeout(() => {
+      const row = document.querySelector<HTMLElement>(`[data-folder-id="${CSS.escape(folder.id)}"]`);
+      row?.scrollIntoView({ block: 'center' });
+      row?.focus({ preventScroll: true });
+    }, 60);
+  };
+
+  /** A sidebar file dropped on a pane edge. */
+  const dropFileOnPane = (fileId: string, paneId: string, edge?: Edge) => {
+    if (!getActiveProject()?.files.some(f => f.id === fileId)) return;
+    const existing = ws.findLeaf(fileId);
+    if (existing && !canDuplicate(fileId)) {
+      if (edge && existing.paneId === paneId && ws.panes[paneId]?.leaves.length === 1) {
+        toast.info('Already open here — only documents can be shown in two panes at once.');
+        return;
+      }
+      ws.moveLeaf(existing.paneId, existing.leafId, paneId, edge ? { edge } : { beforeLeafId: null });
+      return;
+    }
+    ws.openFileAt(fileId, paneId, edge);
+  };
+
+  const dropTabOnPane = (from: TabDragPayload, toPaneId: string, edge?: Edge) => {
+    ws.moveLeaf(from.paneId, from.leafId, toPaneId, edge ? { edge } : { beforeLeafId: null });
   };
 
   const handleOpenFileFromLink = (fileId: string) => {
@@ -686,7 +768,7 @@ const App: React.FC = () => {
     const project = getActiveProject();
     const template = project?.files.find(f => f.id === templateId);
     if (!template || typeof template.content !== 'string' || !activeFile || activeFile.type !== 'doc') return;
-    const detail: InsertTextDetail = { fileId: activeFile.id, text: applyTemplateVariables(template.content, activeFile.name) };
+    const detail: InsertTextDetail = { fileId: activeFile.id, leafId: ws.activeLeaf?.id, text: applyTemplateVariables(template.content, activeFile.name) };
     window.dispatchEvent(new CustomEvent(INSERT_TEXT_EVENT, { detail }));
   };
 
@@ -773,14 +855,25 @@ const App: React.FC = () => {
     }
     const confirmed = await confirmDialog({
       title: `Delete "${file.name}"?`,
-      message: 'This file will be permanently deleted.',
+      message: 'You can undo this right after.',
       confirmText: 'Delete',
       danger: true,
     });
     if (!confirmed) return;
     const latest = getActiveProject();
-    if (!latest) return;
+    const removed = latest?.files.find(f => f.id === fileId);
+    if (!latest || !removed) return;
     updateProjectState({ ...latest, lastModified: Date.now(), files: latest.files.filter(f => f.id !== fileId) });
+    toast.withAction(`Deleted "${removed.name}".`, {
+      label: 'Undo',
+      run: () => {
+        const current = projectsRef.current.find(p => p.id === latest.id);
+        if (!current || current.files.some(f => f.id === removed.id)) return;
+        // Its folder may have been deleted meanwhile — fall back to the root.
+        const folderId = removed.folderId && current.folders.some(f => f.id === removed.folderId) ? removed.folderId : null;
+        updateProjectState({ ...current, lastModified: Date.now(), files: [...current.files, { ...removed, folderId }] });
+      },
+    });
   };
 
   const deleteFolder = async (folderId: string) => {
@@ -790,13 +883,32 @@ const App: React.FC = () => {
     const fileCount = project.files.filter(f => f.folderId && folderIds.has(f.folderId)).length;
     const confirmed = await confirmDialog({
       title: 'Delete folder and contents?',
-      message: `This will permanently delete ${folderIds.size} ${folderIds.size === 1 ? 'folder' : 'folders'} and ${fileCount} ${fileCount === 1 ? 'file' : 'files'}.`,
+      message: `This deletes ${folderIds.size} ${folderIds.size === 1 ? 'folder' : 'folders'} and ${fileCount} ${fileCount === 1 ? 'file' : 'files'}. You can undo this right after.`,
       confirmText: 'Delete',
       danger: true,
     });
     if (!confirmed) return;
     const latest = getActiveProject();
     if (!latest) return;
+    const removedFolders = latest.folders.filter(f => folderIds.has(f.id));
+    const removedFiles = latest.files.filter(f => f.folderId && folderIds.has(f.folderId));
+    toast.withAction(`Deleted folder "${removedFolders.find(f => f.id === folderId)?.name ?? ''}".`, {
+      label: 'Undo',
+      run: () => {
+        const current = projectsRef.current.find(p => p.id === latest.id);
+        if (!current) return;
+        const folderIdsNow = new Set(current.folders.map(f => f.id));
+        const fileIdsNow = new Set(current.files.map(f => f.id));
+        updateProjectState({
+          ...current,
+          lastModified: Date.now(),
+          folders: [...current.folders, ...removedFolders.filter(f => !folderIdsNow.has(f.id)).map(f =>
+            // The top folder's parent may have been deleted meanwhile — reattach at the root.
+            f.id === folderId && f.parentId && !folderIdsNow.has(f.parentId) ? { ...f, parentId: null } : f)],
+          files: [...current.files, ...removedFiles.filter(f => !fileIdsNow.has(f.id))],
+        });
+      },
+    });
     updateProjectState({
       ...latest,
       lastModified: Date.now(),
@@ -918,11 +1030,10 @@ const App: React.FC = () => {
       .sort((a, b) => (order.get(a.type) ?? 99) - (order.get(b.type) ?? 99));
   }, [activeProject]);
 
-  const tabItems: TabItem[] = tabs.leaves.map(leaf => {
-    const fileId = leaf.index >= 0 ? leaf.history[leaf.index] : null;
-    const file = fileId === GRAPH_VIEW_ID ? GRAPH_FILE : activeProject?.files.find(f => f.id === fileId) ?? null;
-    return { id: leaf.id, file, pinned: leaf.pinned };
-  });
+  const fileById = (fileId: string | null): ProjectFile | null =>
+    fileId === GRAPH_VIEW_ID && activeProject ? GRAPH_FILE : activeProject?.files.find(f => f.id === fileId) ?? null;
+  const tabItemsFor = (paneId: string): TabItem[] =>
+    (ws.panes[paneId]?.leaves || []).map(leaf => ({ id: leaf.id, file: fileById(currentFileOf(leaf)), pinned: leaf.pinned }));
 
   const recentFiles = recentFileIds
     .map(id => activeProject?.files.find(f => f.id === id))
@@ -974,13 +1085,19 @@ const App: React.FC = () => {
       { id: 'toggle-right', group: 'Workspace', label: 'Toggle right sidebar', hotkey: 'Ctrl Shift \\', icon: PanelRight, run: toggleRight },
       { id: 'outline', group: 'Workspace', label: 'Show outline', icon: ListTree, run: () => { setRightOpen(true); setRightTab('outline'); } },
       { id: 'backlinks', group: 'Workspace', label: 'Show backlinks', icon: Link2, run: () => { setRightOpen(true); setRightTab('links'); } },
-      { id: 'back', group: 'Workspace', label: 'Navigate back', hotkey: 'Ctrl Alt ←', icon: ArrowLeft, run: tabs.goBack },
-      { id: 'forward', group: 'Workspace', label: 'Navigate forward', hotkey: 'Ctrl Alt →', icon: ArrowRight, run: tabs.goForward },
-      { id: 'new-tab', group: 'Workspace', label: 'New tab', run: tabs.newTab },
+      { id: 'back', group: 'Workspace', label: 'Navigate back', hotkey: 'Ctrl Alt ←', icon: ArrowLeft, run: () => ws.goBack() },
+      { id: 'forward', group: 'Workspace', label: 'Navigate forward', hotkey: 'Ctrl Alt →', icon: ArrowRight, run: () => ws.goForward() },
+      { id: 'new-tab', group: 'Workspace', label: 'New tab', icon: Plus, run: () => ws.newTab() },
+      { id: 'split-right', group: 'Workspace', label: 'Split right', hotkey: 'Ctrl Alt \\', icon: Columns2, run: () => splitPane(ws.activePaneId, 'right') },
+      { id: 'split-down', group: 'Workspace', label: 'Split down', icon: Rows2, run: () => splitPane(ws.activePaneId, 'bottom') },
+      ...(ws.paneIds.length > 1 ? [
+        { id: 'close-pane', group: 'Workspace', label: 'Close this pane', icon: X, run: () => ws.closePane(ws.activePaneId) },
+        { id: 'next-pane', group: 'Workspace', label: 'Focus next pane', hotkey: 'Ctrl Alt ↓', icon: Columns2, run: () => focusNextPane(1) },
+      ] : []),
       ...(activeLeaf ? [
-        { id: 'pin', group: 'Workspace', label: activeLeaf.pinned ? 'Unpin current tab' : 'Pin current tab', icon: Pin, run: () => tabs.togglePin(activeLeaf.id) },
-        { id: 'close-tab', group: 'Workspace', label: 'Close current tab', icon: X, run: () => tabs.closeTab(activeLeaf.id) },
-        { id: 'close-others', group: 'Workspace', label: 'Close all other tabs', run: () => tabs.closeOthers(activeLeaf.id) },
+        { id: 'pin', group: 'Workspace', label: activeLeaf.pinned ? 'Unpin current tab' : 'Pin current tab', icon: Pin, run: () => ws.togglePin(ws.activePaneId, activeLeaf.id) },
+        { id: 'close-tab', group: 'Workspace', label: 'Close current tab', icon: X, run: () => ws.closeTab(ws.activePaneId, activeLeaf.id) },
+        { id: 'close-others', group: 'Workspace', label: 'Close all other tabs', run: () => ws.closeOthers(ws.activePaneId, activeLeaf.id) },
       ] : []),
       { id: 'export', group: 'Project', label: 'Export project as ZIP', icon: Download, run: () => activeProject && void handleExportProject(activeProject) },
       { id: 'rename-project', group: 'Project', label: 'Rename project', icon: Pencil, run: () => void handleRenameProject() },
@@ -1007,6 +1124,8 @@ const App: React.FC = () => {
     openSearch: () => {},
     openGraph: () => {},
     openDaily: () => {},
+    split: () => {},
+    nextPane: (_delta: 1 | -1) => {},
     openSettings: () => {},
     back: () => {},
     forward: () => {},
@@ -1024,8 +1143,10 @@ const App: React.FC = () => {
     openSettings,
     openGraph: () => openFile(GRAPH_VIEW_ID),
     openDaily: openDailyNote,
-    back: tabs.goBack,
-    forward: tabs.goForward,
+    back: () => ws.goBack(),
+    forward: () => ws.goForward(),
+    split: () => splitPane(ws.activePaneId, 'right'),
+    nextPane: (delta: 1 | -1) => focusNextPane(delta),
     closeOverlays: () => {
       if (!isMobile || (!leftOpen && !rightOpen)) return false;
       setLeftOpen(false);
@@ -1050,13 +1171,19 @@ const App: React.FC = () => {
       } else if (mod && e.code === 'Comma') {
         e.preventDefault();
         h.openSettings();
-      } else if (mod && e.code === 'Backslash' && h.inProject) {
+      } else if (mod && !e.altKey && e.code === 'Backslash' && h.inProject) {
         e.preventDefault();
         if (e.shiftKey) h.toggleRight();
         else h.toggleLeft();
       } else if (mod && e.shiftKey && e.code === 'KeyF' && h.inProject) {
         e.preventDefault();
         h.openSearch();
+      } else if (mod && e.altKey && e.code === 'Backslash' && h.inProject) {
+        e.preventDefault();
+        h.split();
+      } else if (mod && e.altKey && (e.key === 'ArrowUp' || e.key === 'ArrowDown') && h.inProject) {
+        e.preventDefault();
+        h.nextPane(e.key === 'ArrowDown' ? 1 : -1);
       } else if (mod && e.altKey && (e.key === 'ArrowLeft' || e.key === 'ArrowRight') && h.inProject) {
         e.preventDefault();
         if (e.key === 'ArrowLeft') h.back();
@@ -1118,7 +1245,6 @@ const App: React.FC = () => {
     showMenu(e, entries, 'below');
   };
 
-  const editorComponent = activeFile ? EDITORS[activeFile.type] : undefined;
   const dockOverlay = isMobile ? 'fixed bottom-[var(--statusbar-h)] top-0 z-40 shadow-pop' : 'relative';
 
   const renderLeftDock = () => activeProject && leftOpen && (
@@ -1165,7 +1291,7 @@ const App: React.FC = () => {
             onStartRename={setRenaming}
             onCommitRename={commitRename}
             onCancelRename={() => setRenaming(null)}
-            onOpenFile={(id, newTab) => openFile(id, newTab ? 'new-tab' : 'current')}
+            onOpenFile={(id, mode) => openFile(id, mode)}
             bookmarkIds={projectBookmarks}
             onToggleBookmark={toggleBookmark}
             onCreateFile={(type, folderId) => createFile(type, folderId)}
@@ -1178,6 +1304,7 @@ const App: React.FC = () => {
             onCopyId={copyFileId}
             revealRequest={revealRequest}
             onRevealHandled={() => setRevealRequest(null)}
+            onRevealActive={activeFileId && activeFileId !== GRAPH_VIEW_ID ? () => revealFile(activeFileId) : null}
           />
         ) : leftTab === 'search' ? (
           <SearchPanel files={activeProject.files} onOpenFile={id => openFile(id)} focusSignal={searchFocusSignal} queryRequest={searchRequest} />
@@ -1227,76 +1354,105 @@ const App: React.FC = () => {
         onTabChange={setRightTab}
         onOpenFile={id => openFile(id)}
         onOpenTag={tag => searchFor(`#${tag}`)}
+        leafId={ws.activeLeaf?.id}
         onCopyId={copyFileId}
         folderPath={activeFile ? folderPathOf(activeFile) : []}
       />
     </aside>
   );
 
-  const renderWorkspace = () => activeProject && (
-    <div className="relative flex min-w-0 flex-1">
-      {renderLeftDock()}
-      <div className="flex min-w-0 flex-1 flex-col">
+  /** One pane: its tab strip, the active tab's header, and its editor. */
+  const renderPane = (paneId: string) => {
+    if (!activeProject) return null;
+    const pane = ws.panes[paneId];
+    if (!pane) return null;
+    const leaf = pane.leaves.find(l => l.id === pane.activeLeafId) || null;
+    const file = fileById(currentFileOf(leaf));
+    const isActivePane = paneId === ws.activePaneId;
+    const multiPane = ws.paneIds.length > 1;
+    const component = file ? EDITORS[file.type] : undefined;
+    // The top-right pane carries the right-sidebar toggle, like Obsidian.
+    const topRightPane = (() => {
+      let node = ws.layout;
+      while (node.kind === 'split') node = node.dir === 'row' ? node.children[node.children.length - 1] : node.children[0];
+      return node.id;
+    })();
+    return (
+      <>
         <TabBar
-          tabs={tabItems}
-          activeTabId={tabs.activeLeafId}
-          onActivate={tabs.setActiveLeafId}
-          onClose={tabs.closeTab}
-          onCloseOthers={tabs.closeOthers}
-          onCloseToRight={tabs.closeToRight}
-          onCloseAll={tabs.closeAll}
-          onTogglePin={tabs.togglePin}
-          onReorder={tabs.reorder}
-          onNewTab={tabs.newTab}
+          paneId={paneId}
+          isActivePane={isActivePane}
+          multiPane={multiPane}
+          tabs={tabItemsFor(paneId)}
+          activeTabId={pane.activeLeafId}
+          onActivate={id => ws.setActiveLeaf(paneId, id)}
+          onClose={id => ws.closeTab(paneId, id)}
+          onCloseOthers={id => ws.closeOthers(paneId, id)}
+          onCloseToRight={id => ws.closeToRight(paneId, id)}
+          onCloseAll={() => ws.closeAll(paneId)}
+          onTogglePin={id => ws.togglePin(paneId, id)}
+          onMoveTab={(from, before) => ws.moveLeaf(from.paneId, from.leafId, paneId, { beforeLeafId: before })}
+          onMoveTabToSplit={(id, edge) => {
+            if (pane.leaves.length > 1) ws.moveLeaf(paneId, id, paneId, { edge });
+            else splitPane(paneId, edge);
+          }}
+          onDropFile={fileId => dropFileOnPane(fileId, paneId)}
+          onNewTab={() => ws.newTab(paneId)}
+          onSplit={edge => splitPane(paneId, edge)}
+          onClosePane={() => ws.closePane(paneId)}
           onReveal={revealFile}
           onCopyLink={copyFileLink}
           bookmarkIds={projectBookmarks}
           onToggleBookmark={toggleBookmark}
+          showSidebarToggle={paneId === topRightPane}
           rightOpen={rightOpen}
           onToggleRight={toggleRight}
         />
-        {activeFile && (editorComponent || activeFile.id === GRAPH_VIEW_ID) && activeLeaf ? (
+        {file && leaf && (component || file.id === GRAPH_VIEW_ID) ? (
           <>
             <ViewHeader
-              file={activeFile}
-              folderPath={folderPathOf(activeFile)}
-              canGoBack={tabs.canGoBack}
-              canGoForward={tabs.canGoForward}
-              onBack={tabs.goBack}
-              onForward={tabs.goForward}
-              isProtected={isProtectedFile(activeFile)}
-              pinned={activeLeaf.pinned}
-              onRename={name => renameFile(activeFile.id, name)}
-              onDelete={() => void deleteFile(activeFile.id)}
-              onCopyLink={() => copyFileLink(activeFile.id)}
-              onCopyId={() => copyFileId(activeFile.id)}
-              onReveal={() => revealFile(activeFile.id)}
-              onTogglePin={() => tabs.togglePin(activeLeaf.id)}
-              bookmarked={projectBookmarks.includes(activeFile.id)}
-              onToggleBookmark={activeFile.id === GRAPH_VIEW_ID ? undefined : () => toggleBookmark(activeFile.id)}
-              onClose={() => tabs.closeTab(activeLeaf.id)}
-              startRename={pendingTitleRename === activeFile.id}
+              file={file}
+              folderPath={folderPathOf(file)}
+              canGoBack={leaf.index > 0}
+              canGoForward={leaf.index < leaf.history.length - 1}
+              onBack={() => ws.goBack(paneId)}
+              onForward={() => ws.goForward(paneId)}
+              isProtected={isProtectedFile(file)}
+              pinned={leaf.pinned}
+              onRename={name => renameFile(file.id, name)}
+              onDelete={() => void deleteFile(file.id)}
+              onCopyLink={() => copyFileLink(file.id)}
+              onCopyId={() => copyFileId(file.id)}
+              onReveal={() => revealFile(file.id)}
+              onRevealFolder={folderIndex => revealFolder(file, folderIndex)}
+              onTogglePin={() => ws.togglePin(paneId, leaf.id)}
+              bookmarked={projectBookmarks.includes(file.id)}
+              onToggleBookmark={file.id === GRAPH_VIEW_ID ? undefined : () => toggleBookmark(file.id)}
+              onClose={() => ws.closeTab(paneId, leaf.id)}
+              onSplit={edge => splitPane(paneId, edge)}
+              startRename={isActivePane && pendingTitleRename === file.id}
               onRenameStarted={() => setPendingTitleRename(null)}
             />
             <div className="relative min-h-0 flex-1 overflow-hidden">
-              <EditorErrorBoundary key={activeFile.id} fileName={activeFile.name}>
+              <EditorErrorBoundary key={`${leaf.id}:${file.id}`} fileName={file.name}>
                 <React.Suspense fallback={<EditorLoadingFallback />}>
-                  {activeFile.id === GRAPH_VIEW_ID ? (
+                  {file.id === GRAPH_VIEW_ID ? (
                     <GraphView files={activeProject.files} activeFileId={recentFileIds.find(id => id !== GRAPH_VIEW_ID) ?? null} onOpenFile={id => openFile(id)} onOpenTag={tag => searchFor(`#${tag}`)} />
-                  ) : editorComponent && React.createElement(editorComponent, {
-                    fileName: activeFile.name,
-                    initialContent: activeFile.content,
-                    onSave: (content: any) => updateFileContent(activeFile.id, content),
+                  ) : component && React.createElement(component, {
+                    fileName: file.name,
+                    initialContent: file.content,
+                    onSave: (content: any) => updateFileContent(file.id, content),
                     assets: activeProject.assets || {},
                     onAddAsset: handleAddAsset,
                     onDeleteAsset: handleDeleteAsset,
                     projectFiles: activeProject.files,
-                    activeFileId,
+                    activeFileId: file.id,
+                    instanceId: leaf.id,
                     onOpenFile: handleOpenFileFromLink,
                     onOpenTask: handleOpenTaskFromLink,
                     onOpenHref: openHref,
                     projectFolders: activeProject.folders,
-                    taskNavigationTarget: taskNavigationTarget?.fileId === activeFile.id ? taskNavigationTarget : null,
+                    taskNavigationTarget: taskNavigationTarget?.fileId === file.id ? taskNavigationTarget : null,
                     onTaskNavigationHandled: () => setTaskNavigationTarget(null),
                   })}
                 </React.Suspense>
@@ -1306,10 +1462,34 @@ const App: React.FC = () => {
         ) : (
           <EmptyView
             recentFiles={recentFiles}
-            onNewDocument={() => createFile('doc')}
-            onQuickSwitch={() => setPaletteMode('files')}
+            onNewFile={type => { ws.focusPane(paneId); createFile(type); }}
+            onQuickSwitch={() => { ws.focusPane(paneId); setPaletteMode('files'); }}
             onCommandPalette={() => setPaletteMode('commands')}
-            onOpenFile={id => openFile(id)}
+            onOpenFile={id => { ws.focusPane(paneId); openFile(id); }}
+            onClosePane={multiPane ? () => ws.closePane(paneId) : undefined}
+          />
+        )}
+      </>
+    );
+  };
+
+  const renderWorkspace = () => activeProject && (
+    <div className="relative flex min-w-0 flex-1">
+      {renderLeftDock()}
+      <div className="flex min-w-0 flex-1 flex-col">
+        {isMobile ? (
+          // Phones show one pane at a time; the rest stay in the layout.
+          <div className="flex min-h-0 flex-1 flex-col">{renderPane(ws.activePaneId)}</div>
+        ) : (
+          <WorkspaceLayout
+            layout={ws.layout}
+            activePaneId={ws.activePaneId}
+            multiPane={ws.paneIds.length > 1}
+            renderPane={renderPane}
+            onFocusPane={ws.focusPane}
+            onResize={ws.resize}
+            onDropTab={dropTabOnPane}
+            onDropFile={dropFileOnPane}
           />
         )}
       </div>

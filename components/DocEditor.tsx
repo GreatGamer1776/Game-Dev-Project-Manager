@@ -79,6 +79,7 @@ const DocEditor: React.FC<EditorProps> = ({
   projectFiles = [],
   projectFolders = [],
   activeFileId,
+  instanceId,
   onOpenFile,
   onOpenTask,
   onOpenHref,
@@ -268,7 +269,7 @@ const DocEditor: React.FC<EditorProps> = ({
   useEffect(() => {
     const onReveal = (event: Event) => {
       const detail = (event as CustomEvent<RevealHeadingDetail>).detail;
-      if (!detail || detail.fileId !== activeFileId) return;
+      if (!detail || detail.fileId !== activeFileId || (detail.leafId && instanceId && detail.leafId !== instanceId)) return;
       if (viewMode !== 'preview') editorRef.current?.revealLine(detail.line);
       const pane = previewRef.current;
       if (pane && viewMode !== 'edit') {
@@ -281,7 +282,7 @@ const DocEditor: React.FC<EditorProps> = ({
     };
     const onInsert = (event: Event) => {
       const detail = (event as CustomEvent<InsertTextDetail>).detail;
-      if (!detail || detail.fileId !== activeFileId) return;
+      if (!detail || detail.fileId !== activeFileId || (detail.leafId && instanceId && detail.leafId !== instanceId)) return;
       if (viewMode === 'preview') setViewMode('edit');
       // Let the editor mount if we just switched out of reading view.
       window.setTimeout(() => editorRef.current?.insert(detail.text, { block: true }), 0);
@@ -293,7 +294,7 @@ const DocEditor: React.FC<EditorProps> = ({
       window.removeEventListener(INSERT_TEXT_EVENT, onInsert);
     };
     // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [activeFileId, viewMode]);
+  }, [activeFileId, instanceId, viewMode]);
 
   // --- Toolbar actions -------------------------------------------------------
 

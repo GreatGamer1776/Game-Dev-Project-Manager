@@ -1,10 +1,16 @@
 import React, { useEffect, useRef, useState } from 'react';
-import { X, Pin, Plus, PanelRight, ChevronDown, Link2, Crosshair, File, Bookmark, BookmarkMinus } from 'lucide-react';
-import { GRAPH_VIEW_ID } from '../fileTypes';
+import {
+  X, Pin, Plus, PanelRight, ChevronDown, Link2, Crosshair, File, Bookmark, BookmarkMinus, Columns2, Rows2,
+  PanelRightOpen, PanelBottomOpen,
+} from 'lucide-react';
+import { GRAPH_VIEW_ID, getFileTypeMeta } from '../fileTypes';
 import { ProjectFile } from '../../types';
-import { getFileTypeMeta } from '../fileTypes';
 import { showMenu } from '../../stores/useMenuStore';
+import { Edge } from '../../hooks/useWorkspace';
+import { TAB_DRAG_MIME, TabDragPayload, readTabDrag, readFileDrag } from './WorkspaceLayout';
 import { cn } from '../ui';
+
+const FILE_DRAG_MIME = 'application/x-gdpm-file-id';
 
 export interface TabItem {
   /** Leaf id (a tab may show no file: "New tab"). */
@@ -14,6 +20,9 @@ export interface TabItem {
 }
 
 interface TabBarProps {
+  paneId: string;
+  isActivePane: boolean;
+  multiPane: boolean;
   tabs: TabItem[];
   activeTabId: string | null;
   onActivate: (tabId: string) => void;
@@ -22,18 +31,30 @@ interface TabBarProps {
   onCloseToRight: (tabId: string) => void;
   onCloseAll: () => void;
   onTogglePin: (tabId: string) => void;
-  onReorder: (draggedId: string, targetId: string) => void;
+  /** A tab dropped onto this strip (from this or another pane). */
+  onMoveTab: (from: TabDragPayload, beforeTabId: string | null) => void;
+  /** Moves a tab of this pane into a new split. */
+  onMoveTabToSplit: (tabId: string, edge: Edge) => void;
+  /** A sidebar file dropped onto this strip opens as a new tab here. */
+  onDropFile: (fileId: string) => void;
   onNewTab: () => void;
+  onSplit: (edge: Edge) => void;
+  onClosePane: () => void;
   onReveal: (fileId: string) => void;
   onCopyLink: (fileId: string) => void;
   bookmarkIds: string[];
   onToggleBookmark: (fileId: string) => void;
+  /** Only one pane (the top-right one) carries the right-sidebar toggle. */
+  showSidebarToggle: boolean;
   rightOpen: boolean;
   onToggleRight: () => void;
 }
 
 /** Obsidian-style tab header: rounded tabs on the chrome strip, active tab joins the pane. */
 const TabBar: React.FC<TabBarProps> = ({
+  paneId,
+  isActivePane,
+  multiPane,
   tabs,
   activeTabId,
   onActivate,
@@ -42,17 +63,22 @@ const TabBar: React.FC<TabBarProps> = ({
   onCloseToRight,
   onCloseAll,
   onTogglePin,
-  onReorder,
+  onMoveTab,
+  onMoveTabToSplit,
+  onDropFile,
   onNewTab,
+  onSplit,
+  onClosePane,
   onReveal,
   onCopyLink,
   bookmarkIds,
   onToggleBookmark,
+  showSidebarToggle,
   rightOpen,
   onToggleRight,
 }) => {
   const [draggingId, setDraggingId] = useState<string | null>(null);
-  const [dropId, setDropId] = useState<string | null>(null);
+  const [dropTarget, setDropTarget] = useState<string | 'end' | null>(null);
   const scrollRef = useRef<HTMLDivElement>(null);
 
   // Keep the active tab scrolled into view.
@@ -70,6 +96,9 @@ const TabBar: React.FC<TabBarProps> = ({
       { label: 'Close tabs to the right', onSelect: () => onCloseToRight(tab.id), disabled: index === tabs.length - 1 },
       { label: 'Close all', onSelect: onCloseAll },
       { kind: 'separator' },
+      { label: 'Move to right split', icon: PanelRightOpen, onSelect: () => onMoveTabToSplit(tab.id, 'right') },
+      { label: 'Move to split below', icon: PanelBottomOpen, onSelect: () => onMoveTabToSplit(tab.id, 'bottom') },
+      { kind: 'separator' },
       { label: tab.pinned ? 'Unpin' : 'Pin', icon: Pin, onSelect: () => onTogglePin(tab.id) },
       ...(file && file.id !== GRAPH_VIEW_ID ? [
         bookmarkIds.includes(file.id)
@@ -82,23 +111,59 @@ const TabBar: React.FC<TabBarProps> = ({
   };
 
   const tabListMenu = (e: React.MouseEvent) => {
-    showMenu(e, tabs.length === 0
-      ? [{ label: 'No open tabs', onSelect: () => undefined, disabled: true }]
-      : tabs.map(tab => ({
-          label: tab.file?.name ?? 'New tab',
-          icon: tab.file ? getFileTypeMeta(tab.file.type).icon : File,
-          checked: tab.id === activeTabId,
-          onSelect: () => onActivate(tab.id),
-        })), 'below');
+    showMenu(e, [
+      ...(tabs.length === 0
+        ? [{ label: 'No open tabs', onSelect: () => undefined, disabled: true }]
+        : tabs.map(tab => ({
+            label: tab.file?.name ?? 'New tab',
+            icon: tab.file ? getFileTypeMeta(tab.file.type).icon : File,
+            checked: tab.id === activeTabId,
+            onSelect: () => onActivate(tab.id),
+          }))),
+      { kind: 'separator' as const },
+      { label: 'Split right', icon: Columns2, onSelect: () => onSplit('right') },
+      { label: 'Split down', icon: Rows2, onSelect: () => onSplit('bottom') },
+      ...(multiPane ? [{ label: 'Close this pane', icon: X, onSelect: onClosePane }] : []),
+    ], 'below');
+  };
+
+  const accepts = (e: React.DragEvent) =>
+    e.dataTransfer.types.includes(TAB_DRAG_MIME) || e.dataTransfer.types.includes(FILE_DRAG_MIME);
+
+  const handleDrop = (e: React.DragEvent, before: string | null) => {
+    if (!accepts(e)) return;
+    e.preventDefault();
+    e.stopPropagation();
+    setDropTarget(null);
+    setDraggingId(null);
+    const tab = readTabDrag(e.dataTransfer);
+    if (tab) {
+      if (tab.leafId !== before) onMoveTab(tab, before);
+      return;
+    }
+    const fileId = readFileDrag(e.dataTransfer);
+    if (fileId) onDropFile(fileId);
   };
 
   return (
-    <div className="flex h-[var(--header-h)] shrink-0 items-end border-b border-border bg-chrome pl-1.5 pr-1">
+    <div className={cn('flex h-[var(--header-h)] shrink-0 items-end border-b border-border bg-chrome pl-1.5 pr-1', multiPane && !isActivePane && 'opacity-75')}>
       <div
         ref={scrollRef}
         role="tablist"
         aria-label="Open files"
-        className="flex min-w-0 flex-1 items-end gap-0.5 overflow-x-auto [scrollbar-width:none] [&::-webkit-scrollbar]:hidden"
+        className={cn(
+          'flex h-full min-w-0 flex-1 items-end gap-0.5 overflow-x-auto [scrollbar-width:none] [&::-webkit-scrollbar]:hidden',
+          dropTarget === 'end' && 'bg-accent/10',
+        )}
+        onDoubleClick={e => { if (e.target === e.currentTarget) onNewTab(); }}
+        onDragOver={e => {
+          if (!accepts(e)) return;
+          e.preventDefault();
+          e.dataTransfer.dropEffect = 'move';
+          if (e.target === e.currentTarget && dropTarget !== 'end') setDropTarget('end');
+        }}
+        onDragLeave={e => { if (!e.currentTarget.contains(e.relatedTarget as Node)) setDropTarget(null); }}
+        onDrop={e => handleDrop(e, null)}
       >
         {tabs.map(tab => {
           const { file, pinned } = tab;
@@ -116,21 +181,17 @@ const TabBar: React.FC<TabBarProps> = ({
               onDragStart={e => {
                 setDraggingId(tab.id);
                 e.dataTransfer.effectAllowed = 'move';
-                e.dataTransfer.setData('application/x-gdpm-tab', tab.id);
+                e.dataTransfer.setData(TAB_DRAG_MIME, JSON.stringify({ paneId, leafId: tab.id } satisfies TabDragPayload));
               }}
               onDragOver={e => {
-                if (!draggingId) return;
+                if (!accepts(e)) return;
                 e.preventDefault();
+                e.stopPropagation();
                 e.dataTransfer.dropEffect = 'move';
-                if (dropId !== tab.id) setDropId(tab.id);
+                if (dropTarget !== tab.id) setDropTarget(tab.id);
               }}
-              onDrop={e => {
-                e.preventDefault();
-                if (draggingId) onReorder(draggingId, tab.id);
-                setDraggingId(null);
-                setDropId(null);
-              }}
-              onDragEnd={() => { setDraggingId(null); setDropId(null); }}
+              onDrop={e => handleDrop(e, tab.id)}
+              onDragEnd={() => { setDraggingId(null); setDropTarget(null); }}
               onClick={() => onActivate(tab.id)}
               onKeyDown={e => { if (e.key === 'Enter' || e.key === ' ') { e.preventDefault(); onActivate(tab.id); } }}
               onAuxClick={e => { if (e.button === 1 && !pinned) { e.preventDefault(); onClose(tab.id); } }}
@@ -143,12 +204,14 @@ const TabBar: React.FC<TabBarProps> = ({
                   ? 'border-border bg-bg text-content'
                   : 'border-transparent text-muted hover:bg-surface-hover/60 hover:text-content',
                 draggingId === tab.id && 'opacity-50',
-                dropId === tab.id && draggingId !== tab.id && 'ring-1 ring-inset ring-accent/60',
               )}
             >
+              {/* Drop indicator: the dragged tab lands before this one. */}
+              {dropTarget === tab.id && draggingId !== tab.id && <span className="absolute -left-[2px] bottom-1 top-1 w-0.5 rounded bg-accent" />}
               {/* Hides the strip's bottom border under the active tab. */}
               {active && <span className="absolute inset-x-0 -bottom-px h-px bg-bg" />}
-              <Icon className={cn('h-3.5 w-3.5 shrink-0', active ? 'text-accent' : 'text-faint')} />
+              {active && isActivePane && multiPane && <span className="absolute inset-x-2 top-0 h-0.5 rounded-b bg-accent" />}
+              <Icon className={cn('h-3.5 w-3.5 shrink-0', active && isActivePane ? 'text-accent' : 'text-faint')} />
               <span className="min-w-0 flex-1 truncate">{name}</span>
               {pinned ? (
                 <button
@@ -164,7 +227,7 @@ const TabBar: React.FC<TabBarProps> = ({
                 <button
                   type="button"
                   aria-label={`Close ${name}`}
-                  title="Close"
+                  title="Close (middle-click)"
                   onClick={e => { e.stopPropagation(); onClose(tab.id); }}
                   className={cn(
                     'shrink-0 rounded p-0.5 text-faint hover:bg-surface-hover hover:text-content',
@@ -180,7 +243,7 @@ const TabBar: React.FC<TabBarProps> = ({
         <button
           type="button"
           onClick={onNewTab}
-          title="New tab"
+          title="New tab (or double-click the tab bar)"
           aria-label="New tab"
           className="icon-btn mb-1 ml-0.5 h-6 w-6"
         >
@@ -188,19 +251,29 @@ const TabBar: React.FC<TabBarProps> = ({
         </button>
       </div>
       <div className="flex shrink-0 items-center gap-0.5 self-center pl-1">
-        <button type="button" className="icon-btn" title="Open tabs" aria-label="List open tabs" onClick={tabListMenu}>
+        <button type="button" className="icon-btn" title="Open tabs and split options" aria-label="Tab list and split options" onClick={tabListMenu}>
           <ChevronDown className="h-4 w-4" />
         </button>
-        <button
-          type="button"
-          className="icon-btn"
-          title={rightOpen ? 'Collapse right sidebar (Ctrl+Shift+\\)' : 'Expand right sidebar (Ctrl+Shift+\\)'}
-          aria-label="Toggle right sidebar"
-          aria-pressed={rightOpen}
-          onClick={onToggleRight}
-        >
-          <PanelRight className="h-4 w-4" />
+        <button type="button" className="icon-btn hidden md:inline-flex" title="Split right" aria-label="Split right" onClick={() => onSplit('right')}>
+          <Columns2 className="h-4 w-4" />
         </button>
+        {multiPane && (
+          <button type="button" className="icon-btn hidden md:inline-flex" title="Close this pane" aria-label="Close this pane" onClick={onClosePane}>
+            <X className="h-4 w-4" />
+          </button>
+        )}
+        {showSidebarToggle && (
+          <button
+            type="button"
+            className="icon-btn"
+            title={rightOpen ? 'Collapse right sidebar (Ctrl+Shift+\\)' : 'Expand right sidebar (Ctrl+Shift+\\)'}
+            aria-label="Toggle right sidebar"
+            aria-pressed={rightOpen}
+            onClick={onToggleRight}
+          >
+            <PanelRight className="h-4 w-4" />
+          </button>
+        )}
       </div>
     </div>
   );

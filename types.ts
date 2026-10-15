@@ -166,4 +166,6 @@ export interface EditorProps {
   /** Follows any link the app understands: file://, task://, wikilink:, tag:, http(s). */
   onOpenHref?: (href: string, newTab?: boolean) => void;
   projectFolders?: ProjectFolder[];
+  /** Identifies this editor instance (its tab) when one file is open in two panes. */
+  instanceId?: string;
 }

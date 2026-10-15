@@ -1,5 +1,6 @@
 import React, { useState } from 'react';
-import { ArrowLeft, ArrowRight, MoreHorizontal, Pencil, Link2, Hash, Crosshair, Trash2, Pin, X, Bookmark } from 'lucide-react';
+import { ArrowLeft, ArrowRight, MoreHorizontal, Pencil, Link2, Hash, Crosshair, Trash2, Pin, X, Bookmark, Columns2, Rows2 } from 'lucide-react';
+import { Edge } from '../../hooks/useWorkspace';
 import { ProjectFile } from '../../types';
 import { showMenu } from '../../stores/useMenuStore';
 import InlineRename from './InlineRename';
@@ -19,6 +20,9 @@ interface ViewHeaderProps {
   onCopyLink: () => void;
   onCopyId: () => void;
   onReveal: () => void;
+  /** Clicking a breadcrumb folder shows it in the file sidebar. */
+  onRevealFolder: (index: number) => void;
+  onSplit: (edge: Edge) => void;
   onTogglePin: () => void;
   onClose: () => void;
   bookmarked: boolean;
@@ -44,6 +48,8 @@ const ViewHeader: React.FC<ViewHeaderProps> = ({
   onCopyLink,
   onCopyId,
   onReveal,
+  onRevealFolder,
+  onSplit,
   onTogglePin,
   onClose,
   bookmarked,
@@ -74,6 +80,9 @@ const ViewHeader: React.FC<ViewHeaderProps> = ({
         { label: 'Copy file ID', icon: Hash, onSelect: onCopyId },
       ] : []),
       { kind: 'separator' },
+      { label: 'Split right', icon: Columns2, hint: 'Ctrl+Alt+\\', onSelect: () => onSplit('right') },
+      { label: 'Split down', icon: Rows2, onSelect: () => onSplit('bottom') },
+      { kind: 'separator' },
       { label: 'Close tab', icon: X, onSelect: onClose, disabled: pinned },
       ...(!isProtected ? [{ label: 'Delete file', icon: Trash2, danger: true, onSelect: onDelete }] : []),
     ], 'below');
@@ -92,7 +101,14 @@ const ViewHeader: React.FC<ViewHeaderProps> = ({
       <div className="flex min-w-0 flex-1 items-center justify-center gap-1 text-[0.8125rem]">
         {folderPath.map((name, i) => (
           <React.Fragment key={`${name}-${i}`}>
-            <span className="hidden max-w-[10rem] truncate text-faint sm:inline">{name}</span>
+            <button
+              type="button"
+              onClick={() => onRevealFolder(i)}
+              title={`Show "${name}" in the file sidebar`}
+              className="hidden max-w-[10rem] truncate rounded px-1 py-0.5 text-faint hover:bg-surface-hover hover:text-content sm:inline"
+            >
+              {name}
+            </button>
             <span className="hidden text-faint sm:inline">/</span>
           </React.Fragment>
         ))}

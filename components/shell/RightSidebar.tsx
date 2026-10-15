@@ -18,6 +18,8 @@ interface RightSidebarProps {
   onTabChange: (tab: RightTab) => void;
   onOpenFile: (fileId: string) => void;
   onOpenTag: (tag: string) => void;
+  /** Tab showing `file` — outline clicks scroll that tab, not a duplicate in another pane. */
+  leafId?: string;
   onCopyId: (fileId: string) => void;
   folderPath: string[];
 }
@@ -44,7 +46,7 @@ const FileLinkRow: React.FC<{ file: ProjectFile; onOpen: () => void }> = ({ file
 };
 
 /** Obsidian's right sidebar: outline, backlinks/outgoing links, and file info. */
-const RightSidebar: React.FC<RightSidebarProps> = ({ project, file, tab, onTabChange, onOpenFile, onOpenTag, onCopyId, folderPath }) => {
+const RightSidebar: React.FC<RightSidebarProps> = ({ project, file, tab, onTabChange, onOpenFile, onOpenTag, leafId, onCopyId, folderPath }) => {
   const headings = useMemo(
     () => (file && file.type === 'doc' && typeof file.content === 'string' ? extractHeadings(file.content) : []),
     [file],
@@ -107,7 +109,7 @@ const RightSidebar: React.FC<RightSidebarProps> = ({ project, file, tab, onTabCh
                 type="button"
                 title={h.text}
                 onClick={() => window.dispatchEvent(new CustomEvent<RevealHeadingDetail>(REVEAL_HEADING_EVENT, {
-                  detail: { fileId: file.id, index: h.index, line: h.line, text: h.text },
+                  detail: { fileId: file.id, index: h.index, line: h.line, text: h.text, leafId },
                 }))}
                 className={cn('nav-row pr-2', h.level === minLevel && 'font-medium text-content')}
                 style={{ paddingLeft: 8 + (h.level - minLevel) * 14 }}

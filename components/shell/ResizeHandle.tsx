@@ -19,7 +19,7 @@ const ResizeHandle: React.FC<ResizeHandleProps> = ({ side, width, min, max, onRe
     if (e.button !== 0) return;
     e.preventDefault();
     startRef.current = { x: e.clientX, width };
-    (e.target as Element).setPointerCapture(e.pointerId);
+    try { (e.currentTarget as Element).setPointerCapture(e.pointerId); } catch { /* pointer already gone */ }
     document.body.style.cursor = 'col-resize';
     document.body.style.userSelect = 'none';
   };

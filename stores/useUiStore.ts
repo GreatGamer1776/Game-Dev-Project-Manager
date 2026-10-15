@@ -6,10 +6,17 @@ import { uid } from '../utils/id';
 
 export type ToastKind = 'info' | 'success' | 'error';
 
+export interface ToastAction {
+  label: string;
+  run: () => void;
+}
+
 export interface Toast {
   id: string;
   kind: ToastKind;
   message: string;
+  /** Optional inline button, e.g. "Undo". */
+  action?: ToastAction;
 }
 
 export interface ConfirmOptions {
@@ -103,7 +110,7 @@ interface UiStoreState {
   promptRequest: PromptRequest | null;
   prefs: UiPrefs;
   setPref: <K extends keyof UiPrefs>(key: K, value: UiPrefs[K]) => void;
-  pushToast: (kind: ToastKind, message: string) => void;
+  pushToast: (kind: ToastKind, message: string, action?: ToastAction) => void;
   dismissToast: (id: string) => void;
   requestConfirm: (options: ConfirmOptions) => Promise<boolean>;
   requestPrompt: (options: PromptOptions) => Promise<string | null>;
@@ -131,10 +138,11 @@ export const useUiStore = create<UiStoreState>((set, get) => ({
     set(state => ({ prefs: { ...state.prefs, [key]: value } }));
   },
 
-  pushToast: (kind, message) => {
+  pushToast: (kind, message, action) => {
     const id = uid();
-    set(state => ({ toasts: [...state.toasts, { id, kind, message }] }));
-    window.setTimeout(() => get().dismissToast(id), TOAST_DURATION_MS);
+    set(state => ({ toasts: [...state.toasts, { id, kind, message, action }] }));
+    // Toasts with an action (Undo) stay a little longer.
+    window.setTimeout(() => get().dismissToast(id), action ? TOAST_DURATION_MS * 2 : TOAST_DURATION_MS);
   },
 
   dismissToast: (id) => {
@@ -175,6 +183,8 @@ export const toast = {
   info: (message: string) => useUiStore.getState().pushToast('info', message),
   success: (message: string) => useUiStore.getState().pushToast('success', message),
   error: (message: string) => useUiStore.getState().pushToast('error', message),
+  /** A toast with an inline action button (e.g. Undo). */
+  withAction: (message: string, action: ToastAction) => useUiStore.getState().pushToast('info', message, action),
 };
 
 export const confirmDialog = (options: ConfirmOptions) => useUiStore.getState().requestConfirm(options);

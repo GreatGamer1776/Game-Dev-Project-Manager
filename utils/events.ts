@@ -11,6 +11,8 @@ export interface RevealHeadingDetail {
   /** 0-based source line. */
   line: number;
   text: string;
+  /** Target one tab when the same document is open in several panes. */
+  leafId?: string;
 }
 
 /** Ask the document editor showing `fileId` to insert text at the cursor (templates). */
@@ -19,4 +21,5 @@ export const INSERT_TEXT_EVENT = 'gdpm:insert-text';
 export interface InsertTextDetail {
   fileId: string;
   text: string;
+  leafId?: string;
 }

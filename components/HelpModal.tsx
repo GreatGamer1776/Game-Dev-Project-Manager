@@ -18,6 +18,9 @@ export const SHORTCUTS: { keys: string; desc: string }[] = [
   { keys: 'Ctrl + Shift + \\', desc: 'Toggle right sidebar (outline, links, file info)' },
   { keys: 'Ctrl + Alt + ←', desc: 'Navigate back in the current tab' },
   { keys: 'Ctrl + Alt + →', desc: 'Navigate forward in the current tab' },
+  { keys: 'Ctrl + Alt + \\', desc: 'Split the current pane to the right' },
+  { keys: 'Ctrl + Alt + ↓', desc: 'Focus the next pane (↑ for the previous one)' },
+  { keys: 'Ctrl + Alt + click', desc: 'Open a file to the right (from the sidebar)' },
   { keys: 'Ctrl + G', desc: 'Open graph view' },
   { keys: 'Alt + D', desc: "Open today's daily note" },
   { keys: 'Ctrl + ,', desc: 'Open settings' },
@@ -33,6 +36,9 @@ export const SHORTCUTS: { keys: string; desc: string }[] = [
 ];
 
 const TIPS = [
+  'Split screen: drag a tab (or a file from the sidebar) onto the edge of a pane, or use the split button at the right of the tab bar. Drag the line between panes to resize.',
+  'Hover any sidebar row for its + and ⋯ buttons, or right-click it.',
+  'Deleted something by mistake? Click Undo on the notification.',
   'In documents: type [[ to link a file, # for tags, and / at the start of a line for blocks (callouts, tables, diagrams, templates).',
   'Paste or drop images straight into a document to add them to the asset library.',
   "Clicking a [[link]] to a note that doesn't exist yet creates it. Renaming a file updates every [[link]] to it.",

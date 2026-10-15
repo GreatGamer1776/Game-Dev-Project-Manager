@@ -126,6 +126,15 @@ export const ToastHost: React.FC = () => {
           >
             <Icon className="mt-0.5 h-4 w-4 shrink-0" />
             <p className="flex-1 text-[0.8125rem] leading-snug">{t.message}</p>
+            {t.action && (
+              <button
+                type="button"
+                onClick={() => { t.action!.run(); dismissToast(t.id); }}
+                className="shrink-0 rounded px-1.5 py-0.5 text-[0.8125rem] font-semibold text-accent hover:bg-accent/10"
+              >
+                {t.action.label}
+              </button>
+            )}
             <button
               onClick={() => dismissToast(t.id)}
               aria-label="Dismiss"

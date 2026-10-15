@@ -36,6 +36,7 @@ export interface AppState {
   tabs?: Array<{ fileId: string | null; pinned: boolean }>;
   activeTabIndex?: number;
   bookmarks?: Record<string, string[]>;
+  workspace?: unknown;
 }
 
 export interface UserRow {

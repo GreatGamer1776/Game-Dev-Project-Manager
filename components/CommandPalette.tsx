@@ -45,6 +45,23 @@ interface Row {
 }
 
 const MAX_ROWS = 60;
+const RECENT_COMMANDS_KEY = 'devarchitect-recent-commands';
+
+const readRecentCommands = (): string[] => {
+  try {
+    const parsed = JSON.parse(window.localStorage.getItem(RECENT_COMMANDS_KEY) || '[]');
+    return Array.isArray(parsed) ? parsed.filter((x): x is string => typeof x === 'string') : [];
+  } catch {
+    return [];
+  }
+};
+
+const rememberCommand = (id: string) => {
+  try {
+    const next = [id, ...readRecentCommands().filter(x => x !== id)].slice(0, 8);
+    window.localStorage.setItem(RECENT_COMMANDS_KEY, JSON.stringify(next));
+  } catch { /* in-memory only */ }
+};
 
 /** Renders `text` with fuzzy-matched characters emphasised. */
 const Highlighted: React.FC<{ text: string; indexes: number[] }> = ({ text, indexes }) => {
@@ -112,6 +129,9 @@ const CommandPalette: React.FC<CommandPaletteProps> = ({
     }
 
     if (mode === 'commands') {
+      // With no query, recently used commands come first (like Obsidian's pinned/recent).
+      const recent = q ? [] : readRecentCommands();
+      const rank = (id: string) => { const i = recent.indexOf(id); return i < 0 ? Infinity : i; };
       return commands
         .map(cmd => {
           const full = cmd.group ? `${cmd.group}: ${cmd.label}` : cmd.label;
@@ -119,15 +139,16 @@ const CommandPalette: React.FC<CommandPaletteProps> = ({
           return match ? { cmd, full, match } : null;
         })
         .filter((r): r is NonNullable<typeof r> => r !== null)
-        .sort((a, b) => (q ? b.match.score - a.match.score : 0))
+        .sort((a, b) => (q ? b.match.score - a.match.score : rank(a.cmd.id) - rank(b.cmd.id)))
         .slice(0, MAX_ROWS)
         .map(({ cmd, full, match }) => ({
           key: cmd.id,
           label: full,
           indexes: match.indexes,
+          sub: rank(cmd.id) !== Infinity ? 'Recently used' : undefined,
           hint: cmd.hotkey,
           icon: cmd.icon || Terminal,
-          run: cmd.run,
+          run: () => { rememberCommand(cmd.id); cmd.run(); },
         }));
     }
 

@@ -7,7 +7,9 @@ The app keeps project documents, task planning, bug tracking, roadmaps, flowchar
 ## Current Feature Set
 
 - Obsidian-style workspace: icon ribbon, resizable file/search sidebar, right sidebar (outline, backlinks, file info), status bar, and right-click context menus everywhere
-- Tabs with per-tab back/forward history and pinning; the open workspace is restored on next sign-in
+- Split panes (side by side and stacked): drag a tab or sidebar file onto a pane edge, use the split button, or `Ctrl+Alt+\`; resizable dividers, and the layout is restored on next sign-in
+- Tabs with per-tab back/forward history and pinning, draggable between panes
+- Hover actions on every sidebar row, one-click file creation from empty panes, and Undo for deletes
 - Quick switcher (`Ctrl+O`) with fuzzy matching and create-on-miss, plus a command palette (`Ctrl+P`)
 - Full-text search across every file type, and backlinks computed from cross-file links ([[wikilinks]] included)
 - Obsidian-style markdown editor (CodeMirror 6) with live preview, source mode, and reading view — wikilinks, embeds, tags, callouts, properties, math, Mermaid, find & replace, and `/` slash commands

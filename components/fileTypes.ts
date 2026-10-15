@@ -1,5 +1,5 @@
 import type React from 'react';
-import { FileText, Network, CheckSquare, Bug, Map as MapIcon, Table, PenTool, Image as ImageIcon, File } from 'lucide-react';
+import { FileText, Network, CheckSquare, Bug, Map as MapIcon, Table, PenTool, Image as ImageIcon, File, Database, LayoutDashboard, Spline, Waypoints } from 'lucide-react';
 import type { FileType } from '../types';
 
 // Display metadata for every file type, shared by the shell (explorer, tabs,
@@ -16,6 +16,9 @@ export interface FileTypeMeta {
 
 export const FILE_TYPES: FileTypeMeta[] = [
   { type: 'doc', label: 'Document', pluralLabel: 'Documents', icon: FileText, blurb: 'Markdown notes and specs' },
+  { type: 'base', label: 'Base', pluralLabel: 'Bases', icon: Database, blurb: 'Database with table, board, gallery, and calendar views' },
+  { type: 'canvas', label: 'Canvas', pluralLabel: 'Canvases', icon: LayoutDashboard, blurb: 'Infinite board of cards, files, and links' },
+  { type: 'vector', label: 'Vector Art', pluralLabel: 'Vector Art', icon: Spline, blurb: 'Vertex/edge drawing that exports to SVG' },
   { type: 'flowchart', label: 'Flowchart', pluralLabel: 'Flowcharts', icon: Network, blurb: 'Nodes and edges' },
   { type: 'todo', label: 'Task List', pluralLabel: 'Task Lists', icon: CheckSquare, blurb: 'Production tasks' },
   { type: 'kanban', label: 'Bug Tracker', pluralLabel: 'Bug Trackers', icon: Bug, blurb: 'Kanban bug board' },
@@ -31,6 +34,11 @@ export const getFileTypeMeta = (type: FileType): FileTypeMeta =>
   META_BY_TYPE.get(type) || { type, label: 'File', pluralLabel: 'Files', icon: File, blurb: '' };
 
 export const ASSET_LIBRARY_TYPE: FileType = 'asset-gallery';
+
+/** Pseudo-file for the project graph view (not stored in the project). */
+export const GRAPH_VIEW_ID = '__graph__';
+export const GRAPH_VIEW_META: FileTypeMeta = { type: 'graph', label: 'Graph view', pluralLabel: 'Graph views', icon: Waypoints, blurb: 'How files link together' };
+META_BY_TYPE.set('graph', GRAPH_VIEW_META);
 
 /** Project "systems": one per project, always at the root, never renamed/deleted. */
 export const SINGLE_INSTANCE_FILE_TYPES = new Set<FileType>([ASSET_LIBRARY_TYPE, 'todo', 'kanban', 'roadmap']);

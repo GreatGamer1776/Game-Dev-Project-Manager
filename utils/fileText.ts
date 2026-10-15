@@ -1,4 +1,5 @@
 import type { ProjectFile } from '../types';
+import { parseBase, cellText } from './baseModel';
 
 // One source of truth for "what text is in a file", shared by full-text
 // search, backlinks, the outline, and the status bar's word count.
@@ -26,6 +27,22 @@ const collectStrings = (value: unknown, out: string[], depth: number) => {
 
 /** Plain searchable text for any file type. */
 export const getFileText = (file: ProjectFile): string => {
+  // Bases: human-readable cell values (option labels, not ids) plus row notes.
+  if (file.type === 'base') {
+    const base = parseBase(file.content);
+    return base.rows
+      .map(row => [...base.columns.map(c => cellText(c, row.cells[c.id])), row.notes || ''].filter(Boolean).join(' · '))
+      .join('\n');
+  }
+  // Canvases: card text, group labels, and link URLs.
+  if (file.type === 'canvas') {
+    const nodes = Array.isArray(file.content?.nodes) ? file.content.nodes : [];
+    return nodes.map((n: { text?: string; label?: string; url?: string }) => n.text || n.label || n.url || '').filter(Boolean).join('\n');
+  }
+  if (file.type === 'vector') {
+    const texts = Array.isArray(file.content?.texts) ? file.content.texts : [];
+    return texts.map((t: { text?: string }) => t.text || '').join('\n');
+  }
   if (typeof file.content === 'string') {
     // Whiteboards store a serialized JSON string; documents are markdown.
     if (file.type === 'whiteboard') {
@@ -46,7 +63,7 @@ export const getFileText = (file: ProjectFile): string => {
 };
 
 /** Raw serialized content — used to find link references like file://<id>. */
-const getRawContent = (file: ProjectFile): string => {
+export const getRawContent = (file: ProjectFile): string => {
   if (typeof file.content === 'string') return file.content;
   try {
     return JSON.stringify(file.content) || '';
@@ -55,22 +72,38 @@ const getRawContent = (file: ProjectFile): string => {
   }
 };
 
-/** Files whose content links to `targetId` (file:// or task:// links). */
+/** Lower-cased wikilink targets (last path segment) referenced by raw content. */
+const wikilinkTargets = (raw: string): Set<string> => {
+  const targets = new Set<string>();
+  if (!raw.includes('[[')) return targets;
+  for (const m of raw.matchAll(/\[\[([^\]\n|#]+)/g)) {
+    const name = m[1].split('/').pop()!.trim().toLowerCase();
+    if (name) targets.add(name);
+  }
+  return targets;
+};
+
+/** Files whose content links to `targetId` (file:// and task:// links, or [[wikilinks]] by name). */
 export const findBacklinks = (files: ProjectFile[], targetId: string): ProjectFile[] => {
+  const target = files.find(f => f.id === targetId);
   const fileRef = `file://${targetId}`;
   const taskRef = `task://${targetId}`;
+  const name = target?.name.toLowerCase();
   return files.filter(f => {
     if (f.id === targetId) return false;
     const raw = getRawContent(f);
-    return raw.includes(fileRef) || raw.includes(taskRef);
+    return raw.includes(fileRef) || raw.includes(taskRef) || (name !== undefined && wikilinkTargets(raw).has(name));
   });
 };
 
-/** Ids of files this file links out to. */
+/** Files this file links out to. */
 export const findOutgoingLinks = (file: ProjectFile, files: ProjectFile[]): ProjectFile[] => {
   const raw = getRawContent(file);
-  if (!raw.includes('://')) return [];
-  return files.filter(f => f.id !== file.id && (raw.includes(`file://${f.id}`) || raw.includes(`task://${f.id}`)));
+  if (!raw.includes('://') && !raw.includes('[[')) return [];
+  const names = wikilinkTargets(raw);
+  return files.filter(f => f.id !== file.id && (
+    raw.includes(`file://${f.id}`) || raw.includes(`task://${f.id}`) || names.has(f.name.toLowerCase())
+  ));
 };
 
 export interface Heading {

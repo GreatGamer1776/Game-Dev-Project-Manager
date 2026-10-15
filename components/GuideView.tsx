@@ -1,6 +1,6 @@
 import React, { useEffect, useState } from 'react';
 import { SHORTCUTS } from './HelpModal';
-import { FileText, Network, CheckSquare, Bug, Map, Table, PenTool, Image as ImageIcon, Box, Keyboard, Lightbulb, FolderOpen, Workflow, HardDrive, ChevronDown, ChevronRight } from 'lucide-react';
+import { FileText, Network, CheckSquare, Bug, Map, Table, PenTool, Image as ImageIcon, Box, Keyboard, Lightbulb, FolderOpen, Workflow, HardDrive, ChevronDown, ChevronRight, Database, LayoutDashboard, Spline, Waypoints } from 'lucide-react';
 
 export type GuideSectionId = 'overview' | 'tools' | 'shortcuts' | 'workflows' | 'storage' | 'tips';
 
@@ -20,8 +20,8 @@ const tools = [
     bg: 'bg-blue-500/10',
     title: 'Document',
     type: 'doc',
-    summary: 'Markdown-based rich text editor for long-form writing.',
-    description: 'Documents are the backbone of your project planning. They use a custom Markdown renderer with support for headings, bold, italic, strikethrough, inline code, code blocks, blockquotes, ordered/unordered lists, horizontal rules, and embedded images from the Asset Library.',
+    summary: 'Obsidian-style markdown notes with live preview.',
+    description: 'Documents are the backbone of your project planning. Live preview renders markdown as you type and only shows the raw markup on the line you are editing; switch to source mode or reading view any time. Obsidian syntax works throughout: [[wikilinks]], ![[embeds]], #tags, ==highlights==, > [!callouts], properties, math ($…$), Mermaid diagrams, tables, footnotes, and task lists.',
     useCases: [
       'Game Design Documents (GDD) — describe mechanics, world-building, lore, and rules',
       'Technical specifications — architecture notes, engine choices, API documentation',
@@ -30,13 +30,82 @@ const tools = [
       'README files and onboarding guides for your team',
     ],
     features: [
-      'Live Markdown preview with custom parser',
-      'Embed media from the Asset Library with ![caption](asset://id)',
-      'Link to other project files with [name](file://id) — or drag a file in from the sidebar',
-      'Link to specific tasks with the task-link toolbar button',
-      'Auto-save with manual save (Ctrl+S)',
-      'Undo / Redo with debounced history (Ctrl+Z / Ctrl+Y)',
+      'Type [[ to link a file, # for tags, / at the start of a line for blocks and templates',
+      'Paste or drop images, video, and audio to add them to the Asset Library',
+      'Click a [[link]] to a missing note to create it; renaming a file updates its links',
+      'Tick task checkboxes right in live preview or reading view',
+      'Find & replace (Ctrl+F), Ctrl+B / I / K / L shortcuts, multiple cursors',
+      'Auto-save, plus Export as .md from the ⋯ menu',
     ],
+  },
+  {
+    icon: Database,
+    color: 'text-accent',
+    bg: 'bg-accent/10',
+    title: 'Base',
+    type: 'base',
+    summary: 'A Notion / Obsidian Bases style database with several views.',
+    description: 'Bases hold rows with typed properties — text, number, select, multi-select, date, checkbox, URL, and links to other project files. The same rows can be shown as a table, a board grouped by a select property, a gallery of cards, or a month calendar.',
+    useCases: [
+      'Character, item, or quest catalogues with tags and statuses',
+      'Playtest feedback tracking with a board per status',
+      'Content calendars and release schedules',
+      'Asset or level checklists that link to their design documents',
+    ],
+    features: [
+      'Table, Board, Gallery, and Calendar views — each with its own filters, sorts, and hidden properties',
+      'Drag cards between board columns or calendar days',
+      'Column totals (count, sum, average, min, max, checked)',
+      'Open any row as a panel with all properties and markdown notes',
+      'Change a property type and values are converted',
+    ],
+  },
+  {
+    icon: LayoutDashboard,
+    color: 'text-accent',
+    bg: 'bg-accent/10',
+    title: 'Canvas',
+    type: 'canvas',
+    summary: 'An Obsidian-style infinite board of cards, files, links, and groups.',
+    description: 'Canvases (JSON Canvas compatible) arrange markdown cards, live previews of other project files, web links, and coloured groups on an infinite surface, connected by labelled arrows.',
+    useCases: [
+      'Mood boards and moment-to-moment design sketches',
+      'Mapping how documents and systems relate',
+      'Story and quest structure with linked notes',
+    ],
+    features: [
+      'Double-click empty space to add a card; cards render markdown, [[links]], and #tags',
+      'Drag files from the sidebar onto the canvas to embed them',
+      'Groups carry the cards inside them when moved',
+      'Six colours for cards and connections, edge labels, arrows on/off',
+    ],
+  },
+  {
+    icon: Spline,
+    color: 'text-accent',
+    bg: 'bg-accent/10',
+    title: 'Vector Art',
+    type: 'vector',
+    summary: 'A vertex/edge drawing tool that exports clean SVG and PNG.',
+    description: 'Draw by placing vertices joined by edges; any closed region can be filled, and fills follow the shape as you move its vertices. Circles and text complete the toolkit.',
+    useCases: ['Icons and UI glyphs', 'Level blockouts and map diagrams', 'Logos and simple sprites'],
+    features: [
+      'Pen (P), Select (V), Circle (C), Fill (F), Text (T), Pan (H)',
+      'Snap to grid, marquee select, move vertices with their edges',
+      'Zero-width edges act as invisible construction guides',
+      'Export SVG or 2× PNG',
+    ],
+  },
+  {
+    icon: Waypoints,
+    color: 'text-accent',
+    bg: 'bg-accent/10',
+    title: 'Graph view',
+    type: 'graph',
+    summary: 'See how every file links together (Ctrl+G).',
+    description: 'The graph view draws each file as a node and each link — [[wikilinks]], file links, canvas file cards, Base file properties — as an edge. The right sidebar also has a local graph for the open file.',
+    useCases: ['Finding orphaned documents', 'Seeing which systems a feature touches'],
+    features: ['Drag nodes, scroll to zoom, click to open', 'Optionally show tags and project systems', 'Tune link distance and repel force'],
   },
   {
     icon: Network,
@@ -281,7 +350,7 @@ const GuideView: React.FC<GuideViewProps> = ({ initialSection = 'overview' }) =>
   const renderTools = () => (
     <div className="space-y-4">
       <p className="text-muted text-sm mb-2">
-        DevArchitect provides 8 specialized file types. Click any tool below to see its full capabilities and suggested use cases.
+        DevArchitect provides 11 specialized file types plus a graph view. Click any tool below to see its full capabilities and suggested use cases.
       </p>
       {tools.map((tool) => (
         <CollapsibleSection key={tool.type} title={tool.title}>

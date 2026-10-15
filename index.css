@@ -442,18 +442,144 @@
   animation: pulse-dot 1s ease-in-out infinite;
 }
 
-/* Markdown preview: the inline `code` style must not leak into fenced blocks. */
-.doc-md pre code {
-  background: transparent;
-  border: 0;
-  padding: 0;
+/* ---------------------------------------------------------------------------
+   Markdown — reading view (.doc-md) and live preview (.cm-md-*) share one
+   typographic scale so switching modes doesn't make the page jump.
+--------------------------------------------------------------------------- */
+.doc-md { color: rgb(var(--color-content)); line-height: 1.7; overflow-wrap: anywhere; }
+.doc-md > :first-child { margin-top: 0; }
+.doc-md p { margin: 0 0 0.85em; }
+.doc-md .md-h1, .cm-md-h1 { font-size: 1.75em; }
+.doc-md .md-h2, .cm-md-h2 { font-size: 1.5em; }
+.doc-md .md-h3, .cm-md-h3 { font-size: 1.3em; }
+.doc-md .md-h4, .cm-md-h4 { font-size: 1.15em; }
+.doc-md .md-h5, .cm-md-h5 { font-size: 1.05em; }
+.doc-md .md-h6, .cm-md-h6 { font-size: 1em; color: rgb(var(--color-muted)); }
+.doc-md .md-h1, .doc-md .md-h2, .doc-md .md-h3, .doc-md .md-h4, .doc-md .md-h5, .doc-md .md-h6 {
+  font-family: var(--font-display);
+  font-weight: 700;
+  line-height: 1.25;
+  margin: 1.4em 0 0.5em;
+  scroll-margin-top: 1rem;
+}
+.cm-md-h { font-family: var(--font-display); font-weight: 700; line-height: 1.35; }
+.cm-md-h1 { padding-top: 0.5em !important; }
+.cm-md-h2, .cm-md-h3 { padding-top: 0.35em !important; }
+
+.doc-md ul, .doc-md ol { margin: 0 0 0.85em; padding-left: 1.6em; }
+.doc-md ul { list-style: disc; }
+.doc-md ol { list-style: decimal; }
+.doc-md li { margin: 0.15em 0; }
+.doc-md li::marker { color: rgb(var(--color-faint)); }
+.doc-md li.md-task-item { list-style: none; margin-left: -1.4em; }
+.doc-md hr { border: 0; border-top: 1px solid rgb(var(--color-border-strong)); margin: 2em 0; }
+.doc-md strong { font-weight: 700; }
+.doc-md del { color: rgb(var(--color-faint)); }
+.doc-md u { text-decoration-color: rgb(var(--color-accent)); text-underline-offset: 3px; }
+.doc-md .md-quote, .cm-md-quote {
+  border-left: 2px solid rgb(var(--color-accent));
+  color: rgb(var(--color-muted));
+}
+.doc-md .md-quote { margin: 1em 0; padding: 0.1em 0 0.1em 1em; }
+.cm-md-quote { padding-left: 1em !important; }
+.doc-md .md-inline-code, .cm-md-inline-code {
+  font-family: var(--font-mono);
+  font-size: 0.875em;
+  background: rgb(var(--color-surface-raised));
+  border-radius: var(--r-sm);
+  padding: 0.1em 0.3em;
+}
+.doc-md pre code { background: transparent; border: 0; padding: 0; color: inherit; border-radius: 0; font-size: inherit; }
+.doc-md .md-table { width: 100%; border-collapse: collapse; font-size: 0.95em; }
+.doc-md .md-table th, .doc-md .md-table td { border: 1px solid rgb(var(--color-border)); padding: 0.4em 0.75em; text-align: left; vertical-align: top; }
+.doc-md .md-table th { background: rgb(var(--color-surface-raised)); font-weight: 600; }
+.doc-md .md-highlight, .cm-md-highlight {
+  background: rgb(var(--color-warning) / 0.32);
   color: inherit;
-  border-radius: 0;
+  border-radius: 2px;
+  padding: 0 1px;
 }
-.doc-md li:has(> input[type="checkbox"]) {
-  list-style: none;
-  margin-left: -1.5rem;
+.doc-md .md-internal-link, .cm-md-wikilink, .cm-md-link {
+  color: rgb(var(--color-accent));
+  text-decoration: none;
+  cursor: pointer;
 }
+.doc-md .md-internal-link:hover, .cm-md-wikilink:hover, .cm-md-link:hover { text-decoration: underline; }
+.doc-md .md-internal-link.is-unresolved, .cm-md-wikilink.is-unresolved { opacity: 0.6; text-decoration: underline dashed; text-underline-offset: 3px; }
+.cm-md-wikilink.is-embed { font-style: italic; }
+.doc-md .md-external-link { color: rgb(var(--color-accent)); text-decoration: underline; text-decoration-color: rgb(var(--color-accent) / 0.4); text-underline-offset: 3px; }
+.doc-md .md-task-link { color: rgb(var(--color-success)); cursor: pointer; }
+.doc-md .md-task-link.is-unresolved { color: rgb(var(--color-faint)); text-decoration: line-through; }
+.doc-md .md-tag-pill, .cm-md-tag {
+  display: inline-block;
+  background: rgb(var(--color-accent) / 0.14);
+  color: rgb(var(--color-accent));
+  border-radius: 999px;
+  padding: 0 0.5em;
+  font-size: 0.875em;
+  line-height: 1.6;
+  text-decoration: none;
+  cursor: pointer;
+}
+.doc-md .md-tag-pill:hover { background: rgb(var(--color-accent) / 0.24); }
+.doc-md .md-checkbox, .cm-md-checkbox {
+  appearance: none;
+  width: 1em;
+  height: 1em;
+  margin: 0 0.45em 0 0;
+  vertical-align: -0.12em;
+  border: 1.5px solid rgb(var(--color-faint));
+  border-radius: 4px;
+  cursor: pointer;
+  display: inline-grid;
+  place-content: center;
+}
+.doc-md .md-checkbox:checked, .cm-md-checkbox:checked { background: rgb(var(--color-accent)); border-color: rgb(var(--color-accent)); }
+.doc-md .md-checkbox:checked::after, .cm-md-checkbox:checked::after {
+  content: '';
+  width: 0.55em;
+  height: 0.3em;
+  border: 2px solid rgb(var(--color-accent-content));
+  border-top: 0;
+  border-right: 0;
+  transform: rotate(-45deg) translate(1px, -1px);
+}
+.doc-md .md-checkbox:disabled { cursor: default; }
+.doc-md li.md-task-item:has(> .md-checkbox:checked), .cm-md-task-done { color: rgb(var(--color-faint)); text-decoration: line-through; }
+.doc-md .md-callout {
+  background: rgb(var(--callout) / 0.1);
+  border-left: 3px solid rgb(var(--callout));
+}
+.doc-md .md-callout-body > :last-child { margin-bottom: 0; }
+.doc-md .katex-display { overflow-x: auto; overflow-y: hidden; padding: 0.25em 0; }
+.doc-md .md-mermaid svg { max-width: 100%; height: auto; }
+.doc-md section.footnotes { margin-top: 2.5em; font-size: 0.875em; color: rgb(var(--color-muted)); border-top: 1px solid rgb(var(--color-border)); }
+
+/* Live preview (CodeMirror) */
+.md-editor .cm-md-em { font-style: italic; }
+.md-editor .cm-md-strong { font-weight: 700; }
+.md-editor .cm-md-strike { text-decoration: line-through; color: rgb(var(--color-faint)); }
+.md-editor .cm-md-bullet { color: rgb(var(--color-faint)); display: inline-block; width: 0.9em; }
+.md-editor .cm-md-list-mark { color: rgb(var(--color-faint)); }
+.md-editor .cm-md-hr { display: inline-block; width: 100%; height: 1px; vertical-align: middle; background: rgb(var(--color-border-strong)); }
+.md-editor .cm-md-image { display: block; padding: 0.4em 0; }
+.md-editor .cm-md-image img, .md-editor .cm-md-image video { max-width: 100%; max-height: 420px; border-radius: var(--r-lg); }
+.md-editor .cm-md-image audio { width: 100%; }
+.md-editor .cm-md-codeblock {
+  font-family: var(--font-mono);
+  font-size: 0.875em;
+  background: rgb(var(--color-surface-raised));
+  padding-left: 1em !important;
+  padding-right: 1em !important;
+}
+.md-editor .cm-md-codeblock-start { border-top-left-radius: var(--r-lg); border-top-right-radius: var(--r-lg); padding-top: 0.3em !important; }
+.md-editor .cm-md-codeblock-end { border-bottom-left-radius: var(--r-lg); border-bottom-right-radius: var(--r-lg); padding-bottom: 0.3em !important; }
+.md-editor .cm-md-frontmatter { font-family: var(--font-mono); font-size: 0.85em; color: rgb(var(--color-muted)); background: rgb(var(--color-surface)); }
+.md-editor .cm-md-callout-title { font-weight: 600; color: rgb(var(--color-content)); }
+.md-editor .cm-md-callout-title[data-callout="warning"], .md-editor .cm-md-callout-title[data-callout="caution"] { color: rgb(var(--color-warning)); }
+.md-editor .cm-md-callout-title[data-callout="tip"], .md-editor .cm-md-callout-title[data-callout="success"] { color: rgb(var(--color-success)); }
+.md-editor .cm-md-callout-title[data-callout="danger"], .md-editor .cm-md-callout-title[data-callout="bug"], .md-editor .cm-md-callout-title[data-callout="error"] { color: rgb(var(--color-danger)); }
+.md-editor .cm-md-callout-title[data-callout="note"], .md-editor .cm-md-callout-title[data-callout="info"] { color: rgb(var(--color-info)); }
 
 /* Thin, Obsidian-style scrollbars (token-driven) */
 * {
@@ -485,3 +611,30 @@
     transition-duration: 0.01ms !important;
   }
 }
+
+/* React Flow (flowcharts, canvases) — follow the app tokens instead of the light defaults.
+   Prefixed with .react-flow because reactflow/dist/style.css loads after this file. */
+.react-flow .react-flow__controls {
+  box-shadow: none;
+  border: 1px solid rgb(var(--color-border));
+  border-radius: var(--r-lg);
+  overflow: hidden;
+}
+.react-flow .react-flow__controls-button {
+  background: rgb(var(--color-surface-raised));
+  border-bottom: 1px solid rgb(var(--color-border));
+  color: rgb(var(--color-muted));
+  fill: currentColor;
+}
+.react-flow .react-flow__controls-button:hover { background: rgb(var(--color-surface-hover)); color: rgb(var(--color-content)); }
+.react-flow .react-flow__controls-button svg { fill: currentColor; }
+.react-flow .react-flow__minimap { border: 1px solid rgb(var(--color-border)); border-radius: var(--r-lg); overflow: hidden; }
+.react-flow .react-flow__selection, .react-flow .react-flow__nodesselection-rect {
+  background: rgb(var(--color-accent) / 0.08);
+  border: 1px solid rgb(var(--color-accent) / 0.6);
+}
+.react-flow .react-flow__edge.selected .react-flow__edge-path { stroke: rgb(var(--color-accent)) !important; }
+.canvas-editor .react-flow__node { font-family: var(--font-body); }
+.canvas-editor .doc-md { font-size: 14px !important; }
+.md-editor .cm-md-math { cursor: text; }
+.md-editor .cm-md-math.is-display { display: inline-block; width: 100%; text-align: center; padding: 0.35em 0; }

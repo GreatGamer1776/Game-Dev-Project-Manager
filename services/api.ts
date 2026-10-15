@@ -11,6 +11,8 @@ export type PersistedAppState = {
   /** Open tabs (current file per tab) for the active project. */
   tabs?: Array<{ fileId: string | null; pinned: boolean }>;
   activeTabIndex?: number;
+  /** Bookmarked file ids, per project id. */
+  bookmarks?: Record<string, string[]>;
 };
 
 export interface AuthUser {

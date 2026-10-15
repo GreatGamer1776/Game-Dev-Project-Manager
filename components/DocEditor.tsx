@@ -1,1104 +1,521 @@
-import React, { useState, useEffect, useRef } from 'react';
+import React, { useCallback, useEffect, useMemo, useRef, useState } from 'react';
 import {
-  Save, Trash2, Bold, Italic, List, ListOrdered, ListTodo, Table, Minus,
-  Heading1, Heading2, Quote, Code, Image as ImageIcon,
-  Eye, Columns, PenTool, Link as LinkIcon, Check, Loader2, AlertCircle,
-  Underline, Strikethrough, Palette, Video, Music, CheckSquare, FolderOpen,
-  Undo2, Redo2
+  Bold, Italic, Strikethrough, Highlighter, Code, Heading, List, ListOrdered, ListTodo, Quote, Table, Minus,
+  Link as LinkIcon, CheckSquare, ImagePlus, Palette, Undo2, Redo2, PenLine, Columns, BookOpen, MoreHorizontal,
+  Trash2, Download, Copy, Sigma, Workflow, MessageSquareQuote, SquareCode, FileCode2, FolderOpen, Music, Type,
 } from 'lucide-react';
-import ReactMarkdown, { defaultUrlTransform } from 'react-markdown';
-import type { Components } from 'react-markdown';
-import remarkGfm from 'remark-gfm';
 import { confirmDialog, toast, useUiStore } from '../stores/useUiStore';
-import rehypeRaw from 'rehype-raw';
-import rehypeSanitize, { defaultSchema } from 'rehype-sanitize';
-import { EditorProps, TodoItem, TodoStatus } from '../types';
-import { useUndoRedo } from '../hooks/useUndoRedo';
-import { ASSET_LINK_DRAG_MIME, AssetKind, getAssetDisplayName, getAssetKindFromMime, getAssetMimeType, sanitizeAssetLabel } from '../services/assetUtils';
-import { REVEAL_HEADING_EVENT, RevealHeadingDetail } from '../utils/events';
+import { showMenu } from '../stores/useMenuStore';
+import { EditorProps, TodoItem } from '../types';
+import { ASSET_LINK_DRAG_MIME, getAssetDisplayName, getAssetKindFromMime, getAssetMimeType, sanitizeAssetLabel } from '../services/assetUtils';
+import { REVEAL_HEADING_EVENT, RevealHeadingDetail, INSERT_TEXT_EVENT, InsertTextDetail } from '../utils/events';
+import { extractTags, resolveWikilink } from '../utils/markdown';
+import { getFileTypeMeta } from './fileTypes';
+import MarkdownEditor, { MarkdownEditorHandle, MarkdownEditorContext } from './markdown/MarkdownEditor';
+import MarkdownView from './markdown/MarkdownView';
+import SearchPicker, { PickerItem } from './ui/SearchPicker';
+import { cn } from './ui';
 
-// --- CUSTOM PARSER LOGIC ---
 const FILE_LINK_DRAG_MIME = 'application/x-gdpm-file-id';
 const TASK_LINK_DRAG_MIME = 'application/x-gdpm-task-link';
+const AUTOSAVE_MS = 600;
 
-type TaskLinkRecord = {
-    fileId: string;
-    taskId: string;
-    fileName: string;
-    taskName: string;
-    tags: string[];
-    status: TodoStatus;
+type ViewMode = 'edit' | 'split' | 'preview';
+type PickerKind = 'file' | 'task' | 'asset';
+
+const TEXT_COLORS: { name: string; value: string }[] = [
+  { name: 'Red', value: '#ef4444' },
+  { name: 'Orange', value: '#f97316' },
+  { name: 'Yellow', value: '#eab308' },
+  { name: 'Green', value: '#22c55e' },
+  { name: 'Blue', value: '#3b82f6' },
+  { name: 'Purple', value: '#a855f7' },
+  { name: 'Pink', value: '#ec4899' },
+  { name: 'Grey', value: '#71717a' },
+];
+
+const swatch = (color: string): React.ComponentType<{ className?: string }> => {
+  const Swatch = ({ className }: { className?: string }) => (
+    <span className={cn('inline-block rounded-full', className)} style={{ backgroundColor: color }} />
+  );
+  return Swatch;
 };
 
-type AssetLinkRecord = {
-    id: string;
-    name: string;
-    displayName: string;
-    mime: string;
-    kind: AssetKind;
-    data: string;
-};
+const ToolbarButton: React.FC<{
+  icon: React.ComponentType<{ className?: string }>;
+  title: string;
+  onClick: (e: React.MouseEvent<HTMLButtonElement>) => void;
+  active?: boolean;
+  disabled?: boolean;
+}> = ({ icon: Icon, title, onClick, active, disabled }) => (
+  <button
+    type="button"
+    onMouseDown={e => e.preventDefault() /* keep the editor selection */}
+    onClick={onClick}
+    disabled={disabled}
+    title={title}
+    aria-label={title}
+    className={cn(
+      'flex h-7 w-7 shrink-0 items-center justify-center rounded-md transition-colors disabled:opacity-35',
+      active ? 'bg-accent/15 text-accent' : 'text-faint hover:bg-surface-hover hover:text-content',
+    )}
+  >
+    <Icon className="h-4 w-4" />
+  </button>
+);
 
-const getTaskLookupKey = (fileId: string, taskId: string) => `${fileId}::${taskId}`;
+const Divider = () => <span className="mx-1 h-4 w-px shrink-0 bg-border" />;
 
-const parseTaskHref = (href: string): { fileId: string; taskId: string } | null => {
-    const match = href.match(/^task:\/\/([^/]+)\/(.+)$/);
-    if (!match) return null;
-    return { fileId: match[1], taskId: match[2] };
-};
-
-const SAFE_COLOR_PATTERN = /^#[0-9a-fA-F]{3,8}$/;
-// App-internal link schemes handled by the anchor override below. Everything
-// else passes through react-markdown's defaultUrlTransform, which neutralizes
-// javascript:/data:/vbscript: hrefs.
-const INTERNAL_LINK_PATTERN = /^(file|task|asset):/i;
-
-const urlTransform = (url: string) =>
-    INTERNAL_LINK_PATTERN.test(url) ? url : defaultUrlTransform(url);
-
-// rehype-raw lets the toolbar's <u> and <span style="color:..."> through;
-// rehype-sanitize (GitHub schema + these two tags) keeps raw HTML safe.
-// The GitHub schema only allows http(s)/mailto URLs, which would strip the
-// app's own file:/task:/asset: links and embeds — allow those explicitly.
-const sanitizeSchema = {
-    ...defaultSchema,
-    tagNames: [...(defaultSchema.tagNames || []), 'u', 'span', 'input'],
-    attributes: {
-        ...defaultSchema.attributes,
-        span: [...(defaultSchema.attributes?.span || []), 'style'],
-        input: [...(defaultSchema.attributes?.input || []), 'type', 'checked', 'disabled'],
-    },
-    protocols: {
-        ...defaultSchema.protocols,
-        href: [...(defaultSchema.protocols?.href || []), 'file', 'task', 'asset'],
-        src: [...(defaultSchema.protocols?.src || []), 'asset'],
-    },
-};
-
-const schedulePreviewRender = (callback: () => void) => {
-    const win = window as typeof window & {
-        requestIdleCallback?: (callback: () => void, options?: { timeout: number }) => number;
-        cancelIdleCallback?: (handle: number) => void;
-    };
-
-    if (win.requestIdleCallback && win.cancelIdleCallback) {
-        const handle = win.requestIdleCallback(callback, { timeout: 600 });
-        return () => win.cancelIdleCallback?.(handle);
-    }
-
-    const handle = window.setTimeout(callback, 0);
-    return () => window.clearTimeout(handle);
-};
-
-
-// --- COMPONENT ---
-
-const DocEditor: React.FC<EditorProps> = ({ initialContent, onSave, fileName, assets = {}, onAddAsset, projectFiles = [], activeFileId, onOpenFile, onOpenTask }) => {
-  const [content, setContent] = useState(initialContent);
-  const undoRedo = useUndoRedo<string>(initialContent);
-  // OPTIMIZATION: Default to 'edit' mode to prevent initial render lag
+/**
+ * Markdown document editor: CodeMirror live preview / source editing, an
+ * Obsidian-style reading view, and inserts for links, tasks, and media.
+ */
+const DocEditor: React.FC<EditorProps> = ({
+  initialContent,
+  onSave,
+  fileName,
+  assets = {},
+  onAddAsset,
+  projectFiles = [],
+  projectFolders = [],
+  activeFileId,
+  onOpenFile,
+  onOpenTask,
+  onOpenHref,
+}) => {
+  const prefs = useUiStore(s => s.prefs);
+  const setPref = useUiStore(s => s.setPref);
+  const [content, setContent] = useState<string>(typeof initialContent === 'string' ? initialContent : '');
   // An empty document has nothing to read yet, so it always opens for editing.
-  const [viewMode, setViewModeState] = useState<'edit' | 'preview' | 'split'>(() => {
-    const pref = useUiStore.getState().prefs.docViewMode;
-    return pref === 'preview' && !String(initialContent ?? '').trim() ? 'edit' : pref;
-  });
-  const setUiPref = useUiStore((s) => s.setPref);
-  // The toolbar buttons and Settings share the same pref, so the last-chosen
-  // mode becomes the default for the next document.
-  const setViewMode = (mode: 'edit' | 'preview' | 'split') => {
-    setViewModeState(mode);
-    setUiPref('docViewMode', mode);
-  };
-  const [isUploading, setIsUploading] = useState(false);
+  const [viewMode, setViewModeState] = useState<ViewMode>(() =>
+    prefs.docViewMode === 'preview' && !String(initialContent ?? '').trim() ? 'edit' : prefs.docViewMode);
   const [previewSource, setPreviewSource] = useState(content);
-  
-  // Color Picker State
-  const [showColorPicker, setShowColorPicker] = useState(false);
-  const [customColor, setCustomColor] = useState('#ef4444');
-  const [showLinkPicker, setShowLinkPicker] = useState(false);
-  const [linkPickerQuery, setLinkPickerQuery] = useState('');
-  const [showTaskLinkPicker, setShowTaskLinkPicker] = useState(false);
-  const [taskLinkQuery, setTaskLinkQuery] = useState('');
-  const [showAssetPicker, setShowAssetPicker] = useState(false);
-  const [assetQuery, setAssetQuery] = useState('');
+  const [picker, setPicker] = useState<{ kind: PickerKind; anchor: HTMLElement } | null>(null);
+  const [saveStatus, setSaveStatus] = useState<'saved' | 'unsaved'>('saved');
 
-  const [saveStatus, setSaveStatus] = useState<'saved' | 'saving' | 'unsaved'>('saved');
-  const lastSavedContent = useRef(initialContent);
-  const latestContentRef = useRef(initialContent);
-  const saveStatusTimerRef = useRef<ReturnType<typeof setTimeout> | null>(null);
-
-  const textareaRef = useRef<HTMLTextAreaElement>(null);
+  const editorRef = useRef<MarkdownEditorHandle>(null);
+  const previewRef = useRef<HTMLDivElement>(null);
   const fileInputRef = useRef<HTMLInputElement>(null);
-  const popoverRef = useRef<HTMLDivElement>(null);
-  const colorPickerRef = useRef<HTMLDivElement>(null);
-  const fileLinkPickerRef = useRef<HTMLDivElement>(null);
-  const taskLinkPickerRef = useRef<HTMLDivElement>(null);
-  const assetPickerRef = useRef<HTMLDivElement>(null);
-  const previewPaneRef = useRef<HTMLDivElement>(null);
-  const fileLookup = React.useMemo(() => new Map(projectFiles.map(f => [f.id, f.name])), [projectFiles]);
-  const assetLibraryFile = React.useMemo(() => projectFiles.find(file => file.type === 'asset-gallery'), [projectFiles]);
-  const assetNameMap = React.useMemo(() => {
-    const content = assetLibraryFile?.content;
-    if (!content || typeof content !== 'object') return {} as Record<string, string>;
-    const rawMap = (content as { assetNameMap?: Record<string, string> }).assetNameMap;
-    return rawMap && typeof rawMap === 'object' ? rawMap : {};
-  }, [assetLibraryFile]);
-  const linkableFiles = React.useMemo(
-    () => projectFiles.filter(f => f.id !== activeFileId).sort((a, b) => a.name.localeCompare(b.name, undefined, { sensitivity: 'base' })),
-    [projectFiles, activeFileId]
-  );
-  const filteredLinkableFiles = React.useMemo(() => {
-    const query = linkPickerQuery.trim().toLowerCase();
-    if (!query) return linkableFiles;
-    return linkableFiles.filter(file =>
-      file.name.toLowerCase().includes(query) || file.id.toLowerCase().includes(query)
-    );
-  }, [linkableFiles, linkPickerQuery]);
-  const linkableTasks = React.useMemo<TaskLinkRecord[]>(() => {
-    return projectFiles
-      .filter(file => file.type === 'todo')
-      .flatMap(file => {
-        const todoContent = file.content as { items?: TodoItem[] };
-        const items = Array.isArray(todoContent?.items) ? todoContent.items : [];
-        return items
-          .filter(item => typeof item?.id === 'string' && typeof item?.text === 'string')
-          .map(item => ({
-            fileId: file.id,
-            taskId: item.id,
-            fileName: file.name,
-            taskName: item.text,
-            tags: item.tags || [],
-            status: item.status
-          }));
-      })
-      .sort((a, b) =>
-        a.taskName.localeCompare(b.taskName, undefined, { sensitivity: 'base' }) ||
-        a.fileName.localeCompare(b.fileName, undefined, { sensitivity: 'base' })
-      );
-  }, [projectFiles]);
-  const filteredLinkableTasks = React.useMemo(() => {
-    const query = taskLinkQuery.trim().toLowerCase();
-    if (!query) return linkableTasks;
-    return linkableTasks.filter(task =>
-      [
-        task.taskName,
-        task.fileName,
-        task.taskId,
-        task.status,
-        ...task.tags
-      ].join(' ').toLowerCase().includes(query)
-    );
-  }, [linkableTasks, taskLinkQuery]);
-  const taskLookup = React.useMemo(
-    () => new Map(linkableTasks.map(task => [getTaskLookupKey(task.fileId, task.taskId), task])),
-    [linkableTasks]
-  );
-  const linkableAssets = React.useMemo<AssetLinkRecord[]>(() => {
-    return Object.entries(assets)
-      .map(([id, data]) => {
-        const mime = getAssetMimeType(data);
-        const kind = getAssetKindFromMime(mime);
-        const rawName = assetNameMap[id] || id;
-        return {
-          id,
-          name: rawName,
-          displayName: getAssetDisplayName(rawName, id, kind),
-          mime,
-          kind,
-          data
-        };
-      })
-      .sort((a, b) =>
-        a.displayName.localeCompare(b.displayName, undefined, { sensitivity: 'base' }) ||
-        a.id.localeCompare(b.id)
-      );
-  }, [assetNameMap, assets]);
-  const filteredLinkableAssets = React.useMemo(() => {
-    const query = assetQuery.trim().toLowerCase();
-    if (!query) return linkableAssets;
-    return linkableAssets.filter(asset =>
-      [asset.displayName, asset.name, asset.id, asset.kind, asset.mime].join(' ').toLowerCase().includes(query)
-    );
-  }, [assetQuery, linkableAssets]);
+  const lastSavedRef = useRef(content);
+  const latestRef = useRef(content);
+  latestRef.current = content;
 
-  const clearSaveStatusTimer = () => {
-    if (saveStatusTimerRef.current) {
-      clearTimeout(saveStatusTimerRef.current);
-      saveStatusTimerRef.current = null;
-    }
+  // The toolbar toggle and Settings share one pref, so the last-chosen mode
+  // becomes the default for the next document.
+  const setViewMode = (mode: ViewMode) => {
+    setViewModeState(mode);
+    setPref('docViewMode', mode);
   };
 
-  const persistContent = (nextContent: string) => {
-    onSave(nextContent);
-    lastSavedContent.current = nextContent;
-    latestContentRef.current = nextContent;
-  };
+  // --- Persistence -----------------------------------------------------------
 
-  const flushPendingSave = () => {
-    const nextContent = latestContentRef.current;
-    if (nextContent === lastSavedContent.current) return;
-    persistContent(nextContent);
-  };
+  const saveNow = useCallback(() => {
+    if (latestRef.current === lastSavedRef.current) return;
+    onSave(latestRef.current);
+    lastSavedRef.current = latestRef.current;
+    setSaveStatus('saved');
+  }, [onSave]);
 
-  // Sync initial content
   useEffect(() => {
-    if (initialContent !== content && initialContent !== lastSavedContent.current) {
-        setContent(initialContent);
-        undoRedo.reset(initialContent);
-        lastSavedContent.current = initialContent;
-        latestContentRef.current = initialContent;
-        clearSaveStatusTimer();
-        setSaveStatus('saved');
+    if (content === lastSavedRef.current) return;
+    setSaveStatus('unsaved');
+    const timer = window.setTimeout(saveNow, AUTOSAVE_MS);
+    return () => window.clearTimeout(timer);
+  }, [content, saveNow]);
+
+  // Flush on unmount (switching files) so nothing typed is lost.
+  const saveNowRef = useRef(saveNow);
+  saveNowRef.current = saveNow;
+  useEffect(() => () => saveNowRef.current(), []);
+
+  // Content changed outside this editor (rename link updates, another tab).
+  useEffect(() => {
+    if (typeof initialContent !== 'string') return;
+    if (initialContent !== latestRef.current && initialContent !== lastSavedRef.current) {
+      lastSavedRef.current = initialContent;
+      setContent(initialContent);
+      setSaveStatus('saved');
     }
   }, [initialContent]);
 
+  // Reading view re-renders off the typing path.
   useEffect(() => {
-    latestContentRef.current = content;
-  }, [content]);
-
-  const markdownComponents = React.useMemo<Components>(() => ({
-    h1: ({ children }) => <h1 className="font-display text-[1.75em] font-bold leading-tight text-content mb-3 mt-7 first:mt-0 scroll-mt-4">{children}</h1>,
-    h2: ({ children }) => <h2 className="font-display text-[1.5em] font-semibold leading-tight text-content mb-2.5 mt-7 first:mt-0 scroll-mt-4">{children}</h2>,
-    h3: ({ children }) => <h3 className="font-display text-[1.3em] font-semibold leading-snug text-content mb-2 mt-6 first:mt-0 scroll-mt-4">{children}</h3>,
-    h4: ({ children }) => <h4 className="font-display text-[1.15em] font-semibold text-content mb-2 mt-5 scroll-mt-4">{children}</h4>,
-    h5: ({ children }) => <h5 className="font-display text-[1.05em] font-semibold text-content mb-2 mt-4 scroll-mt-4">{children}</h5>,
-    h6: ({ children }) => <h6 className="font-display text-[1em] font-semibold text-muted mb-2 mt-4 scroll-mt-4">{children}</h6>,
-    p: ({ children }) => <p className="mb-3 leading-[1.7] text-content last:mb-0">{children}</p>,
-    a: ({ href, children }) => {
-      const url = typeof href === 'string' ? href : '';
-      if (url.startsWith('file://')) {
-        const fileId = url.slice('file://'.length);
-        const exists = fileLookup.has(fileId);
-        return (
-          <a href={url} data-file-id={fileId}
-             className={`${exists ? 'text-accent' : 'text-faint line-through'} hover:underline cursor-pointer transition-colors`}>
-            {children}
-          </a>
-        );
-      }
-      if (url.startsWith('task://')) {
-        const target = parseTaskHref(url);
-        const linked = target ? taskLookup.get(getTaskLookupKey(target.fileId, target.taskId)) : undefined;
-        if (!target) return <span className="text-faint line-through">{children}</span>;
-        return (
-          <a href={url} data-task-file-id={target.fileId} data-task-id={target.taskId}
-             className={`${linked ? 'text-success' : 'text-faint line-through'} hover:underline cursor-pointer transition-colors`}>
-            {children}
-          </a>
-        );
-      }
-      if (url.startsWith('asset://')) {
-        const exists = Boolean(assets[url.slice('asset://'.length)]);
-        return <span title="Asset library item" className={exists ? 'text-accent' : 'text-faint line-through'}>{children}</span>;
-      }
-      // Empty href = the url transform rejected an unsafe scheme — render as text.
-      if (!url) return <span className="text-faint">{children}</span>;
-      return (
-        <a href={url} target="_blank" rel="noopener noreferrer"
-           className="text-accent hover:underline cursor-pointer transition-colors">
-          {children}
-        </a>
-      );
-    },
-    img: ({ src, alt }) => {
-      const raw = typeof src === 'string' ? src : '';
-      const resolved = raw.startsWith('asset://') ? assets[raw.slice('asset://'.length)] || '' : raw;
-      if (!resolved) return <span className="text-faint italic">[{alt || 'Missing asset'}]</span>;
-      const caption = alt ? <span className="block text-xs text-faint mt-2 text-center italic">{alt}</span> : null;
-      if (resolved.startsWith('data:video') || /\.(mp4|webm|mov)$/i.test(raw)) {
-        return (
-          <span className="block my-6">
-            <video controls src={resolved} className="max-w-full rounded-lg shadow-lg border border-border bg-black max-h-[500px]" />
-            {caption}
-          </span>
-        );
-      }
-      if (resolved.startsWith('data:audio') || /\.(mp3|wav|ogg)$/i.test(raw)) {
-        return (
-          <span className="my-4 p-4 bg-surface-raised/60 rounded-lg border border-border flex flex-col gap-2">
-            <span className="text-xs text-muted flex items-center gap-2 font-mono uppercase">
-              <span className="w-2 h-2 rounded-full bg-purple-500 inline-block"></span> {alt || 'Audio Track'}
-            </span>
-            <audio controls src={resolved} className="w-full h-8" />
-          </span>
-        );
-      }
-      return (
-        <span className="block my-6">
-          <img src={resolved} alt={alt || ''} className="max-w-full rounded-lg shadow-lg border border-border" />
-          {caption}
-        </span>
-      );
-    },
-    ul: ({ children }) => <ul className="list-disc pl-6 mb-3 space-y-1 text-content marker:text-faint">{children}</ul>,
-    ol: ({ children }) => <ol className="list-decimal pl-6 mb-3 space-y-1 text-content marker:text-faint">{children}</ol>,
-    li: ({ children }) => <li className="leading-relaxed pl-1">{children}</li>,
-    input: ({ checked }) => <input type="checkbox" checked={Boolean(checked)} readOnly disabled className="mr-1.5 align-middle accent-accent" />,
-    blockquote: ({ children }) => <blockquote className="border-l-2 border-accent pl-4 py-0.5 my-4 text-muted">{children}</blockquote>,
-    hr: () => <hr className="border-border my-8" />,
-    pre: ({ children }) => <pre className="bg-bg p-4 rounded-lg my-4 border border-border font-mono text-sm text-content overflow-x-auto">{children}</pre>,
-    code: ({ children }) => <code className="bg-surface-raised text-content px-1 py-0.5 rounded text-[0.875em] font-mono">{children}</code>,
-    table: ({ children }) => <div className="my-4 overflow-x-auto"><table className="w-full border-collapse text-sm text-content">{children}</table></div>,
-    th: ({ children }) => <th className="border border-border bg-surface-raised/60 px-3 py-2 text-left font-semibold text-content">{children}</th>,
-    td: ({ children }) => <td className="border border-border px-3 py-2 align-top text-content">{children}</td>,
-    strong: ({ children }) => <strong className="text-content font-bold">{children}</strong>,
-    em: ({ children }) => <em className="italic">{children}</em>,
-    del: ({ children }) => <del className="opacity-60 text-faint">{children}</del>,
-    u: ({ children }) => <u className="decoration-accent decoration-2 underline-offset-4">{children}</u>,
-    span: ({ children, style }) => {
-      // Only the toolbar's `color: #hex` form is allowed through.
-      const match = String(style ?? '').match(/^color:\s*(#[0-9a-fA-F]{3,8});?$/);
-      return match ? <span style={{ color: match[1] }}>{children}</span> : <span>{children}</span>;
-    },
-  }), [assets, fileLookup, taskLookup]);
-
-  // Debounce preview work and run it during browser idle time so typing stays responsive.
-  useEffect(() => {
-      if (viewMode === 'edit') return;
-
-      let cancelPreviewRender: (() => void) | null = null;
-      const debounceMs = viewMode === 'preview' ? 80 : 250;
-      const timer = setTimeout(() => {
-        cancelPreviewRender = schedulePreviewRender(() => {
-          setPreviewSource(content);
-        });
-      }, debounceMs);
-
-      return () => {
-        clearTimeout(timer);
-        cancelPreviewRender?.();
-      };
+    if (viewMode === 'edit') return;
+    const timer = window.setTimeout(() => setPreviewSource(content), viewMode === 'preview' ? 0 : 200);
+    return () => window.clearTimeout(timer);
   }, [content, viewMode]);
 
-  useEffect(() => {
-    if (linkableFiles.length > 0) return;
-    setShowLinkPicker(false);
-    setLinkPickerQuery('');
-  }, [linkableFiles]);
+  // --- Project data for completion, pickers, and links -----------------------
 
-  useEffect(() => {
-    if (linkableTasks.length > 0) return;
-    setShowTaskLinkPicker(false);
-    setTaskLinkQuery('');
-  }, [linkableTasks]);
+  const assetLibrary = useMemo(() => projectFiles.find(f => f.type === 'asset-gallery'), [projectFiles]);
+  const assetNameMap = useMemo(() => {
+    const map = (assetLibrary?.content as { assetNameMap?: Record<string, string> } | undefined)?.assetNameMap;
+    return map && typeof map === 'object' ? map : {};
+  }, [assetLibrary]);
 
-  useEffect(() => {
-    if (linkableAssets.length > 0) return;
-    setShowAssetPicker(false);
-    setAssetQuery('');
-  }, [linkableAssets]);
+  const assetRecords = useMemo(() => Object.entries(assets).map(([id, data]) => {
+    const mime = getAssetMimeType(data);
+    const kind = getAssetKindFromMime(mime);
+    return { id, data, mime, kind, displayName: getAssetDisplayName(assetNameMap[id] || id, id, kind) };
+  }).sort((a, b) => a.displayName.localeCompare(b.displayName)), [assets, assetNameMap]);
 
-  // Autosave
-  useEffect(() => {
-    if (content === lastSavedContent.current) return;
-    setSaveStatus('unsaved');
-    const timer = setTimeout(handleManualSave, 1500);
-    return () => clearTimeout(timer);
-  }, [content]);
+  const taskRecords = useMemo(() => projectFiles
+    .filter(f => f.type === 'todo')
+    .flatMap(f => ((f.content as { items?: TodoItem[] })?.items || [])
+      .filter(item => item?.id && typeof item.text === 'string')
+      .map(item => ({ fileId: f.id, taskId: item.id, name: item.text, fileName: f.name, status: item.status }))), [projectFiles]);
 
-  useEffect(() => {
-    return () => {
-      clearSaveStatusTimer();
-      flushPendingSave();
-    };
-  }, []);
+  const templatesFolderId = useMemo(
+    () => projectFolders.find(f => f.name.toLowerCase() === prefs.templatesFolder.toLowerCase())?.id,
+    [projectFolders, prefs.templatesFolder],
+  );
 
-  // Handle outside click for popover
-  useEffect(() => {
-    const handleClickOutside = (event: MouseEvent) => {
-      const target = event.target as Node;
-      if (popoverRef.current && !popoverRef.current.contains(target)) {
-        setShowColorPicker(false);
+  /** Wikilink when the name is unique in the project, otherwise an id link. */
+  const linkTo = useCallback((fileId: string) => {
+    const file = projectFiles.find(f => f.id === fileId);
+    if (!file) return '';
+    const unique = projectFiles.filter(f => f.name.toLowerCase() === file.name.toLowerCase()).length === 1;
+    return unique && !/[[\]|#]/.test(file.name) ? `[[${file.name}]]` : `[${file.name}](file://${file.id})`;
+  }, [projectFiles]);
+
+  const allTags = useMemo(() => {
+    const tags = new Set<string>();
+    for (const f of projectFiles) if (f.type === 'doc' && typeof f.content === 'string') extractTags(f.content).forEach(t => tags.add(t));
+    return Array.from(tags).sort();
+  }, [projectFiles]);
+
+  const openHref = useCallback((href: string, newTab = false) => {
+    if (onOpenHref) {
+      onOpenHref(href, newTab);
+      return;
+    }
+    if (href.startsWith('file://')) onOpenFile?.(href.slice('file://'.length));
+    else if (href.startsWith('task://')) {
+      const [fileId, taskId] = href.slice('task://'.length).split('/');
+      if (fileId && taskId) onOpenTask?.(fileId, taskId);
+    } else if (/^https?:\/\//.test(href)) window.open(href, '_blank', 'noopener,noreferrer');
+  }, [onOpenFile, onOpenHref, onOpenTask]);
+
+  const uploadFiles = useCallback(async (files: File[]) => {
+    if (!onAddAsset) return null;
+    const parts: string[] = [];
+    for (const file of files) {
+      try {
+        const url = await onAddAsset(file);
+        parts.push(`![${sanitizeAssetLabel(file.name.replace(/\.[^.]+$/, ''), 'Media')}](${url})`);
+      } catch (err) {
+        console.error('Upload failed', err);
+        toast.error(`Couldn't add ${file.name}.`);
       }
-      if (fileLinkPickerRef.current && !fileLinkPickerRef.current.contains(target)) {
-        setShowLinkPicker(false);
-        setLinkPickerQuery('');
-      }
-      if (taskLinkPickerRef.current && !taskLinkPickerRef.current.contains(target)) {
-        setShowTaskLinkPicker(false);
-        setTaskLinkQuery('');
-      }
-      if (assetPickerRef.current && !assetPickerRef.current.contains(target)) {
-        setShowAssetPicker(false);
-        setAssetQuery('');
-      }
-    };
-    if (!showColorPicker && !showLinkPicker && !showTaskLinkPicker && !showAssetPicker) return;
-    document.addEventListener('mousedown', handleClickOutside);
-    return () => document.removeEventListener('mousedown', handleClickOutside);
-  }, [showAssetPicker, showColorPicker, showLinkPicker, showTaskLinkPicker]);
+    }
+    return parts.length ? parts.join('\n') : null;
+  }, [onAddAsset]);
 
-  // Shortcuts
-  useEffect(() => {
-    const handleKeyDown = (e: KeyboardEvent) => {
-      if ((e.ctrlKey || e.metaKey) && e.key === 's') {
-        e.preventDefault();
-        handleManualSave();
+  const linkForDrop = useCallback((data: DataTransfer): string | null => {
+    const task = data.getData(TASK_LINK_DRAG_MIME);
+    if (task) {
+      try {
+        const parsed = JSON.parse(task) as { fileId?: string; taskId?: string; label?: string };
+        if (parsed.fileId && parsed.taskId) return `[${parsed.label || 'Task'}](task://${parsed.fileId}/${parsed.taskId})`;
+      } catch { /* fall through */ }
+    }
+    const asset = data.getData(ASSET_LINK_DRAG_MIME);
+    if (asset) {
+      try {
+        const parsed = JSON.parse(asset) as { id?: string; name?: string };
+        if (parsed.id && assets[parsed.id]) return `![${sanitizeAssetLabel(parsed.name || 'Asset', 'Asset')}](asset://${parsed.id})`;
+      } catch { /* fall through */ }
+    }
+    const file = data.getData(FILE_LINK_DRAG_MIME);
+    if (file) {
+      try {
+        const parsed = JSON.parse(file) as { id?: string };
+        if (parsed.id) return linkTo(parsed.id) || null;
+      } catch {
+        if (projectFiles.some(f => f.id === file)) return linkTo(file);
       }
-      if ((e.ctrlKey || e.metaKey) && e.key === 'z' && !e.shiftKey) {
-        e.preventDefault();
-        const prev = undoRedo.undo();
-        if (prev !== undefined) setContent(prev);
-      }
-      if ((e.ctrlKey || e.metaKey) && (e.key === 'y' || (e.key === 'z' && e.shiftKey))) {
-        e.preventDefault();
-        const next = undoRedo.redo();
-        if (next !== undefined) setContent(next);
-      }
-    };
-    window.addEventListener('keydown', handleKeyDown);
-    return () => window.removeEventListener('keydown', handleKeyDown);
-  }, [content, undoRedo]);
+    }
+    const uri = data.getData('text/uri-list');
+    if (uri.startsWith('asset://') && assets[uri.slice(8).trim()]) return `![Asset](${uri.trim()})`;
+    if (uri.startsWith('task://')) return `[Task](${uri.trim()})`;
+    return null;
+  }, [assets, linkTo, projectFiles]);
 
-  const handleManualSave = () => {
-    clearSaveStatusTimer();
-    setSaveStatus('saving');
-    persistContent(latestContentRef.current);
-    saveStatusTimerRef.current = setTimeout(() => setSaveStatus('saved'), 500);
-  };
+  // The CodeMirror context reads through a ref, so it can stay stable.
+  const ctxData = useRef({ projectFiles, assets, allTags, templatesFolderId, linkForDrop, uploadFiles, openHref });
+  ctxData.current = { projectFiles, assets, allTags, templatesFolderId, linkForDrop, uploadFiles, openHref };
+  const editorContext = useMemo<MarkdownEditorContext>(() => ({
+    resolveAsset: id => ctxData.current.assets[id],
+    wikilinkExists: target => Boolean(resolveWikilink(target, ctxData.current.projectFiles)),
+    openHref: (href, newTab) => ctxData.current.openHref(href, newTab),
+    files: () => ctxData.current.projectFiles
+      .filter(f => f.id !== activeFileId)
+      .map(f => ({ name: f.name, detail: getFileTypeMeta(f.type).label })),
+    tags: () => ctxData.current.allTags,
+    templates: () => ctxData.current.projectFiles
+      .filter(f => f.type === 'doc' && f.folderId && f.folderId === ctxData.current.templatesFolderId && typeof f.content === 'string')
+      .map(f => ({ name: f.name, content: f.content as string })),
+    uploadFiles: files => ctxData.current.uploadFiles(files),
+    linkForDrop: data => ctxData.current.linkForDrop(data),
+  }), [activeFileId]);
+  const contextKey = useMemo(
+    () => `${projectFiles.map(f => f.name).join('\u0000')}|${Object.keys(assets).length}`,
+    [projectFiles, assets],
+  );
 
-  // Push to undo stack on content changes (debounced to batch rapid typing)
-  const undoDebounceRef = useRef<ReturnType<typeof setTimeout> | null>(null);
-  const lastUndoPushRef = useRef(initialContent);
-  useEffect(() => {
-    if (content === lastUndoPushRef.current) return;
-    if (undoDebounceRef.current) clearTimeout(undoDebounceRef.current);
-    undoDebounceRef.current = setTimeout(() => {
-      undoRedo.pushState(content);
-      lastUndoPushRef.current = content;
-    }, 400);
-    return () => { if (undoDebounceRef.current) clearTimeout(undoDebounceRef.current); };
-  }, [content, undoRedo]);
+  // --- Outside requests (outline, templates) ---------------------------------
 
-  // Outline (right sidebar) asks to scroll to a heading.
   useEffect(() => {
     const onReveal = (event: Event) => {
       const detail = (event as CustomEvent<RevealHeadingDetail>).detail;
       if (!detail || detail.fileId !== activeFileId) return;
-      const pane = previewPaneRef.current;
-      if (pane) {
+      if (viewMode !== 'preview') editorRef.current?.revealLine(detail.line);
+      const pane = previewRef.current;
+      if (pane && viewMode !== 'edit') {
         const headings = Array.from(pane.querySelectorAll<HTMLElement>('h1, h2, h3, h4, h5, h6'));
         const target = headings[detail.index]?.textContent?.trim() === detail.text
           ? headings[detail.index]
           : headings.find(h => h.textContent?.trim() === detail.text) || headings[detail.index];
         target?.scrollIntoView({ block: 'start', behavior: 'smooth' });
       }
-      const ta = textareaRef.current;
-      if (ta) {
-        const value = ta.value;
-        const lines = value.split('\n');
-        const pos = lines.slice(0, detail.line).reduce((sum, l) => sum + l.length + 1, 0);
-        ta.focus({ preventScroll: true });
-        ta.setSelectionRange(pos, pos + (lines[detail.line]?.length ?? 0));
-        // Approximate the caret's offset (lines wrap, so measure by characters).
-        ta.scrollTop = Math.max(0, (pos / Math.max(1, value.length)) * ta.scrollHeight - ta.clientHeight / 4);
-      }
+    };
+    const onInsert = (event: Event) => {
+      const detail = (event as CustomEvent<InsertTextDetail>).detail;
+      if (!detail || detail.fileId !== activeFileId) return;
+      if (viewMode === 'preview') setViewMode('edit');
+      // Let the editor mount if we just switched out of reading view.
+      window.setTimeout(() => editorRef.current?.insert(detail.text, { block: true }), 0);
     };
     window.addEventListener(REVEAL_HEADING_EVENT, onReveal);
-    return () => window.removeEventListener(REVEAL_HEADING_EVENT, onReveal);
-  }, [activeFileId]);
+    window.addEventListener(INSERT_TEXT_EVENT, onInsert);
+    return () => {
+      window.removeEventListener(REVEAL_HEADING_EVENT, onReveal);
+      window.removeEventListener(INSERT_TEXT_EVENT, onInsert);
+    };
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [activeFileId, viewMode]);
+
+  // --- Toolbar actions -------------------------------------------------------
+
+  const ensureEditing = () => {
+    if (viewMode === 'preview') setViewMode('edit');
+  };
+  const wrap = (before: string, after = before, placeholder = '') => { ensureEditing(); editorRef.current?.wrap(before, after, placeholder); };
+  const prefix = (p: string) => { ensureEditing(); editorRef.current?.toggleLinePrefix(p); };
+  const insertBlock = (text: string) => { ensureEditing(); editorRef.current?.insert(text, { block: true }); };
+
+  const toggleTaskAt = (offset: number) => {
+    // Offsets come from the rendered source; ignore clicks on a stale render.
+    if (previewSource !== content) return;
+    const lineEnd = content.indexOf('\n', offset);
+    const segment = content.slice(offset, lineEnd === -1 ? undefined : lineEnd);
+    const m = /\[( |x|X)\]/.exec(segment);
+    if (!m) return;
+    const at = offset + (m.index ?? 0) + 1;
+    setContent(content.slice(0, at) + (m[1] === ' ' ? 'x' : ' ') + content.slice(at + 1));
+  };
 
   const handleClear = () => {
     void confirmDialog({
       title: 'Clear the entire document?',
-      message: 'This removes all content and cannot be undone.',
+      message: 'This removes all content. You can still undo while the document stays open.',
       confirmText: 'Clear document',
       danger: true,
-    }).then(confirmed => { if (confirmed) setContent(''); });
+    }).then(ok => { if (ok) setContent(''); });
   };
 
-  const insertText = (before: string, after: string = '') => {
-    const textarea = textareaRef.current;
-    if (!textarea) {
-      setContent((prev: string) => `${prev}${prev && !prev.endsWith('\n') ? '\n' : ''}${before}${after}`);
-      if (viewMode === 'preview') {
-        setViewMode('edit');
-      }
-      return;
+  const exportMarkdown = () => {
+    const blob = new Blob([content], { type: 'text/markdown;charset=utf-8' });
+    const url = URL.createObjectURL(blob);
+    const a = document.createElement('a');
+    a.href = url;
+    a.download = `${fileName.replace(/[^\w.-]+/g, '_') || 'document'}.md`;
+    a.click();
+    window.setTimeout(() => URL.revokeObjectURL(url), 1000);
+  };
+
+  const pickerItems: PickerItem[] = useMemo(() => {
+    if (!picker) return [];
+    if (picker.kind === 'file') {
+      return projectFiles.filter(f => f.id !== activeFileId).map(f => ({
+        id: f.id, label: f.name, sub: getFileTypeMeta(f.type).label, icon: getFileTypeMeta(f.type).icon,
+      }));
     }
-    const start = textarea.selectionStart;
-    const end = textarea.selectionEnd;
-    const selectedText = textarea.value.substring(start, end);
-    const newText = textarea.value.substring(0, start) + before + selectedText + after + textarea.value.substring(end);
-    setContent(newText);
-    setTimeout(() => {
-      textarea.focus();
-      textarea.setSelectionRange(start + before.length, end + before.length);
-    }, 0);
-  };
-
-  const handleMediaUpload = async (e: React.ChangeEvent<HTMLInputElement>) => {
-    const file = e.target.files?.[0];
-    if (!file || !onAddAsset) return;
-
-    setIsUploading(true);
-    try {
-        const assetUrl = await onAddAsset(file); 
-        const safeName = file.name.replace(/[\[\]\(\)]/g, '');
-        insertText(`\n![${safeName}](${assetUrl})\n`);
-    } catch (error) {
-        console.error("Upload failed", error);
-        toast.error("Failed to add media.");
-    } finally {
-        setIsUploading(false);
-        if (fileInputRef.current) fileInputRef.current.value = '';
+    if (picker.kind === 'task') {
+      return taskRecords.map(t => ({ id: `${t.fileId}/${t.taskId}`, label: t.name, sub: `${t.fileName} · ${t.status}`, icon: CheckSquare }));
     }
+    return assetRecords.map(a => ({
+      id: a.id,
+      label: a.displayName,
+      sub: a.mime,
+      thumb: a.kind === 'image' || a.kind === 'video' ? a.data : undefined,
+      icon: a.kind === 'audio' ? Music : FolderOpen,
+    }));
+  }, [picker, projectFiles, activeFileId, taskRecords, assetRecords]);
+
+  const onPick = (item: PickerItem) => {
+    if (!picker) return;
+    ensureEditing();
+    if (picker.kind === 'file') editorRef.current?.insert(linkTo(item.id));
+    else if (picker.kind === 'task') editorRef.current?.insert(`[${item.label}](task://${item.id})`);
+    else editorRef.current?.insert(`![${sanitizeAssetLabel(item.label, 'Asset')}](asset://${item.id})`, { block: true });
   };
 
-  const applyColor = (color: string) => {
-      insertText(`<span style="color: ${color}">`, `</span>`);
-      setShowColorPicker(false);
+  const openPicker = (kind: PickerKind) => (e: React.MouseEvent<HTMLButtonElement>) => {
+    const anchor = e.currentTarget;
+    setPicker(prev => (prev?.kind === kind ? null : { kind, anchor }));
   };
 
-  const insertFileLink = (fileId: string) => {
-      const selected = projectFiles.find(f => f.id === fileId);
-      if (!selected) return;
-      insertText(`[${selected.name}](file://${selected.id})`);
-      setShowLinkPicker(false);
-      setLinkPickerQuery('');
-  };
+  const headingMenu = (e: React.MouseEvent) => showMenu(e, [
+    { label: 'Heading 1', icon: Heading, hint: '#', onSelect: () => prefix('# ') },
+    { label: 'Heading 2', icon: Heading, hint: '##', onSelect: () => prefix('## ') },
+    { label: 'Heading 3', icon: Heading, hint: '###', onSelect: () => prefix('### ') },
+    { label: 'Heading 4', icon: Heading, hint: '####', onSelect: () => prefix('#### ') },
+    { label: 'Body text', icon: Type, onSelect: () => prefix('') },
+  ], 'below');
 
-  const insertTaskLink = (fileId: string, taskId: string) => {
-      const selected = linkableTasks.find(task => task.fileId === fileId && task.taskId === taskId);
-      if (!selected) return;
-      insertText(`[${selected.taskName}](task://${selected.fileId}/${selected.taskId})`);
-      setShowTaskLinkPicker(false);
-      setTaskLinkQuery('');
-  };
+  const insertMenu = (e: React.MouseEvent) => showMenu(e, [
+    { label: 'Callout', icon: MessageSquareQuote, onSelect: () => insertBlock('> [!note] Title\n> Contents') },
+    { label: 'Table', icon: Table, onSelect: () => insertBlock('| Column | Column |\n| --- | --- |\n|  |  |') },
+    { label: 'Code block', icon: SquareCode, onSelect: () => insertBlock('```\n\n```') },
+    { label: 'Math block', icon: Sigma, onSelect: () => insertBlock('$$\n\n$$') },
+    { label: 'Mermaid diagram', icon: Workflow, onSelect: () => insertBlock('```mermaid\nflowchart LR\n  A[Start] --> B[End]\n```') },
+    { label: 'Divider', icon: Minus, onSelect: () => insertBlock('---') },
+    { label: 'Properties', icon: FileCode2, onSelect: () => { ensureEditing(); if (!content.startsWith('---')) setContent(`---\ntags: \n---\n${content}`); } },
+  ], 'below');
 
-  const insertAssetReference = (assetId: string) => {
-      const selected = linkableAssets.find(asset => asset.id === assetId);
-      if (!selected) return;
-      insertText(`\n![${sanitizeAssetLabel(selected.displayName, 'Project Asset')}](asset://${selected.id})\n`);
-      setShowAssetPicker(false);
-      setAssetQuery('');
-  };
+  const colorMenu = (e: React.MouseEvent) => showMenu(e, TEXT_COLORS.map(c => ({
+    label: c.name,
+    icon: swatch(c.value),
+    onSelect: () => wrap(`<span style="color: ${c.value}">`, '</span>', 'colored text'),
+  })), 'below');
 
-  const toggleLinkPicker = () => {
-      if (linkableFiles.length === 0) return;
-      setShowColorPicker(false);
-      setShowTaskLinkPicker(false);
-      setShowAssetPicker(false);
-      setShowLinkPicker(prev => !prev);
-      setLinkPickerQuery('');
-  };
+  const moreMenu = (e: React.MouseEvent) => showMenu(e, [
+    { label: prefs.livePreview ? 'Switch to source mode' : 'Switch to live preview', icon: PenLine, onSelect: () => setPref('livePreview', !prefs.livePreview) },
+    { label: 'Copy as markdown', icon: Copy, onSelect: () => { void navigator.clipboard?.writeText(content).then(() => toast.success('Copied to clipboard.')); } },
+    { label: 'Export as .md file', icon: Download, onSelect: exportMarkdown },
+    { kind: 'separator' },
+    { label: 'Clear document', icon: Trash2, danger: true, onSelect: handleClear },
+  ], 'below');
 
-  const toggleTaskLinkPicker = () => {
-      if (linkableTasks.length === 0) return;
-      setShowColorPicker(false);
-      setShowLinkPicker(false);
-      setShowAssetPicker(false);
-      setShowTaskLinkPicker(prev => !prev);
-      setTaskLinkQuery('');
-  };
-
-  const toggleAssetPicker = () => {
-      if (linkableAssets.length === 0) return;
-      setShowColorPicker(false);
-      setShowLinkPicker(false);
-      setShowTaskLinkPicker(false);
-      setShowAssetPicker(prev => !prev);
-      setAssetQuery('');
-  };
-
-  const getDraggedTask = (e: React.DragEvent): { fileId: string; taskId: string; label: string } | null => {
-      const raw = e.dataTransfer.getData(TASK_LINK_DRAG_MIME);
-      if (raw) {
-        try {
-          const parsed = JSON.parse(raw) as { fileId?: string; taskId?: string; label?: string };
-          if (parsed?.fileId && parsed?.taskId) {
-            return { fileId: parsed.fileId, taskId: parsed.taskId, label: parsed.label || 'Linked Task' };
-          }
-        } catch {
-          // Ignore malformed task payloads and fall back to other formats.
-        }
-      }
-
-      const uri = e.dataTransfer.getData('text/uri-list');
-      if (uri?.startsWith('task://')) {
-        const target = parseTaskHref(uri.trim());
-        if (target) {
-          const linkedTask = taskLookup.get(getTaskLookupKey(target.fileId, target.taskId));
-          return { fileId: target.fileId, taskId: target.taskId, label: linkedTask?.taskName || 'Linked Task' };
-        }
-      }
-
-      const text = e.dataTransfer.getData('text/plain');
-      const markdownMatch = text.match(/\[([^\]]+)\]\(task:\/\/([^/]+)\/([^)]+)\)/);
-      if (markdownMatch) {
-        return { fileId: markdownMatch[2], taskId: markdownMatch[3], label: markdownMatch[1] };
-      }
-
-      return null;
-  };
-
-  const getDraggedAsset = (e: React.DragEvent): AssetLinkRecord | null => {
-      const raw = e.dataTransfer.getData(ASSET_LINK_DRAG_MIME);
-      if (raw) {
-        try {
-          const parsed = JSON.parse(raw) as { id?: string; name?: string; mime?: string; kind?: AssetKind };
-          if (parsed?.id && assets[parsed.id]) {
-            const mime = parsed.mime || getAssetMimeType(assets[parsed.id]);
-            const kind = parsed.kind || getAssetKindFromMime(mime);
-            const rawName = parsed.name || assetNameMap[parsed.id] || parsed.id;
-            return {
-              id: parsed.id,
-              name: rawName,
-              displayName: getAssetDisplayName(rawName, parsed.id, kind),
-              mime,
-              kind,
-              data: assets[parsed.id]
-            };
-          }
-        } catch {
-          // Ignore malformed asset payloads and try the URI format.
-        }
-      }
-
-      const uri = e.dataTransfer.getData('text/uri-list');
-      if (uri?.startsWith('asset://')) {
-        const assetId = uri.replace('asset://', '').trim();
-        const assetData = assets[assetId];
-        if (assetData) {
-          const mime = getAssetMimeType(assetData);
-          const kind = getAssetKindFromMime(mime);
-          const rawName = assetNameMap[assetId] || assetId;
-          return {
-            id: assetId,
-            name: rawName,
-            displayName: getAssetDisplayName(rawName, assetId, kind),
-            mime,
-            kind,
-            data: assetData
-          };
-        }
-      }
-
-      return null;
-  };
-
-  const getDraggedFile = (e: React.DragEvent): { id: string; name: string } | null => {
-      const raw = e.dataTransfer.getData(FILE_LINK_DRAG_MIME);
-      if (raw) {
-        try {
-          const parsed = JSON.parse(raw) as { id?: string; name?: string };
-          if (parsed?.id) {
-            return { id: parsed.id, name: parsed.name || projectFiles.find(f => f.id === parsed.id)?.name || 'Linked File' };
-          }
-        } catch {
-          const fallback = projectFiles.find(f => f.id === raw);
-          if (fallback) return { id: fallback.id, name: fallback.name };
-        }
-      }
-
-      const uri = e.dataTransfer.getData('text/uri-list');
-      if (uri?.startsWith('file://')) {
-        const uriId = uri.replace('file://', '').trim();
-        const file = projectFiles.find(f => f.id === uriId);
-        if (file) return { id: file.id, name: file.name };
-      }
-
-      const text = e.dataTransfer.getData('text/plain');
-      const mdMatch = text.match(/\[([^\]]+)\]\(file:\/\/([^)]+)\)/);
-      if (mdMatch) {
-        const fileId = mdMatch[2];
-        const file = projectFiles.find(f => f.id === fileId);
-        if (file) return { id: file.id, name: file.name };
-      }
-
-      const file = projectFiles.find(f => f.id === text.trim());
-      if (!file) return null;
-      return { id: file.id, name: file.name };
-  };
-
-  const handleEditorDragOver = (e: React.DragEvent<HTMLTextAreaElement>) => {
-      if (!getDraggedTask(e) && !getDraggedAsset(e) && !getDraggedFile(e)) return;
-      e.preventDefault();
-      e.dataTransfer.dropEffect = 'copy';
-  };
-
-  const handleEditorDrop = (e: React.DragEvent<HTMLTextAreaElement>) => {
-      const draggedTask = getDraggedTask(e);
-      if (draggedTask) {
-        e.preventDefault();
-        insertText(`[${draggedTask.label}](task://${draggedTask.fileId}/${draggedTask.taskId})`);
-        return;
-      }
-
-      const draggedAsset = getDraggedAsset(e);
-      if (draggedAsset) {
-        e.preventDefault();
-        insertText(`\n![${sanitizeAssetLabel(draggedAsset.displayName, 'Project Asset')}](asset://${draggedAsset.id})\n`);
-        return;
-      }
-
-      const draggedFile = getDraggedFile(e);
-      if (!draggedFile) return;
-      e.preventDefault();
-      insertText(`[${draggedFile.name}](file://${draggedFile.id})`);
-  };
-
-  const handlePreviewClick = (e: React.MouseEvent<HTMLDivElement>) => {
-      const target = e.target as HTMLElement;
-      const taskLink = target.closest('a[data-task-file-id][data-task-id]') as HTMLAnchorElement | null;
-      if (taskLink) {
-        e.preventDefault();
-        const fileId = taskLink.dataset.taskFileId;
-        const taskId = taskLink.dataset.taskId;
-        if (!fileId || !taskId || !onOpenTask) return;
-        onOpenTask(fileId, taskId);
-        return;
-      }
-      const link = target.closest('a[data-file-id]') as HTMLAnchorElement | null;
-      if (!link) return;
-      e.preventDefault();
-      const fileId = link.dataset.fileId;
-      if (!fileId || !onOpenFile) return;
-      onOpenFile(fileId);
-  };
-
-  const ToolbarButton = ({ icon: Icon, onClick, title, active = false, disabled = false }: any) => (
-    <button
-      onClick={onClick}
-      disabled={disabled}
-      className={`p-1.5 rounded-md transition-colors flex items-center justify-center shrink-0 ${
-        active ? 'bg-accent/15 text-accent' : 'text-faint hover:text-content hover:bg-surface-hover'
-      } ${disabled ? 'opacity-40 cursor-not-allowed' : ''}`}
-      title={title}
-      aria-label={title}
-    >
-      <Icon className="w-4 h-4" />
-    </button>
-  );
-
-  const PRESET_COLORS = [
-      '#ef4444', // Red
-      '#f97316', // Orange
-      '#eab308', // Yellow
-      '#22c55e', // Green
-      '#3b82f6', // Blue
-      '#a855f7', // Purple
-      '#ec4899', // Pink
-      '#71717a', // Zinc
-      '#ffffff', // White
-  ];
+  const editing = viewMode !== 'preview';
 
   return (
-    <div className="h-full flex flex-col bg-bg">
-      {/* Top Bar - Fixed Layout & Overflow */}
-      <div className="min-h-[2.75rem] border-b border-border/70 flex flex-wrap items-center justify-between px-3 py-1 bg-bg sticky top-0 z-30 shrink-0 gap-y-1">
-        <div className="flex items-center gap-4 flex-1 min-w-0">
-           {/* Formatting only applies to the source, so reading view hides it. */}
-           <div className={`items-center gap-1 flex-wrap ${viewMode === 'preview' ? 'hidden' : 'flex'}`}>
-              {/* Text Style */}
-              <ToolbarButton icon={Bold} onClick={() => insertText('**', '**')} title="Bold" />
-              <ToolbarButton icon={Italic} onClick={() => insertText('*', '*')} title="Italic" />
-              <ToolbarButton icon={Underline} onClick={() => insertText('<u>', '</u>')} title="Underline" />
-              <ToolbarButton icon={Strikethrough} onClick={() => insertText('~~', '~~')} title="Strikethrough" />
-              
-              {/* Color Picker Toggle */}
-               <div className="relative" ref={colorPickerRef}>
-                   <ToolbarButton 
-                     icon={Palette} 
-                     onClick={() => setShowColorPicker(!showColorPicker)} 
-                    title="Text Color"  
-                    active={showColorPicker}
-                  />
-                  
-                  {/* Popover Menu */}
-                  {showColorPicker && (
-                      <div ref={popoverRef} className="absolute top-full left-0 mt-2 bg-surface border border-border-strong rounded-xl shadow-xl p-3 z-50 w-48 flex flex-col gap-3 animate-in fade-in slide-in-from-top-2 duration-200">
-                          <div className="grid grid-cols-5 gap-1.5">
-                              {PRESET_COLORS.map(c => (
-                                  <button
-                                    key={c}
-                                    onClick={() => applyColor(c)}
-                                    className="w-6 h-6 rounded-full border border-border-strong hover:scale-110 transition-transform shadow-sm"
-                                    style={{ backgroundColor: c }}
-                                    title={c}
-                                  />
-                              ))}
-                          </div>
-                          <div className="h-px bg-surface-raised w-full"></div>
-                          <div className="flex items-center gap-2">
-                              <input 
-                                type="color" 
-                                value={customColor}
-                                onChange={(e) => setCustomColor(e.target.value)}
-                                className="w-8 h-8 rounded cursor-pointer border-0 p-0 bg-transparent"
-                              />
-                              <button 
-                                onClick={() => applyColor(customColor)}
-                                className="flex-1 bg-surface-raised hover:bg-surface-hover text-xs text-white py-1.5 rounded transition-colors"
-                              >
-                                Apply
-                              </button>
-                          </div>
-                      </div>
-                  )}
-              </div>
+    <div className="flex h-full flex-col bg-bg">
+      <div className="flex h-10 shrink-0 items-center gap-0.5 overflow-x-auto border-b border-border/70 bg-bg px-2 [scrollbar-width:none] [&::-webkit-scrollbar]:hidden">
+        {editing && (
+          <>
+            <ToolbarButton icon={Heading} title="Heading" onClick={headingMenu} />
+            <ToolbarButton icon={Bold} title="Bold (Ctrl+B)" onClick={() => wrap('**', '**', 'bold text')} />
+            <ToolbarButton icon={Italic} title="Italic (Ctrl+I)" onClick={() => wrap('*', '*', 'italic text')} />
+            <ToolbarButton icon={Strikethrough} title="Strikethrough (Ctrl+Shift+X)" onClick={() => wrap('~~', '~~', 'text')} />
+            <ToolbarButton icon={Highlighter} title="Highlight (Ctrl+Shift+H)" onClick={() => wrap('==', '==', 'highlight')} />
+            <ToolbarButton icon={Code} title="Inline code (Ctrl+E)" onClick={() => wrap('`', '`', 'code')} />
+            <ToolbarButton icon={Palette} title="Text color" onClick={colorMenu} />
+            <Divider />
+            <ToolbarButton icon={List} title="Bullet list" onClick={() => prefix('- ')} />
+            <ToolbarButton icon={ListOrdered} title="Numbered list" onClick={() => prefix('1. ')} />
+            <ToolbarButton icon={ListTodo} title="Task (Ctrl+L)" onClick={() => prefix('- [ ] ')} />
+            <ToolbarButton icon={Quote} title="Quote" onClick={() => prefix('> ')} />
+            <ToolbarButton icon={SquareCode} title="Insert block…" onClick={insertMenu} />
+            <Divider />
+            <ToolbarButton icon={LinkIcon} title="Link to file ([[)" onClick={openPicker('file')} active={picker?.kind === 'file'} disabled={projectFiles.length < 2} />
+            <ToolbarButton icon={CheckSquare} title="Link to task" onClick={openPicker('task')} active={picker?.kind === 'task'} disabled={taskRecords.length === 0} />
+            <ToolbarButton icon={FolderOpen} title="Insert from asset library" onClick={openPicker('asset')} active={picker?.kind === 'asset'} disabled={assetRecords.length === 0} />
+            <ToolbarButton icon={ImagePlus} title="Upload image, video, or audio (or paste/drop it)" onClick={() => fileInputRef.current?.click()} disabled={!onAddAsset} />
+            <input
+              ref={fileInputRef}
+              type="file"
+              accept="image/*,video/*,audio/*"
+              multiple
+              className="hidden"
+              onChange={async e => {
+                const files = Array.from(e.target.files || []);
+                e.target.value = '';
+                const md = await uploadFiles(files);
+                if (md) insertBlock(md);
+              }}
+            />
+            <Divider />
+            <ToolbarButton icon={Undo2} title="Undo (Ctrl+Z)" onClick={() => editorRef.current?.undo()} />
+            <ToolbarButton icon={Redo2} title="Redo (Ctrl+Shift+Z)" onClick={() => editorRef.current?.redo()} />
+          </>
+        )}
 
-              <div className="w-px h-4 bg-surface-raised mx-1"></div>
-
-              {/* Structure */}
-              <ToolbarButton icon={Heading1} onClick={() => insertText('# ')} title="Heading 1" />
-               <ToolbarButton icon={Heading2} onClick={() => insertText('## ')} title="Heading 2" />
-               <ToolbarButton icon={List} onClick={() => insertText('- ')} title="Bullet List" />
-               <ToolbarButton icon={ListOrdered} onClick={() => insertText('1. ')} title="Numbered List" />
-               <ToolbarButton icon={ListTodo} onClick={() => insertText('- [ ] ')} title="Task List" />
-               <ToolbarButton icon={Table} onClick={() => insertText('\n| Column A | Column B |\n| --- | --- |\n| ', ' |  |\n')} title="Table" />
-               <ToolbarButton icon={Minus} onClick={() => insertText('\n---\n')} title="Horizontal Rule" />
-               <ToolbarButton icon={Quote} onClick={() => insertText('> ')} title="Quote" />
-               <ToolbarButton icon={Code} onClick={() => insertText('```\n', '\n```')} title="Code Block" />
-               <div className="relative" ref={taskLinkPickerRef}>
-                 <ToolbarButton
-                   icon={CheckSquare}
-                   onClick={toggleTaskLinkPicker}
-                   title={linkableTasks.length === 0 ? 'No tasks available to link' : 'Insert Task Link'}
-                   disabled={linkableTasks.length === 0}
-                   active={showTaskLinkPicker}
-                 />
-                 {showTaskLinkPicker && (
-                   <div
-                     className="absolute left-0 top-full mt-2 z-50 w-80 rounded-lg border border-border-strong bg-surface p-2 shadow-xl"
-                   >
-                     <input
-                       type="text"
-                       value={taskLinkQuery}
-                       onChange={(e) => setTaskLinkQuery(e.target.value)}
-                       placeholder="Search tasks..."
-                       className="mb-2 w-full rounded border border-border-strong bg-bg px-2 py-1.5 text-xs text-content focus:border-accent focus:outline-none"
-                       autoFocus
-                     />
-                     <div className="max-h-56 space-y-1 overflow-y-auto custom-scrollbar">
-                       {filteredLinkableTasks.length === 0 ? (
-                         <p className="px-2 py-2 text-xs text-faint">No matching tasks.</p>
-                       ) : (
-                         filteredLinkableTasks.map(task => (
-                           <button
-                             key={`${task.fileId}-${task.taskId}`}
-                             type="button"
-                             onClick={() => insertTaskLink(task.fileId, task.taskId)}
-                             className="w-full rounded px-2 py-2 text-left text-xs text-content transition hover:bg-surface-hover hover:text-content"
-                             title={`${task.fileName} • ${task.taskId}`}
-                           >
-                             <div className="truncate font-medium text-content">{task.taskName}</div>
-                             <div className="mt-1 flex items-center justify-between gap-2 text-[10px] text-faint">
-                               <span className="truncate">{task.fileName}</span>
-                               <span>{task.status}</span>
-                             </div>
-                             {task.tags.length > 0 && (
-                               <div className="mt-1 truncate text-[10px] text-muted">
-                                 {task.tags.map(tag => `#${tag}`).join(' ')}
-                               </div>
-                             )}
-                           </button>
-                         ))
-                       )}
-                     </div>
-                   </div>
-                 )}
-               </div>
-                <div className="relative" ref={fileLinkPickerRef}>
-                  <ToolbarButton
-                    icon={LinkIcon}
-                   onClick={toggleLinkPicker}
-                  title={linkableFiles.length === 0 ? 'No files available to link' : 'Insert File Link'}
-                  disabled={linkableFiles.length === 0}
-                  active={showLinkPicker}
-                 />
-                 {showLinkPicker && (
-                   <div
-                     className="absolute left-0 top-full mt-2 z-50 w-72 rounded-lg border border-border-strong bg-surface p-2 shadow-xl"
-                  >
-                    <input
-                      type="text"
-                      value={linkPickerQuery}
-                      onChange={(e) => setLinkPickerQuery(e.target.value)}
-                      placeholder="Search files..."
-                      className="mb-2 w-full rounded border border-border-strong bg-bg px-2 py-1.5 text-xs text-content focus:border-accent focus:outline-none"
-                      autoFocus
-                    />
-                    <div className="max-h-48 space-y-1 overflow-y-auto custom-scrollbar">
-                      {filteredLinkableFiles.length === 0 ? (
-                        <p className="px-2 py-2 text-xs text-faint">No matching files.</p>
-                      ) : (
-                        filteredLinkableFiles.map(file => (
-                          <button
-                            key={file.id}
-                            type="button"
-                            onClick={() => insertFileLink(file.id)}
-                            className="flex w-full items-center justify-between rounded px-2 py-1.5 text-left text-xs text-content transition hover:bg-surface-hover hover:text-content"
-                            title={file.id}
-                          >
-                            <span className="truncate pr-2">{file.name}</span>
-                            <span className="text-[10px] text-faint">{file.id.slice(0, 8)}</span>
-                          </button>
-                        ))
-                      )}
-                    </div>
-                  </div>
-                  )}
-                </div>
-               
-               <div className="w-px h-4 bg-surface-raised mx-1"></div>
-
-               {/* Media Upload */}
-               <div className="relative" ref={assetPickerRef}>
-                 <ToolbarButton
-                   icon={FolderOpen}
-                   onClick={toggleAssetPicker}
-                   title={linkableAssets.length === 0 ? 'No library assets available' : 'Insert Media from Asset Library'}
-                   disabled={linkableAssets.length === 0}
-                   active={showAssetPicker}
-                 />
-                 {showAssetPicker && (
-                    <div className="absolute left-0 top-full mt-2 z-50 w-96 rounded-lg border border-border-strong bg-surface p-2 shadow-xl">
-                      <input
-                        type="text"
-                        value={assetQuery}
-                        onChange={(e) => setAssetQuery(e.target.value)}
-                        placeholder="Search assets by name, type, or id..."
-                        className="mb-2 w-full rounded border border-border-strong bg-bg px-2 py-1.5 text-xs text-content focus:border-accent focus:outline-none"
-                        autoFocus
-                      />
-                      <div className="max-h-56 space-y-1 overflow-y-auto custom-scrollbar">
-                        {filteredLinkableAssets.length === 0 ? (
-                          <p className="px-2 py-2 text-xs text-faint">No matching assets.</p>
-                        ) : (
-                          filteredLinkableAssets.map(asset => (
-                            <button
-                              key={asset.id}
-                              type="button"
-                              onClick={() => insertAssetReference(asset.id)}
-                              className="w-full rounded px-2 py-2 text-left text-xs text-content transition hover:bg-surface-hover hover:text-content"
-                              title={`${asset.mime} • ${asset.id}`}
-                            >
-                              <div className="flex items-center gap-3">
-                                <div className="h-14 w-14 shrink-0 overflow-hidden rounded-md border border-border-strong bg-bg">
-                                  {asset.kind === 'image' ? (
-                                    <img src={asset.data} alt={asset.displayName} className="h-full w-full object-cover" />
-                                  ) : asset.kind === 'video' ? (
-                                    <video src={asset.data} className="h-full w-full object-cover" muted preload="metadata" playsInline />
-                                  ) : asset.kind === 'audio' ? (
-                                    <div className="flex h-full w-full items-center justify-center bg-accent/15 text-accent">
-                                      <Music className="h-6 w-6" />
-                                    </div>
-                                  ) : (
-                                    <div className="flex h-full w-full items-center justify-center bg-surface text-faint">
-                                      <FolderOpen className="h-6 w-6" />
-                                    </div>
-                                  )}
-                                </div>
-                                <div className="min-w-0 flex-1">
-                                  <div className="truncate font-medium text-content">{asset.displayName}</div>
-                                  <div className="mt-1 flex items-center justify-between gap-2 text-[10px] text-faint">
-                                    <span className="uppercase">{asset.kind}</span>
-                                    <span className="truncate">{asset.mime}</span>
-                                  </div>
-                                  <div className="mt-1 truncate text-[10px] text-faint">
-                                    {asset.name !== asset.displayName ? `ID ${asset.id.slice(0, 8)}` : asset.id}
-                                  </div>
-                                </div>
-                              </div>
-                            </button>
-                          ))
-                        )}
-                     </div>
-                   </div>
-                 )}
-               </div>
-               <input 
-                 type="file" 
-                 ref={fileInputRef} 
-                className="hidden" 
-                accept="image/*,video/*,audio/*" 
-                onChange={handleMediaUpload} 
-              />
-              
-              <ToolbarButton 
-                  icon={ImageIcon} 
-                  onClick={() => fileInputRef.current?.click()} 
-                  title="Insert Image"
-              />
-              <ToolbarButton 
-                  icon={Video} 
-                  onClick={() => fileInputRef.current?.click()} 
-                  title="Insert Video"
-              />
-              <ToolbarButton 
-                  icon={Music} 
-                  onClick={() => fileInputRef.current?.click()} 
-                  title="Insert Audio"
-              />
-           </div>
-        </div>
-
-        <div className="flex items-center gap-1.5 shrink-0 ml-auto">
-          <div className="flex items-center gap-0.5 mr-1">
-            <button onClick={() => { const prev = undoRedo.undo(); if (prev !== undefined) { setContent(prev); lastUndoPushRef.current = prev; } }} disabled={!undoRedo.canUndo} className="p-1.5 rounded text-faint hover:text-content hover:bg-surface-hover disabled:opacity-30 disabled:pointer-events-none transition-colors" title="Undo (Ctrl+Z)"><Undo2 className="w-4 h-4" /></button>
-            <button onClick={() => { const next = undoRedo.redo(); if (next !== undefined) { setContent(next); lastUndoPushRef.current = next; } }} disabled={!undoRedo.canRedo} className="p-1.5 rounded text-faint hover:text-content hover:bg-surface-hover disabled:opacity-30 disabled:pointer-events-none transition-colors" title="Redo (Ctrl+Y)"><Redo2 className="w-4 h-4" /></button>
-          </div>
-          <div className="flex items-center mr-2 hidden sm:flex">
-            {saveStatus === 'saving' && <span className="text-xs text-faint flex items-center gap-1"><Loader2 className="w-3 h-3 animate-spin" /></span>}
-            {saveStatus === 'saved' && <span className="text-xs text-faint flex items-center gap-1 opacity-50"><Check className="w-3 h-3" /></span>}
-            {saveStatus === 'unsaved' && <span className="text-xs text-warning flex items-center gap-1"><AlertCircle className="w-3 h-3" /></span>}
-          </div>
-
+        <div className="ml-auto flex shrink-0 items-center gap-1 pl-2">
+          <span
+            className={cn('mr-1 h-1.5 w-1.5 rounded-full', saveStatus === 'saved' ? 'bg-success/70' : 'bg-warning')}
+            title={saveStatus === 'saved' ? 'Saved' : 'Unsaved changes (saving shortly — Ctrl+S to save now)'}
+          />
           <div className="flex rounded-md border border-border bg-surface-raised p-0.5" role="radiogroup" aria-label="Document view">
-            <button onClick={() => setViewMode('edit')} role="radio" aria-checked={viewMode === 'edit'} className={`p-1 rounded transition-colors ${viewMode === 'edit' ? 'bg-surface-hover text-content' : 'text-faint hover:text-content'}`} title="Source mode"><PenTool className="w-4 h-4" /></button>
-            <button onClick={() => setViewMode('split')} role="radio" aria-checked={viewMode === 'split'} className={`p-1 rounded transition-colors hidden sm:block ${viewMode === 'split' ? 'bg-surface-hover text-content' : 'text-faint hover:text-content'}`} title="Split view"><Columns className="w-4 h-4" /></button>
-            <button onClick={() => setViewMode('preview')} role="radio" aria-checked={viewMode === 'preview'} className={`p-1 rounded transition-colors ${viewMode === 'preview' ? 'bg-surface-hover text-content' : 'text-faint hover:text-content'}`} title="Reading view"><Eye className="w-4 h-4" /></button>
+            {([
+              { id: 'edit', icon: PenLine, label: prefs.livePreview ? 'Editing (live preview)' : 'Editing (source mode)' },
+              { id: 'split', icon: Columns, label: 'Split view' },
+              { id: 'preview', icon: BookOpen, label: 'Reading view' },
+            ] as const).map(({ id, icon: Icon, label }) => (
+              <button
+                key={id}
+                type="button"
+                role="radio"
+                aria-checked={viewMode === id}
+                title={label}
+                aria-label={label}
+                onClick={() => setViewMode(id)}
+                className={cn(
+                  'rounded p-1 transition-colors',
+                  id === 'split' && 'hidden md:block',
+                  viewMode === id ? 'bg-surface-hover text-content' : 'text-faint hover:text-content',
+                )}
+              >
+                <Icon className="h-4 w-4" />
+              </button>
+            ))}
           </div>
-          <button onClick={handleClear} className="p-1.5 hover:bg-danger/10 rounded-md text-faint hover:text-danger transition-colors" title="Clear document" aria-label="Clear document"><Trash2 className="w-4 h-4" /></button>
-          <button
-            onClick={handleManualSave}
-            className={`p-1.5 rounded-md transition-colors ${saveStatus === 'unsaved' ? 'text-accent hover:bg-accent/15' : 'text-faint hover:text-content hover:bg-surface-hover'}`}
-            title="Save now (Ctrl+S)"
-            aria-label="Save now"
-          >
-            <Save className="w-4 h-4" />
-          </button>
+          <ToolbarButton icon={MoreHorizontal} title="More" onClick={moreMenu} />
         </div>
       </div>
 
-      <div className="flex-1 flex overflow-hidden relative">
-        {/* Editor Pane */}
-        {(viewMode === 'edit' || viewMode === 'split') && (
-          <div className={`h-full flex flex-col ${viewMode === 'split' ? 'w-1/2 border-r border-border' : 'w-full'}`}>
-            <textarea
-              ref={textareaRef}
-              className="doc-source w-full h-full bg-bg py-8 px-[max(1.5rem,calc((100%-var(--editor-lw))/2))] text-content font-sans resize-none focus:outline-none leading-[1.7] placeholder:text-faint"
+      <div className="relative flex min-h-0 flex-1">
+        {editing && (
+          <div className={cn('h-full min-w-0', viewMode === 'split' ? 'w-1/2 border-r border-border' : 'w-full')}>
+            <MarkdownEditor
+              ref={editorRef}
               value={content}
-              onChange={(e) => setContent(e.target.value)}
-              onDragOver={handleEditorDragOver}
-              onDrop={handleEditorDrop}
-              placeholder="Start writing… (Markdown supported)"
-              spellCheck={false}
+              onChange={setContent}
+              onSave={saveNow}
+              livePreview={prefs.livePreview}
+              spellcheck={prefs.spellcheck}
+              context={editorContext}
+              contextKey={contextKey}
             />
           </div>
         )}
-
-        {/* Preview Pane - Custom Render */}
-        {(viewMode === 'preview' || viewMode === 'split') && (
-          <div className={`h-full overflow-auto bg-bg ${viewMode === 'split' ? 'w-1/2' : 'w-full'}`}>
-             <div
-                ref={previewPaneRef}
-                onClick={handlePreviewClick}
-                className="doc-md max-w-[var(--editor-lw)] mx-auto px-6 py-8 sm:px-8"
-             >
-                <ReactMarkdown
-                  remarkPlugins={[remarkGfm]}
-                  rehypePlugins={[rehypeRaw, [rehypeSanitize, sanitizeSchema]]}
-                  urlTransform={urlTransform}
-                  components={markdownComponents}
-                >
-                  {previewSource}
-                </ReactMarkdown>
-             </div>
+        {viewMode !== 'edit' && (
+          <div ref={previewRef} className={cn('h-full min-w-0 overflow-y-auto', viewMode === 'split' ? 'w-1/2' : 'w-full')}>
+            <div className="mx-auto max-w-[var(--editor-lw)] px-6 py-8 sm:px-8">
+              {previewSource.trim() ? (
+                <MarkdownView
+                  source={previewSource}
+                  files={projectFiles}
+                  assets={assets}
+                  onOpenHref={openHref}
+                  onToggleTask={toggleTaskAt}
+                />
+              ) : (
+                <p className="text-faint">This document is empty. Switch to editing to start writing.</p>
+              )}
+            </div>
           </div>
         )}
       </div>
+
+      <SearchPicker
+        anchor={picker?.anchor ?? null}
+        items={pickerItems}
+        placeholder={picker?.kind === 'file' ? 'Link to file…' : picker?.kind === 'task' ? 'Link to task…' : 'Insert asset…'}
+        onPick={onPick}
+        onClose={() => setPicker(null)}
+      />
     </div>
   );
 };

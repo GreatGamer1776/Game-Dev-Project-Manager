@@ -1,12 +1,15 @@
-import React, { useMemo } from 'react';
-import { ListTree, Link2, Info, ArrowUpRight, ArrowDownLeft, Copy } from 'lucide-react';
+import React, { Suspense, useMemo } from 'react';
+import { ListTree, Link2, Info, ArrowUpRight, ArrowDownLeft, Copy, Waypoints, Hash } from 'lucide-react';
 import { Project, ProjectFile } from '../../types';
 import { getFileTypeMeta } from '../fileTypes';
 import { extractHeadings, findBacklinks, findOutgoingLinks, getFileText, countWords } from '../../utils/fileText';
+import { extractTags } from '../../utils/markdown';
 import { cn } from '../ui';
 import { REVEAL_HEADING_EVENT, RevealHeadingDetail } from '../../utils/events';
 
-export type RightTab = 'outline' | 'links' | 'info';
+export type RightTab = 'outline' | 'links' | 'graph' | 'info';
+
+const GraphView = React.lazy(() => import('../GraphView'));
 
 interface RightSidebarProps {
   project: Project;
@@ -14,6 +17,7 @@ interface RightSidebarProps {
   tab: RightTab;
   onTabChange: (tab: RightTab) => void;
   onOpenFile: (fileId: string) => void;
+  onOpenTag: (tag: string) => void;
   onCopyId: (fileId: string) => void;
   folderPath: string[];
 }
@@ -21,6 +25,7 @@ interface RightSidebarProps {
 const TABS: { id: RightTab; label: string; icon: React.ComponentType<{ className?: string }> }[] = [
   { id: 'outline', label: 'Outline', icon: ListTree },
   { id: 'links', label: 'Links', icon: Link2 },
+  { id: 'graph', label: 'Local graph', icon: Waypoints },
   { id: 'info', label: 'File info', icon: Info },
 ];
 
@@ -39,7 +44,7 @@ const FileLinkRow: React.FC<{ file: ProjectFile; onOpen: () => void }> = ({ file
 };
 
 /** Obsidian's right sidebar: outline, backlinks/outgoing links, and file info. */
-const RightSidebar: React.FC<RightSidebarProps> = ({ project, file, tab, onTabChange, onOpenFile, onCopyId, folderPath }) => {
+const RightSidebar: React.FC<RightSidebarProps> = ({ project, file, tab, onTabChange, onOpenFile, onOpenTag, onCopyId, folderPath }) => {
   const headings = useMemo(
     () => (file && file.type === 'doc' && typeof file.content === 'string' ? extractHeadings(file.content) : []),
     [file],
@@ -49,7 +54,11 @@ const RightSidebar: React.FC<RightSidebarProps> = ({ project, file, tab, onTabCh
   const stats = useMemo(() => {
     if (!file || tab !== 'info') return null;
     const text = getFileText(file);
-    return { words: countWords(text), characters: text.length };
+    return {
+      words: countWords(text),
+      characters: text.length,
+      tags: file.type === 'doc' && typeof file.content === 'string' ? extractTags(file.content) : [],
+    };
   }, [file, tab]);
 
   const minLevel = headings.reduce((min, h) => Math.min(min, h.level), 6);
@@ -76,6 +85,13 @@ const RightSidebar: React.FC<RightSidebarProps> = ({ project, file, tab, onTabCh
         {activeTab.label}
       </div>
 
+      {tab === 'graph' ? (
+        <div className="min-h-0 flex-1 border-t border-border/60">
+          <Suspense fallback={null}>
+            <GraphView files={project.files} activeFileId={file?.id ?? null} onOpenFile={onOpenFile} onOpenTag={onOpenTag} local compact />
+          </Suspense>
+        </div>
+      ) : (
       <div className="min-h-0 flex-1 overflow-y-auto px-1.5 pb-6">
         {!file ? (
           <Empty>No file is open.</Empty>
@@ -141,9 +157,22 @@ const RightSidebar: React.FC<RightSidebarProps> = ({ project, file, tab, onTabCh
                 </button>
               </dd>
             </div>
+            {stats && stats.tags.length > 0 && (
+              <div className="flex gap-3 border-t border-border/60 py-1.5">
+                <dt className="w-28 shrink-0 text-faint">Tags</dt>
+                <dd className="flex min-w-0 flex-1 flex-wrap gap-1">
+                  {stats.tags.map(tag => (
+                    <button key={tag} type="button" onClick={() => onOpenTag(tag)} className="inline-flex items-center gap-0.5 rounded-full bg-accent/15 px-1.5 text-[11px] text-accent hover:bg-accent/25">
+                      <Hash className="h-3 w-3" />{tag}
+                    </button>
+                  ))}
+                </dd>
+              </div>
+            )}
           </dl>
         )}
       </div>
+      )}
     </div>
   );
 };

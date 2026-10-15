@@ -1,12 +1,12 @@
 import React, { useEffect, useMemo, useRef, useState } from 'react';
 import { createPortal } from 'react-dom';
-import { FilePlus2, LayoutGrid, Terminal } from 'lucide-react';
+import { FilePlus2, LayoutGrid, Terminal, FileInput } from 'lucide-react';
 import { Project, ProjectFile } from '../types';
 import { getFileTypeMeta, SINGLE_INSTANCE_FILE_TYPES } from './fileTypes';
 import { fuzzyMatch } from '../utils/fileText';
 import { cn } from './ui';
 
-export type PaletteMode = 'files' | 'commands';
+export type PaletteMode = 'files' | 'commands' | 'templates';
 
 export interface PaletteCommand {
   id: string;
@@ -30,6 +30,8 @@ interface CommandPaletteProps {
   onOpenFile: (fileId: string) => void;
   onSelectProject: (projectId: string) => void;
   onCreateDocument: (name: string) => void;
+  templates: { id: string; name: string }[];
+  onPickTemplate: (id: string) => void;
 }
 
 interface Row {
@@ -73,6 +75,8 @@ const CommandPalette: React.FC<CommandPaletteProps> = ({
   onOpenFile,
   onSelectProject,
   onCreateDocument,
+  templates,
+  onPickTemplate,
 }) => {
   const [query, setQuery] = useState('');
   const [selected, setSelected] = useState(0);
@@ -98,6 +102,14 @@ const CommandPalette: React.FC<CommandPaletteProps> = ({
   const rows = useMemo<Row[]>(() => {
     if (!mode) return [];
     const q = query.trim();
+
+    if (mode === 'templates') {
+      return templates
+        .map(tpl => ({ tpl, match: fuzzyMatch(tpl.name, q) }))
+        .filter((r): r is { tpl: { id: string; name: string }; match: NonNullable<ReturnType<typeof fuzzyMatch>> } => r.match !== null)
+        .sort((a, b) => (q ? b.match.score - a.match.score : a.tpl.name.localeCompare(b.tpl.name)))
+        .map(({ tpl, match }) => ({ key: tpl.id, label: tpl.name, indexes: match.indexes, icon: FileInput, run: () => onPickTemplate(tpl.id) }));
+    }
 
     if (mode === 'commands') {
       return commands
@@ -184,7 +196,7 @@ const CommandPalette: React.FC<CommandPaletteProps> = ({
         });
       });
     return out;
-  }, [mode, query, commands, activeProject, projects, recentFileIds, folderPathOf, onOpenFile, onSelectProject, onCreateDocument]);
+  }, [mode, query, commands, activeProject, projects, recentFileIds, folderPathOf, onOpenFile, onSelectProject, onCreateDocument, templates, onPickTemplate]);
 
   // Keep the selection valid and visible.
   useEffect(() => {
@@ -227,7 +239,9 @@ const CommandPalette: React.FC<CommandPaletteProps> = ({
     }
   };
 
-  const placeholder = mode === 'commands'
+  const placeholder = mode === 'templates'
+    ? 'Insert a template...'
+    : mode === 'commands'
     ? 'Select a command...'
     : activeProject ? 'Find or create a file...' : 'Find a project...';
 
@@ -236,7 +250,7 @@ const CommandPalette: React.FC<CommandPaletteProps> = ({
       <div
         role="dialog"
         aria-modal="true"
-        aria-label={mode === 'commands' ? 'Command palette' : 'Quick switcher'}
+        aria-label={mode === 'commands' ? 'Command palette' : mode === 'templates' ? 'Insert template' : 'Quick switcher'}
         className="flex h-fit max-h-[70vh] w-full max-w-[640px] flex-col overflow-hidden rounded-xl border border-border-strong bg-bg shadow-pop animate-scale-in"
         onMouseDown={e => e.stopPropagation()}
       >
@@ -269,7 +283,11 @@ const CommandPalette: React.FC<CommandPaletteProps> = ({
 
         <div ref={listRef} id="palette-results" role="listbox" className="min-h-0 flex-1 overflow-y-auto p-1.5">
           {rows.length === 0 ? (
-            <div className="px-3 py-6 text-center text-[0.8125rem] text-faint">No matches.</div>
+            <div className="px-3 py-6 text-center text-[0.8125rem] text-faint">
+              {mode === 'templates' && templates.length === 0
+                ? 'No templates yet. Put documents in a "Templates" folder (configurable in Settings → General).'
+                : 'No matches.'}
+            </div>
           ) : (
             rows.map((row, i) => {
               const Icon = row.icon;
@@ -304,7 +322,7 @@ const CommandPalette: React.FC<CommandPaletteProps> = ({
 
         <div className="flex flex-wrap items-center gap-x-4 gap-y-1 border-t border-border bg-chrome px-3 py-1.5 text-[11px] text-faint">
           <span><span className="kbd">↑↓</span> to navigate</span>
-          <span><span className="kbd">↵</span> to {mode === 'commands' ? 'use' : 'open'}</span>
+          <span><span className="kbd">↵</span> to {mode === 'files' ? 'open' : mode === 'templates' ? 'insert' : 'use'}</span>
           {mode === 'files' && activeProject && <span><span className="kbd">shift ↵</span> to create</span>}
           {mode === 'files' && <span><span className="kbd">&gt;</span> for commands</span>}
           <span><span className="kbd">esc</span> to dismiss</span>

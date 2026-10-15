@@ -12,3 +12,11 @@ export interface RevealHeadingDetail {
   line: number;
   text: string;
 }
+
+/** Ask the document editor showing `fileId` to insert text at the cursor (templates). */
+export const INSERT_TEXT_EVENT = 'gdpm:insert-text';
+
+export interface InsertTextDetail {
+  fileId: string;
+  text: string;
+}

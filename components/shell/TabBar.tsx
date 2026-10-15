@@ -1,5 +1,6 @@
 import React, { useEffect, useRef, useState } from 'react';
-import { X, Pin, Plus, PanelRight, ChevronDown, Link2, Crosshair, File } from 'lucide-react';
+import { X, Pin, Plus, PanelRight, ChevronDown, Link2, Crosshair, File, Bookmark, BookmarkMinus } from 'lucide-react';
+import { GRAPH_VIEW_ID } from '../fileTypes';
 import { ProjectFile } from '../../types';
 import { getFileTypeMeta } from '../fileTypes';
 import { showMenu } from '../../stores/useMenuStore';
@@ -25,6 +26,8 @@ interface TabBarProps {
   onNewTab: () => void;
   onReveal: (fileId: string) => void;
   onCopyLink: (fileId: string) => void;
+  bookmarkIds: string[];
+  onToggleBookmark: (fileId: string) => void;
   rightOpen: boolean;
   onToggleRight: () => void;
 }
@@ -43,6 +46,8 @@ const TabBar: React.FC<TabBarProps> = ({
   onNewTab,
   onReveal,
   onCopyLink,
+  bookmarkIds,
+  onToggleBookmark,
   rightOpen,
   onToggleRight,
 }) => {
@@ -66,7 +71,10 @@ const TabBar: React.FC<TabBarProps> = ({
       { label: 'Close all', onSelect: onCloseAll },
       { kind: 'separator' },
       { label: tab.pinned ? 'Unpin' : 'Pin', icon: Pin, onSelect: () => onTogglePin(tab.id) },
-      ...(file ? [
+      ...(file && file.id !== GRAPH_VIEW_ID ? [
+        bookmarkIds.includes(file.id)
+          ? { label: 'Remove bookmark', icon: BookmarkMinus, onSelect: () => onToggleBookmark(file.id) }
+          : { label: 'Bookmark', icon: Bookmark, onSelect: () => onToggleBookmark(file.id) },
         { label: 'Reveal file in navigation', icon: Crosshair, onSelect: () => onReveal(file.id) },
         { label: 'Copy link', icon: Link2, onSelect: () => onCopyLink(file.id) },
       ] : []),

@@ -86,6 +86,27 @@ const Toggle: React.FC<{ checked: boolean; onChange: (value: boolean) => void; l
   </button>
 );
 
+/** Text input that commits on blur/Enter (folder names). */
+const TextSetting: React.FC<{ value: string; onCommit: (value: string) => void; label: string }> = ({ value, onCommit, label }) => {
+  const [draft, setDraft] = useState(value);
+  React.useEffect(() => setDraft(value), [value]);
+  const commit = () => {
+    const next = draft.trim();
+    if (next && next !== value) onCommit(next);
+    else setDraft(value);
+  };
+  return (
+    <input
+      value={draft}
+      aria-label={label}
+      onChange={e => setDraft(e.target.value)}
+      onBlur={commit}
+      onKeyDown={e => { if (e.key === 'Enter') (e.target as HTMLInputElement).blur(); }}
+      className="h-8 w-44 rounded-md border border-border bg-surface-raised px-2 text-[0.8125rem] text-content outline-none hover:border-border-strong focus:border-accent"
+    />
+  );
+};
+
 const THEME_OPTIONS: { id: ThemePreference; label: string }[] = [
   { id: 'system', label: 'Adapt to system' },
   { id: 'dark', label: 'Dark' },
@@ -125,6 +146,14 @@ export const SettingsModal: React.FC = () => {
             <SettingItem name="Reduce motion" description="Turn off panel and menu animations.">
               <Toggle label="Reduce motion" checked={theme.motion === 'reduced'} onChange={v => theme.setMotion(v ? 'reduced' : 'full')} />
             </SettingItem>
+
+            <Heading>Daily notes &amp; templates</Heading>
+            <SettingItem name="Daily notes folder" description={<>"Open today's daily note" (Alt+D) creates YYYY-MM-DD documents here. A template whose name contains "daily" is used for new notes.</>}>
+              <TextSetting value={prefs.dailyNotesFolder} onCommit={v => setPref('dailyNotesFolder', v)} label="Daily notes folder" />
+            </SettingItem>
+            <SettingItem name="Templates folder" description={<>Documents in this folder appear in "Insert template" and the editor's / menu. {'{{date}}'}, {'{{time}}'} and {'{{title}}'} are filled in.</>}>
+              <TextSetting value={prefs.templatesFolder} onCommit={v => setPref('templatesFolder', v)} label="Templates folder" />
+            </SettingItem>
           </>
         );
       case 'editor':
@@ -133,6 +162,12 @@ export const SettingsModal: React.FC = () => {
             <Heading>Editor</Heading>
             <SettingItem name="Default view for new tabs" description="How documents open. The toolbar toggle still switches per file and updates this.">
               <Dropdown label="Default document view" options={DOC_VIEW_OPTIONS} value={prefs.docViewMode} onChange={v => setPref('docViewMode', v)} />
+            </SettingItem>
+            <SettingItem name="Live preview" description="Render markdown while you type and show raw markup only on the line you're editing. Off = source mode.">
+              <Toggle label="Live preview" checked={prefs.livePreview} onChange={v => setPref('livePreview', v)} />
+            </SettingItem>
+            <SettingItem name="Spellcheck" description="Underline misspelled words while editing documents.">
+              <Toggle label="Spellcheck" checked={prefs.spellcheck} onChange={v => setPref('spellcheck', v)} />
             </SettingItem>
             <SettingItem name="Readable line length" description="Limit the maximum line length of documents so they're easier to read.">
               <Toggle label="Readable line length" checked={theme.lineWidth === 'readable'} onChange={v => theme.setLineWidth(v ? 'readable' : 'full')} />

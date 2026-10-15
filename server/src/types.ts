@@ -35,6 +35,7 @@ export interface AppState {
   rightPanelOpen?: boolean;
   tabs?: Array<{ fileId: string | null; pinned: boolean }>;
   activeTabIndex?: number;
+  bookmarks?: Record<string, string[]>;
 }
 
 export interface UserRow {

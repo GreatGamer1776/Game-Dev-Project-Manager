@@ -1,7 +1,7 @@
 import React, { useEffect, useMemo, useRef, useState } from 'react';
 import {
   ChevronRight, Folder, FolderOpen, FilePlus2, FolderPlus, ArrowUpDown, ChevronsDownUp, ChevronsUpDown,
-  Pencil, Trash2, Link2, Hash, ExternalLink, CornerLeftUp, Layers,
+  Pencil, Trash2, Link2, Hash, ExternalLink, CornerLeftUp, Layers, Bookmark, BookmarkMinus, PanelRightOpen,
 } from 'lucide-react';
 import { Project, ProjectFile, ProjectFolder, FileType } from '../../types';
 import { FILE_TYPES, getFileTypeMeta, SINGLE_INSTANCE_FILE_TYPES, MANDATORY_SINGLETON_FILES } from '../fileTypes';
@@ -50,7 +50,9 @@ interface FileExplorerProps {
   onStartRename: (target: RenameTarget) => void;
   onCommitRename: (target: RenameTarget, name: string) => void;
   onCancelRename: () => void;
-  onOpenFile: (fileId: string) => void;
+  onOpenFile: (fileId: string, newTab: boolean) => void;
+  bookmarkIds: string[];
+  onToggleBookmark: (fileId: string) => void;
   onCreateFile: (type: FileType, folderId: string | null) => void;
   onCreateFolder: (parentId: string | null) => void;
   onDeleteFile: (fileId: string) => void;
@@ -76,6 +78,8 @@ const FileExplorer: React.FC<FileExplorerProps> = ({
   onCommitRename,
   onCancelRename,
   onOpenFile,
+  bookmarkIds,
+  onToggleBookmark,
   onCreateFile,
   onCreateFolder,
   onDeleteFile,
@@ -215,8 +219,12 @@ const FileExplorer: React.FC<FileExplorerProps> = ({
   const fileMenu = (e: React.MouseEvent, file: ProjectFile) => {
     const isSystem = SINGLE_INSTANCE_FILE_TYPES.has(file.type);
     showMenu(e, [
-      { label: 'Open', icon: ExternalLink, onSelect: () => onOpenFile(file.id) },
+      { label: 'Open', icon: ExternalLink, onSelect: () => onOpenFile(file.id, false) },
+      { label: 'Open in new tab', icon: PanelRightOpen, hint: 'Ctrl+click', onSelect: () => onOpenFile(file.id, true) },
       { kind: 'separator' },
+      bookmarkIds.includes(file.id)
+        ? { label: 'Remove bookmark', icon: BookmarkMinus, onSelect: () => onToggleBookmark(file.id) }
+        : { label: 'Bookmark', icon: Bookmark, onSelect: () => onToggleBookmark(file.id) },
       ...(!isSystem ? [{ label: 'Rename', icon: Pencil, hint: 'F2', onSelect: () => onStartRename({ kind: 'file', id: file.id }) }] : []),
       ...(!isSystem && file.folderId ? [{ label: 'Move to project root', icon: CornerLeftUp, onSelect: () => onMoveFile(file.id, null) }] : []),
       { label: 'Copy link', icon: Link2, onSelect: () => onCopyLink(file.id) },
@@ -274,12 +282,15 @@ const FileExplorer: React.FC<FileExplorerProps> = ({
         onDragEnd={endDrag}
         onDragOver={e => handleDragOver(e, file.folderId || 'root')}
         onDrop={e => handleDrop(e, file.folderId || null)}
-        onClick={() => onOpenFile(file.id)}
+        onClick={e => onOpenFile(file.id, e.ctrlKey || e.metaKey)}
+        onAuxClick={e => { if (e.button === 1) { e.preventDefault(); onOpenFile(file.id, true); } }}
         onKeyDown={e => {
-          if (e.key === 'Enter') onOpenFile(file.id);
-          if (e.key === 'F2' && draggableRow) {
+          if (e.key === 'Enter') onOpenFile(file.id, e.ctrlKey || e.metaKey);
+          if (e.key === 'F2') {
+            // Don't let the app-level F2 (rename active file) fire as well.
             e.preventDefault();
-            onStartRename({ kind: 'file', id: file.id });
+            e.stopPropagation();
+            if (draggableRow) onStartRename({ kind: 'file', id: file.id });
           }
         }}
         onContextMenu={e => fileMenu(e, file)}
@@ -291,6 +302,7 @@ const FileExplorer: React.FC<FileExplorerProps> = ({
         )}
       >
         <Icon className={cn('h-3.5 w-3.5 shrink-0', active ? 'text-accent' : 'text-faint')} />
+        {bookmarkIds.includes(file.id) && !isRenaming && <Bookmark className="order-last ml-auto h-3 w-3 shrink-0 fill-current text-faint" aria-label="Bookmarked" />}
         {isRenaming ? (
           <InlineRename
             initialValue={file.name}
@@ -332,6 +344,7 @@ const FileExplorer: React.FC<FileExplorerProps> = ({
                   if (e.key === 'Enter') onToggleFolder(folder.id);
                   if (e.key === 'F2') {
                     e.preventDefault();
+                    e.stopPropagation();
                     onStartRename({ kind: 'folder', id: folder.id });
                   }
                 }}

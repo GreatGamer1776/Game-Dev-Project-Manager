@@ -52,17 +52,37 @@ export interface UiPrefs {
   confirmActions: boolean;
   /** Default view mode when a document editor opens. */
   docViewMode: DocViewMode;
+  /** Obsidian-style live preview (markup hidden off the cursor line) vs. source mode. */
+  livePreview: boolean;
+  spellcheck: boolean;
+  /** Folder whose documents are offered as templates. */
+  templatesFolder: string;
+  /** Folder that "Open today's daily note" creates notes in. */
+  dailyNotesFolder: string;
 }
 
 const PREF_KEYS = {
   confirmActions: 'devarchitect-confirm-actions',
   docViewMode: 'devarchitect-doc-view',
+  livePreview: 'devarchitect-live-preview',
+  spellcheck: 'devarchitect-spellcheck',
+  templatesFolder: 'devarchitect-templates-folder',
+  dailyNotesFolder: 'devarchitect-daily-folder',
 } as const;
 
 const readBool = (key: string, fallback: boolean) => {
   try {
     const v = window.localStorage.getItem(key);
     return v === null ? fallback : v === 'true';
+  } catch {
+    return fallback;
+  }
+};
+
+const readString = (key: string, fallback: string) => {
+  try {
+    const v = window.localStorage.getItem(key);
+    return v && v.trim() ? v : fallback;
   } catch {
     return fallback;
   }
@@ -98,6 +118,10 @@ export const useUiStore = create<UiStoreState>((set, get) => ({
   prefs: {
     confirmActions: readBool(PREF_KEYS.confirmActions, true),
     docViewMode: readDocViewMode(),
+    livePreview: readBool(PREF_KEYS.livePreview, true),
+    spellcheck: readBool(PREF_KEYS.spellcheck, true),
+    templatesFolder: readString(PREF_KEYS.templatesFolder, 'Templates'),
+    dailyNotesFolder: readString(PREF_KEYS.dailyNotesFolder, 'Daily notes'),
   },
 
   setPref: (key, value) => {

@@ -163,4 +163,7 @@ export interface EditorProps {
   onOpenTask?: (fileId: string, taskId: string) => void;
   taskNavigationTarget?: TaskNavigationTarget | null;
   onTaskNavigationHandled?: () => void;
+  /** Follows any link the app understands: file://, task://, wikilink:, tag:, http(s). */
+  onOpenHref?: (href: string, newTab?: boolean) => void;
+  projectFolders?: ProjectFolder[];
 }

@@ -10,6 +10,8 @@ interface SearchPanelProps {
   onOpenFile: (fileId: string) => void;
   /** Bumped by the "search in all files" command to refocus the field. */
   focusSignal: number;
+  /** Fill the box with a query (e.g. a clicked #tag). */
+  queryRequest?: { query: string; nonce: number } | null;
 }
 
 interface FileResult {
@@ -20,7 +22,7 @@ interface FileResult {
 }
 
 /** Obsidian-style full-text search across every file in the project. */
-const SearchPanel: React.FC<SearchPanelProps> = ({ files, onOpenFile, focusSignal }) => {
+const SearchPanel: React.FC<SearchPanelProps> = ({ files, onOpenFile, focusSignal, queryRequest }) => {
   const [query, setQuery] = useState('');
   const [collapsed, setCollapsed] = useState<Set<string>>(new Set());
   const deferredQuery = useDeferredValue(query.trim());
@@ -30,6 +32,10 @@ const SearchPanel: React.FC<SearchPanelProps> = ({ files, onOpenFile, focusSigna
     inputRef.current?.focus();
     inputRef.current?.select();
   }, [focusSignal]);
+
+  useEffect(() => {
+    if (queryRequest) setQuery(queryRequest.query);
+  }, [queryRequest]);
 
   // Text extraction is the expensive part; redo it only when files change.
   const corpus = useMemo(() => files.map(file => ({ file, text: getFileText(file) })), [files]);

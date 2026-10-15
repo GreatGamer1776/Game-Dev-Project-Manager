@@ -1,7 +1,7 @@
 import React from 'react';
 import {
   PanelLeft, LayoutGrid, FileSearch, Terminal, FilePlus2, BookOpen, HelpCircle,
-  Settings as SettingsIcon, Users, LogOut, ShieldCheck,
+  Settings as SettingsIcon, Users, LogOut, ShieldCheck, Waypoints, CalendarDays,
 } from 'lucide-react';
 import { ProjectFile } from '../../types';
 import { getFileTypeMeta } from '../fileTypes';
@@ -17,6 +17,9 @@ interface RibbonProps {
   onQuickSwitch: () => void;
   onCommandPalette: () => void;
   onNewDocument: () => void;
+  onOpenGraph: () => void;
+  onOpenDailyNote: () => void;
+  graphActive: boolean;
   /** Project "systems" (task list, bug tracker, ...) pinned as ribbon actions. */
   systemFiles: ProjectFile[];
   activeFileId: string | null;
@@ -57,6 +60,9 @@ const Ribbon: React.FC<RibbonProps> = ({
   onQuickSwitch,
   onCommandPalette,
   onNewDocument,
+  onOpenGraph,
+  onOpenDailyNote,
+  graphActive,
   systemFiles,
   activeFileId,
   onOpenFile,
@@ -104,6 +110,12 @@ const Ribbon: React.FC<RibbonProps> = ({
           <>
             <RibbonButton label="New document (Alt+N)" onClick={onNewDocument}>
               <FilePlus2 className="h-[18px] w-[18px]" />
+            </RibbonButton>
+            <RibbonButton label="Open graph view (Ctrl+G)" onClick={onOpenGraph} active={graphActive}>
+              <Waypoints className="h-[18px] w-[18px]" />
+            </RibbonButton>
+            <RibbonButton label="Open today's daily note (Alt+D)" onClick={onOpenDailyNote}>
+              <CalendarDays className="h-[18px] w-[18px]" />
             </RibbonButton>
             {systemFiles.length > 0 && <div className="my-1 h-px w-5 bg-border" />}
             {systemFiles.map(file => {

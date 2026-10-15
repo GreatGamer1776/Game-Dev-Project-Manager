@@ -1,5 +1,5 @@
 import React, { useState } from 'react';
-import { ArrowLeft, ArrowRight, MoreHorizontal, Pencil, Link2, Hash, Crosshair, Trash2, Pin, X } from 'lucide-react';
+import { ArrowLeft, ArrowRight, MoreHorizontal, Pencil, Link2, Hash, Crosshair, Trash2, Pin, X, Bookmark } from 'lucide-react';
 import { ProjectFile } from '../../types';
 import { showMenu } from '../../stores/useMenuStore';
 import InlineRename from './InlineRename';
@@ -21,6 +21,9 @@ interface ViewHeaderProps {
   onReveal: () => void;
   onTogglePin: () => void;
   onClose: () => void;
+  bookmarked: boolean;
+  /** Omitted for views that can't be bookmarked (graph). */
+  onToggleBookmark?: () => void;
   /** True when F2 / a fresh untitled file asks for the title to be edited. */
   startRename: boolean;
   onRenameStarted: () => void;
@@ -43,6 +46,8 @@ const ViewHeader: React.FC<ViewHeaderProps> = ({
   onReveal,
   onTogglePin,
   onClose,
+  bookmarked,
+  onToggleBookmark,
   startRename,
   onRenameStarted,
 }) => {
@@ -62,9 +67,12 @@ const ViewHeader: React.FC<ViewHeaderProps> = ({
     showMenu(e, [
       ...(!isProtected ? [{ label: 'Rename', icon: Pencil, hint: 'F2', onSelect: () => setRenaming(true) }] : []),
       { label: pinned ? 'Unpin tab' : 'Pin tab', icon: Pin, onSelect: onTogglePin },
-      { label: 'Reveal file in navigation', icon: Crosshair, onSelect: onReveal },
-      { label: 'Copy link', icon: Link2, onSelect: onCopyLink },
-      { label: 'Copy file ID', icon: Hash, onSelect: onCopyId },
+      ...(onToggleBookmark ? [
+        { label: bookmarked ? 'Remove bookmark' : 'Bookmark', icon: Bookmark, onSelect: onToggleBookmark },
+        { label: 'Reveal file in navigation', icon: Crosshair, onSelect: onReveal },
+        { label: 'Copy link', icon: Link2, onSelect: onCopyLink },
+        { label: 'Copy file ID', icon: Hash, onSelect: onCopyId },
+      ] : []),
       { kind: 'separator' },
       { label: 'Close tab', icon: X, onSelect: onClose, disabled: pinned },
       ...(!isProtected ? [{ label: 'Delete file', icon: Trash2, danger: true, onSelect: onDelete }] : []),
@@ -110,6 +118,18 @@ const ViewHeader: React.FC<ViewHeaderProps> = ({
         )}
       </div>
 
+      {onToggleBookmark && (
+        <button
+          type="button"
+          className={cn('icon-btn', bookmarked && '!text-accent')}
+          onClick={onToggleBookmark}
+          title={bookmarked ? 'Remove bookmark' : 'Bookmark'}
+          aria-label={bookmarked ? 'Remove bookmark' : 'Bookmark'}
+          aria-pressed={bookmarked}
+        >
+          <Bookmark className={cn('h-4 w-4', bookmarked && 'fill-current')} />
+        </button>
+      )}
       <button type="button" className="icon-btn" onClick={moreMenu} title="More options" aria-label="More options">
         <MoreHorizontal className="h-4 w-4" />
       </button>

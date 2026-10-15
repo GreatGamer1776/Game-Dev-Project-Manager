@@ -2,7 +2,7 @@ import React, { useCallback, useEffect, useMemo, useRef, useState } from 'react'
 import {
   Files, Search, ChevronsUpDown, X, BookOpen, FilePlus2, FolderPlus, PanelLeft, PanelRight, ArrowLeft, ArrowRight,
   Pencil, Trash2, Link2, Crosshair, Pin, Settings as SettingsIcon, HelpCircle, LayoutGrid, Download, LogOut, Users,
-  SunMoon, ListTree, FileSearch,
+  SunMoon, ListTree, FileSearch, Waypoints, CalendarDays, Bookmark, Hash, FileInput,
 } from 'lucide-react';
 import JSZip from 'jszip';
 import Dashboard from './components/Dashboard';
@@ -13,7 +13,7 @@ import { Project, ViewState, ProjectFile, FileType, EditorProps, ProjectFolder, 
 import { useProjectStore } from './stores/useProjectStore';
 import { api, setUnauthorizedHandler, getAuthToken, PersistedAppState } from './services/api';
 import { useAuthStore } from './stores/useAuthStore';
-import { confirmDialog, promptDialog, toast } from './stores/useUiStore';
+import { confirmDialog, promptDialog, toast, useUiStore } from './stores/useUiStore';
 import { showMenu, MenuEntry } from './stores/useMenuStore';
 import { useThemeStore } from './stores/useThemeStore';
 import AuthView from './components/AuthView';
@@ -21,7 +21,9 @@ import AdminUsersModal from './components/AdminUsersModal';
 import { UiFeedback, cn } from './components/ui';
 import { SettingsModal } from './components/SettingsModal';
 import { useSettingsStore } from './stores/useSettingsStore';
-import { getFileTypeMeta, SINGLE_INSTANCE_FILE_TYPES, MANDATORY_SINGLETON_FILES } from './components/fileTypes';
+import { getFileTypeMeta, SINGLE_INSTANCE_FILE_TYPES, MANDATORY_SINGLETON_FILES, GRAPH_VIEW_ID } from './components/fileTypes';
+import { resolveWikilink, renameWikilinks, extractTags, applyTemplateVariables, formatDate } from './utils/markdown';
+import { INSERT_TEXT_EVENT, InsertTextDetail } from './utils/events';
 import {
   normalizeProject, createProjectFile, uniqueName, folderChain, descendantFolderIds, STARTER_PROJECT,
 } from './utils/projectModel';
@@ -37,6 +39,7 @@ import StatusBar, { SaveState } from './components/shell/StatusBar';
 import EmptyView from './components/shell/EmptyView';
 import ResizeHandle from './components/shell/ResizeHandle';
 import EditorErrorBoundary from './components/shell/EditorErrorBoundary';
+import { BookmarksPanel, TagsPanel } from './components/shell/SidePanels';
 
 const DocEditor = React.lazy(() => import('./components/DocEditor'));
 const FlowchartEditor = React.lazy(() => import('./components/FlowchartEditor'));
@@ -46,6 +49,10 @@ const RoadmapEditor = React.lazy(() => import('./components/RoadmapEditor'));
 const DataGridEditor = React.lazy(() => import('./components/DataGridEditor'));
 const WhiteboardEditor = React.lazy(() => import('./components/WhiteboardEditor'));
 const AssetBrowser = React.lazy(() => import('./components/AssetBrowser'));
+const BaseEditor = React.lazy(() => import('./components/BaseEditor'));
+const CanvasEditor = React.lazy(() => import('./components/CanvasEditor'));
+const VectorEditor = React.lazy(() => import('./components/VectorEditor'));
+const GraphView = React.lazy(() => import('./components/GraphView'));
 
 // Persistence is handled by the backend API (see services/api.ts) behind
 // username/password auth. Nothing project-related is stored in the browser.
@@ -59,9 +66,15 @@ const EDITORS: Record<string, React.LazyExoticComponent<React.FC<EditorProps>>> 
   grid: DataGridEditor,
   whiteboard: WhiteboardEditor,
   'asset-gallery': AssetBrowser,
+  base: BaseEditor,
+  canvas: CanvasEditor,
+  vector: VectorEditor,
 };
 
-type LeftTab = 'files' | 'search';
+type LeftTab = 'files' | 'search' | 'bookmarks' | 'tags';
+
+/** The graph view opens in a tab like a file, but isn't stored in the project. */
+const GRAPH_FILE: ProjectFile = { id: GRAPH_VIEW_ID, name: 'Graph view', type: 'graph', content: null, folderId: null };
 
 const DOCK = {
   left: { key: 'devarchitect-left-width', fallback: 264 },
@@ -160,6 +173,10 @@ const App: React.FC = () => {
   const [recentFileIds, setRecentFileIds] = useState<string[]>([]);
   const [loadError, setLoadError] = useState<string | null>(null);
   const [saveState, setSaveState] = useState<SaveState>('saved');
+  const [searchRequest, setSearchRequest] = useState<{ query: string; nonce: number } | null>(null);
+  /** Bookmarked file ids per project (persisted in per-user app state). */
+  const [bookmarks, setBookmarks] = useState<Record<string, string[]>>({});
+  const prefs = useUiStore(state => state.prefs);
 
   const projectsRef = useRef<Project[]>([]);
   const persistedProjectsRef = useRef<Project[]>([]);
@@ -168,7 +185,7 @@ const App: React.FC = () => {
   projectsRef.current = projects;
 
   const activeProject = projects.find(p => p.id === activeProjectId);
-  const activeFile = activeProject?.files.find(f => f.id === activeFileId);
+  const activeFile = activeFileId === GRAPH_VIEW_ID && activeProject ? GRAPH_FILE : activeProject?.files.find(f => f.id === activeFileId);
   const activeLeaf = tabs.leaves.find(l => l.id === tabs.activeLeafId);
   const inProject = currentView === ViewState.PROJECT && Boolean(activeProject);
 
@@ -261,7 +278,7 @@ const App: React.FC = () => {
           : undefined;
 
         if (project && savedAppState?.currentView === ViewState.PROJECT) {
-          const exists = (id: string | null) => !id || project.files.some(f => f.id === id);
+          const exists = (id: string | null) => !id || id === GRAPH_VIEW_ID || project.files.some(f => f.id === id);
           let saved: PersistedLeaf[] = (savedAppState.tabs || []).filter(t => exists(t.fileId));
           let activeIndex = savedAppState.activeTabIndex ?? 0;
           if (saved.length === 0) {
@@ -277,6 +294,7 @@ const App: React.FC = () => {
           setActiveProjectId(null);
           tabs.resetTabs([], -1);
         }
+        setBookmarks(savedAppState?.bookmarks && typeof savedAppState.bookmarks === 'object' ? savedAppState.bookmarks : {});
         // Docked by default — only a persisted `false` keeps it hidden.
         setLeftOpen(!window.matchMedia('(max-width: 767px)').matches && savedAppState?.filePanelOpen !== false);
         setRightOpen(!window.matchMedia('(max-width: 767px)').matches && savedAppState?.rightPanelOpen === true);
@@ -336,7 +354,7 @@ const App: React.FC = () => {
 
   // Session layout (view, project, tabs, docks) — debounced, it changes often.
   const persistedTabs = tabs.toPersisted();
-  const appStateKey = JSON.stringify([currentView, activeProjectId, activeFileId, leftOpen, rightOpen, persistedTabs]);
+  const appStateKey = JSON.stringify([currentView, activeProjectId, activeFileId, leftOpen, rightOpen, persistedTabs, bookmarks]);
   useEffect(() => {
     if (!isLoaded || !authUser) return;
     const state: PersistedAppState = {
@@ -347,6 +365,7 @@ const App: React.FC = () => {
       rightPanelOpen: rightOpen,
       tabs: persistedTabs.tabs,
       activeTabIndex: persistedTabs.activeIndex,
+      bookmarks,
     };
     const handle = window.setTimeout(() => {
       api.saveAppState(state).catch(err => console.error('Failed to save app state:', err));
@@ -369,7 +388,7 @@ const App: React.FC = () => {
   useEffect(() => {
     if (!activeFiles) return;
     const ids = new Set(activeFiles.map(f => f.id));
-    tabs.pruneMissing(id => ids.has(id));
+    tabs.pruneMissing(id => id === GRAPH_VIEW_ID || ids.has(id));
     setRecentFileIds(prev => (prev.every(id => ids.has(id)) ? prev : prev.filter(id => ids.has(id))));
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [activeFiles]);
@@ -484,6 +503,12 @@ const App: React.FC = () => {
     }
     setProjects(prev => prev.filter(p => p.id !== id));
     persistedProjectsRef.current = persistedProjectsRef.current.filter(p => p.id !== id);
+    setBookmarks(prev => {
+      if (!(id in prev)) return prev;
+      const next = { ...prev };
+      delete next[id];
+      return next;
+    });
     if (activeProjectId === id) goToDashboard();
     toast.success(`Deleted "${project.name}".`);
   };
@@ -525,7 +550,7 @@ const App: React.FC = () => {
 
   // --- Files & folders -------------------------------------------------------
 
-  const isProtectedFile = (file: ProjectFile) => SINGLE_INSTANCE_FILE_TYPES.has(file.type);
+  const isProtectedFile = (file: ProjectFile) => SINGLE_INSTANCE_FILE_TYPES.has(file.type) || file.id === GRAPH_VIEW_ID;
 
   const expandChain = (folderId: string | null | undefined) => {
     const project = getActiveProject();
@@ -566,7 +591,7 @@ const App: React.FC = () => {
     setTaskNavigationTarget({ fileId, taskId, requestKey: taskNavigationRequestRef.current });
   };
 
-  const createFile = (type: FileType, folderId: string | null = null, name?: string) => {
+  const createFile = (type: FileType, folderId: string | null = null, name?: string, content?: string) => {
     const project = getActiveProject();
     if (!project) return;
     if (SINGLE_INSTANCE_FILE_TYPES.has(type)) {
@@ -577,12 +602,102 @@ const App: React.FC = () => {
     const meta = getFileTypeMeta(type);
     const siblings = project.files.filter(f => (f.folderId || null) === folderId).map(f => f.name);
     const finalName = name?.trim() || uniqueName(type === 'doc' ? 'Untitled' : `Untitled ${meta.label.toLowerCase()}`, siblings);
-    const file = createProjectFile(type, finalName, folderId);
+    const file = createProjectFile(type, finalName, folderId, content);
     updateProjectState({ ...project, lastModified: Date.now(), files: [...project.files, file] });
     expandChain(folderId);
     openFile(file.id);
     // Obsidian-style: a fresh untitled file starts with its title in edit mode.
     if (!name) setPendingTitleRename(file.id);
+  };
+
+  /** Search panel with a query (tags open here). */
+  const searchFor = (query: string) => {
+    setLeftOpen(true);
+    setLeftTab('search');
+    setSearchRequest(prev => ({ query, nonce: (prev?.nonce ?? 0) + 1 }));
+  };
+
+  /** Every link in the app funnels through here (editors, reading view, canvas, graph). */
+  const openHref = (href: string, newTab = false) => {
+    const mode = newTab ? 'new-tab' : 'current';
+    const decode = (value: string) => {
+      try { return decodeURIComponent(value); } catch { return value; }
+    };
+    if (href.startsWith('file://')) {
+      const id = href.slice('file://'.length);
+      if (getActiveProject()?.files.some(f => f.id === id)) openFile(id, mode);
+      else toast.error('Linked file was not found in this project.');
+    } else if (href.startsWith('task://')) {
+      const [fileId, taskId] = href.slice('task://'.length).split('/');
+      if (fileId && taskId) handleOpenTaskFromLink(fileId, taskId);
+    } else if (href.startsWith('wikilink:')) {
+      const target = decode(href.slice('wikilink:'.length).split('#')[0]).trim();
+      const project = getActiveProject();
+      if (!project || !target) return;
+      const file = resolveWikilink(target, project.files);
+      if (file) openFile(file.id, mode);
+      else {
+        // Following a link to a note that doesn't exist yet creates it.
+        const name = target.split('/').pop()!.trim();
+        createFile('doc', null, name, `# ${name}\n\n`);
+        toast.success(`Created "${name}".`);
+      }
+    } else if (href.startsWith('tag:')) {
+      const tag = decode(href.slice('tag:'.length)).replace(/^#/, '');
+      searchFor(`#${tag}`);
+    } else if (/^(https?:|mailto:)/i.test(href)) {
+      window.open(href, '_blank', 'noopener,noreferrer');
+    }
+  };
+
+  const ensureRootFolder = (project: Project, name: string): { project: Project; folderId: string } => {
+    const existing = project.folders.find(f => f.parentId === null && f.name.toLowerCase() === name.toLowerCase());
+    if (existing) return { project, folderId: existing.id };
+    const folder: ProjectFolder = { id: uid(), name, parentId: null };
+    return { project: { ...project, folders: [...project.folders, folder] }, folderId: folder.id };
+  };
+
+  const templateDocs = (project: Project | undefined) => {
+    if (!project) return [];
+    const folder = project.folders.find(f => f.name.toLowerCase() === prefs.templatesFolder.toLowerCase());
+    return folder ? project.files.filter(f => f.type === 'doc' && f.folderId === folder.id && typeof f.content === 'string') : [];
+  };
+
+  /** Obsidian's core Daily notes: one document per day in a dedicated folder. */
+  const openDailyNote = () => {
+    const project = getActiveProject();
+    if (!project) return;
+    const today = formatDate(new Date());
+    const { project: withFolder, folderId } = ensureRootFolder(project, prefs.dailyNotesFolder);
+    const existing = withFolder.files.find(f => f.type === 'doc' && f.folderId === folderId && f.name === today);
+    if (existing) {
+      openFile(existing.id);
+      return;
+    }
+    const template = templateDocs(withFolder).find(f => /daily/i.test(f.name));
+    const content = template ? applyTemplateVariables(template.content as string, today) : `# ${today}\n\n`;
+    const file = createProjectFile('doc', today, folderId, content);
+    updateProjectState({ ...withFolder, lastModified: Date.now(), files: [...withFolder.files, file] });
+    expandChain(folderId);
+    openFile(file.id);
+  };
+
+  const insertTemplate = (templateId: string) => {
+    const project = getActiveProject();
+    const template = project?.files.find(f => f.id === templateId);
+    if (!template || typeof template.content !== 'string' || !activeFile || activeFile.type !== 'doc') return;
+    const detail: InsertTextDetail = { fileId: activeFile.id, text: applyTemplateVariables(template.content, activeFile.name) };
+    window.dispatchEvent(new CustomEvent(INSERT_TEXT_EVENT, { detail }));
+  };
+
+  const projectBookmarks = activeProjectId ? bookmarks[activeProjectId] || [] : [];
+  const toggleBookmark = (fileId: string) => {
+    if (!activeProjectId) return;
+    setBookmarks(prev => {
+      const list = prev[activeProjectId] || [];
+      const next = list.includes(fileId) ? list.filter(id => id !== fileId) : [...list, fileId];
+      return { ...prev, [activeProjectId]: next };
+    });
   };
 
   const createFolder = (parentId: string | null) => {
@@ -606,7 +721,33 @@ const App: React.FC = () => {
       toast.info(`${file.name} is a project system and can't be renamed.`);
       return;
     }
-    updateProjectState({ ...project, lastModified: Date.now(), files: project.files.map(f => (f.id === fileId ? { ...f, name: trimmed } : f)) });
+    // Obsidian-style: [[Old name]] links everywhere follow the rename.
+    let updatedLinks = 0;
+    const rewrite = (text: string) => {
+      const next = renameWikilinks(text, file.name, trimmed);
+      if (next !== text) updatedLinks += 1;
+      return next;
+    };
+    const files = project.files.map(f => {
+      if (f.id === fileId) return { ...f, name: trimmed };
+      if (f.type === 'doc' && typeof f.content === 'string' && f.content.includes('[[')) {
+        const content = rewrite(f.content);
+        return content === f.content ? f : { ...f, content };
+      }
+      if (f.type === 'canvas' && Array.isArray(f.content?.nodes)) {
+        const before = updatedLinks;
+        const nodes = f.content.nodes.map((n: { text?: string }) => (typeof n.text === 'string' ? { ...n, text: rewrite(n.text) } : n));
+        return updatedLinks === before ? f : { ...f, content: { ...f.content, nodes } };
+      }
+      if (f.type === 'base' && Array.isArray(f.content?.rows)) {
+        const before = updatedLinks;
+        const rows = f.content.rows.map((r: { notes?: string }) => (typeof r.notes === 'string' ? { ...r, notes: rewrite(r.notes) } : r));
+        return updatedLinks === before ? f : { ...f, content: { ...f.content, rows } };
+      }
+      return f;
+    });
+    updateProjectState({ ...project, lastModified: Date.now(), files });
+    if (updatedLinks > 0) toast.info(`Updated links in ${updatedLinks} ${updatedLinks === 1 ? 'place' : 'places'}.`);
   };
 
   const renameFolder = (folderId: string, name: string) => {
@@ -779,7 +920,8 @@ const App: React.FC = () => {
 
   const tabItems: TabItem[] = tabs.leaves.map(leaf => {
     const fileId = leaf.index >= 0 ? leaf.history[leaf.index] : null;
-    return { id: leaf.id, file: activeProject?.files.find(f => f.id === fileId) ?? null, pinned: leaf.pinned };
+    const file = fileId === GRAPH_VIEW_ID ? GRAPH_FILE : activeProject?.files.find(f => f.id === fileId) ?? null;
+    return { id: leaf.id, file, pinned: leaf.pinned };
   });
 
   const recentFiles = recentFileIds
@@ -818,6 +960,16 @@ const App: React.FC = () => {
         id: `open-${file.type}`, group: 'Open', label: file.name, icon: getFileTypeMeta(file.type).icon, run: () => openFile(file.id),
       })),
       { id: 'search', group: 'Search', label: 'Search in all files', hotkey: 'Ctrl Shift F', icon: Search, run: openSearch },
+      { id: 'graph', group: 'Graph view', label: 'Open graph view', hotkey: 'Ctrl G', icon: Waypoints, run: () => openFile(GRAPH_VIEW_ID) },
+      { id: 'local-graph', group: 'Graph view', label: 'Open local graph', icon: Waypoints, run: () => { setRightOpen(true); setRightTab('graph'); } },
+      { id: 'daily', group: 'Daily notes', label: "Open today's daily note", hotkey: 'Alt D', icon: CalendarDays, run: openDailyNote },
+      ...(activeFile?.type === 'doc' ? [{ id: 'template', group: 'Templates', label: 'Insert template', icon: FileInput, run: () => setPaletteMode('templates') }] : []),
+      ...(activeFile && activeFile.id !== GRAPH_VIEW_ID ? [{
+        id: 'bookmark', group: 'Bookmarks', label: projectBookmarks.includes(activeFile.id) ? 'Remove bookmark' : 'Bookmark current file', icon: Bookmark,
+        run: () => toggleBookmark(activeFile.id),
+      }] : []),
+      { id: 'tags', group: 'Tags', label: 'Show tags', icon: Hash, run: () => { setLeftOpen(true); setLeftTab('tags'); } },
+      { id: 'bookmarks', group: 'Bookmarks', label: 'Show bookmarks', icon: Bookmark, run: () => { setLeftOpen(true); setLeftTab('bookmarks'); } },
       { id: 'toggle-left', group: 'Workspace', label: 'Toggle left sidebar', hotkey: 'Ctrl \\', icon: PanelLeft, run: toggleLeft },
       { id: 'toggle-right', group: 'Workspace', label: 'Toggle right sidebar', hotkey: 'Ctrl Shift \\', icon: PanelRight, run: toggleRight },
       { id: 'outline', group: 'Workspace', label: 'Show outline', icon: ListTree, run: () => { setRightOpen(true); setRightTab('outline'); } },
@@ -853,6 +1005,8 @@ const App: React.FC = () => {
     toggleLeft: () => {},
     toggleRight: () => {},
     openSearch: () => {},
+    openGraph: () => {},
+    openDaily: () => {},
     openSettings: () => {},
     back: () => {},
     forward: () => {},
@@ -868,6 +1022,8 @@ const App: React.FC = () => {
     toggleRight,
     openSearch,
     openSettings,
+    openGraph: () => openFile(GRAPH_VIEW_ID),
+    openDaily: openDailyNote,
     back: tabs.goBack,
     forward: tabs.goForward,
     closeOverlays: () => {
@@ -909,6 +1065,12 @@ const App: React.FC = () => {
         // Ctrl+N is reserved by most browsers; Alt+N always works.
         e.preventDefault();
         h.newDocument();
+      } else if (mod && !e.shiftKey && !e.altKey && e.code === 'KeyG' && h.inProject) {
+        e.preventDefault();
+        h.openGraph();
+      } else if (e.altKey && !mod && !e.shiftKey && e.code === 'KeyD' && !typing && h.inProject) {
+        e.preventDefault();
+        h.openDaily();
       } else if (e.key === 'F2' && !typing && h.inProject) {
         e.preventDefault();
         h.renameActive();
@@ -969,6 +1131,8 @@ const App: React.FC = () => {
         {([
           { id: 'files', label: 'Files', icon: Files },
           { id: 'search', label: 'Search (Ctrl+Shift+F)', icon: Search },
+          { id: 'bookmarks', label: 'Bookmarks', icon: Bookmark },
+          { id: 'tags', label: 'Tags', icon: Hash },
         ] as const).map(({ id, label, icon: Icon }) => (
           <button
             key={id}
@@ -1001,7 +1165,9 @@ const App: React.FC = () => {
             onStartRename={setRenaming}
             onCommitRename={commitRename}
             onCancelRename={() => setRenaming(null)}
-            onOpenFile={id => openFile(id)}
+            onOpenFile={(id, newTab) => openFile(id, newTab ? 'new-tab' : 'current')}
+            bookmarkIds={projectBookmarks}
+            onToggleBookmark={toggleBookmark}
             onCreateFile={(type, folderId) => createFile(type, folderId)}
             onCreateFolder={createFolder}
             onDeleteFile={id => void deleteFile(id)}
@@ -1013,8 +1179,18 @@ const App: React.FC = () => {
             revealRequest={revealRequest}
             onRevealHandled={() => setRevealRequest(null)}
           />
+        ) : leftTab === 'search' ? (
+          <SearchPanel files={activeProject.files} onOpenFile={id => openFile(id)} focusSignal={searchFocusSignal} queryRequest={searchRequest} />
+        ) : leftTab === 'bookmarks' ? (
+          <BookmarksPanel
+            files={activeProject.files}
+            bookmarkIds={projectBookmarks}
+            activeFileId={activeFileId}
+            onOpen={(id, newTab) => openFile(id, newTab ? 'new-tab' : 'current')}
+            onRemove={toggleBookmark}
+          />
         ) : (
-          <SearchPanel files={activeProject.files} onOpenFile={id => openFile(id)} focusSignal={searchFocusSignal} />
+          <TagsPanel files={activeProject.files} onSelect={tag => searchFor(`#${tag}`)} />
         )}
       </div>
       {/* Project switcher — Obsidian's vault profile */}
@@ -1050,6 +1226,7 @@ const App: React.FC = () => {
         tab={rightTab}
         onTabChange={setRightTab}
         onOpenFile={id => openFile(id)}
+        onOpenTag={tag => searchFor(`#${tag}`)}
         onCopyId={copyFileId}
         folderPath={activeFile ? folderPathOf(activeFile) : []}
       />
@@ -1073,10 +1250,12 @@ const App: React.FC = () => {
           onNewTab={tabs.newTab}
           onReveal={revealFile}
           onCopyLink={copyFileLink}
+          bookmarkIds={projectBookmarks}
+          onToggleBookmark={toggleBookmark}
           rightOpen={rightOpen}
           onToggleRight={toggleRight}
         />
-        {activeFile && editorComponent && activeLeaf ? (
+        {activeFile && (editorComponent || activeFile.id === GRAPH_VIEW_ID) && activeLeaf ? (
           <>
             <ViewHeader
               file={activeFile}
@@ -1093,6 +1272,8 @@ const App: React.FC = () => {
               onCopyId={() => copyFileId(activeFile.id)}
               onReveal={() => revealFile(activeFile.id)}
               onTogglePin={() => tabs.togglePin(activeLeaf.id)}
+              bookmarked={projectBookmarks.includes(activeFile.id)}
+              onToggleBookmark={activeFile.id === GRAPH_VIEW_ID ? undefined : () => toggleBookmark(activeFile.id)}
               onClose={() => tabs.closeTab(activeLeaf.id)}
               startRename={pendingTitleRename === activeFile.id}
               onRenameStarted={() => setPendingTitleRename(null)}
@@ -1100,7 +1281,9 @@ const App: React.FC = () => {
             <div className="relative min-h-0 flex-1 overflow-hidden">
               <EditorErrorBoundary key={activeFile.id} fileName={activeFile.name}>
                 <React.Suspense fallback={<EditorLoadingFallback />}>
-                  {React.createElement(editorComponent, {
+                  {activeFile.id === GRAPH_VIEW_ID ? (
+                    <GraphView files={activeProject.files} activeFileId={recentFileIds.find(id => id !== GRAPH_VIEW_ID) ?? null} onOpenFile={id => openFile(id)} onOpenTag={tag => searchFor(`#${tag}`)} />
+                  ) : editorComponent && React.createElement(editorComponent, {
                     fileName: activeFile.name,
                     initialContent: activeFile.content,
                     onSave: (content: any) => updateFileContent(activeFile.id, content),
@@ -1111,6 +1294,8 @@ const App: React.FC = () => {
                     activeFileId,
                     onOpenFile: handleOpenFileFromLink,
                     onOpenTask: handleOpenTaskFromLink,
+                    onOpenHref: openHref,
+                    projectFolders: activeProject.folders,
                     taskNavigationTarget: taskNavigationTarget?.fileId === activeFile.id ? taskNavigationTarget : null,
                     onTaskNavigationHandled: () => setTaskNavigationTarget(null),
                   })}
@@ -1153,6 +1338,9 @@ const App: React.FC = () => {
           onQuickSwitch={() => setPaletteMode('files')}
           onCommandPalette={() => setPaletteMode('commands')}
           onNewDocument={() => createFile('doc')}
+          onOpenGraph={() => openFile(GRAPH_VIEW_ID)}
+          onOpenDailyNote={openDailyNote}
+          graphActive={activeFileId === GRAPH_VIEW_ID}
           systemFiles={inProject ? systemFiles : []}
           activeFileId={activeFileId}
           onOpenFile={id => openFile(id)}
@@ -1220,6 +1408,8 @@ const App: React.FC = () => {
         onOpenFile={id => openFile(id)}
         onSelectProject={handleSelectProject}
         onCreateDocument={name => createFile('doc', null, name)}
+        templates={templateDocs(activeProject).map(f => ({ id: f.id, name: f.name }))}
+        onPickTemplate={insertTemplate}
       />
       <HelpModal isOpen={isHelpOpen} onClose={() => setIsHelpOpen(false)} />
       <SettingsModal />

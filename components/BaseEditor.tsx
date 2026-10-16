@@ -17,7 +17,8 @@ import { getFileTypeMeta } from './fileTypes';
 import MarkdownView from './markdown/MarkdownView';
 import SearchPicker, { PickerItem } from './ui/SearchPicker';
 import Popover from './ui/Popover';
-import { Modal, Button, cn } from './ui';
+import { Modal, Button, cn, SaveIndicator } from './ui';
+import type { SaveStatus } from './ui';
 
 const VIEW_ICONS: Record<BaseViewType, React.ComponentType<{ className?: string }>> = {
   table: Table2, board: Kanban, gallery: LayoutGrid, calendar: CalendarDays,
@@ -193,6 +194,7 @@ const BaseEditor: React.FC<EditorProps> = ({ initialContent, onSave, projectFile
   const [month, setMonth] = useState(() => { const d = new Date(); return { y: d.getFullYear(), m: d.getMonth() }; });
   const [dragRow, setDragRow] = useState<string | null>(null);
   const [dropKey, setDropKey] = useState<string | null>(null);
+  const [saveStatus, setSaveStatus] = useState<SaveStatus>('saved');
 
   // --- State plumbing --------------------------------------------------------
 
@@ -202,6 +204,7 @@ const BaseEditor: React.FC<EditorProps> = ({ initialContent, onSave, projectFile
     if (saveTimer.current) window.clearTimeout(saveTimer.current);
     saveTimer.current = null;
     onSave(dataRef.current);
+    setSaveStatus('saved');
   }, [onSave]);
 
   const commit = useCallback((next: BaseData, { batch = false } = {}) => {
@@ -212,6 +215,7 @@ const BaseEditor: React.FC<EditorProps> = ({ initialContent, onSave, projectFile
     historyTimer.current = window.setTimeout(() => history.pushState(dataRef.current), batch ? 500 : 0);
     if (saveTimer.current) window.clearTimeout(saveTimer.current);
     saveTimer.current = window.setTimeout(flushSave, SAVE_DEBOUNCE_MS);
+    setSaveStatus('unsaved');
   }, [history, flushSave]);
 
   const update = useCallback((fn: (d: BaseData) => BaseData, opts?: { batch?: boolean }) => commit(fn(dataRef.current), opts), [commit]);
@@ -228,10 +232,12 @@ const BaseEditor: React.FC<EditorProps> = ({ initialContent, onSave, projectFile
     setData(next);
     if (saveTimer.current) window.clearTimeout(saveTimer.current);
     saveTimer.current = window.setTimeout(flushSave, SAVE_DEBOUNCE_MS);
+    setSaveStatus('unsaved');
   };
 
   useEffect(() => {
     const onKey = (e: KeyboardEvent) => {
+      if ((e.ctrlKey || e.metaKey) && e.key.toLowerCase() === 's') { e.preventDefault(); flushSave(); return; }
       const target = e.target as HTMLElement;
       if (['INPUT', 'TEXTAREA', 'SELECT'].includes(target.tagName) || target.isContentEditable) return;
       if ((e.ctrlKey || e.metaKey) && e.key.toLowerCase() === 'z' && !e.shiftKey) { e.preventDefault(); restore(history.undo()); }
@@ -458,6 +464,35 @@ const BaseEditor: React.FC<EditorProps> = ({ initialContent, onSave, projectFile
     </div>
   );
 
+  const filtersActive = Boolean(search.trim() || (view.filters || []).length);
+  const clearFilters = () => { setSearch(''); if ((view.filters || []).length) updateView({ filters: [] }); };
+
+  const renderEmpty = () => (
+    <div className="flex justify-center px-4 py-10">
+      <div className="max-w-sm rounded-lg border border-border bg-surface px-4 py-3 text-center text-[12px] leading-relaxed text-muted">
+        {data.rows.length === 0 ? (
+          <>
+            <div className="mb-1 text-[13px] font-medium text-content">No rows yet</div>
+            Each row is one record — a character, a level, an asset to make. Click a column header to rename it or change its type, and use the view tabs above to see the rows as a board, gallery, or calendar.
+            <div className="mt-2">
+              <button type="button" onClick={() => addRow({}, true)} className="rounded-md bg-accent px-2.5 py-1 text-[12px] font-medium text-accent-content hover:bg-accent-hover">Add the first row</button>
+            </div>
+          </>
+        ) : (
+          <>
+            <div className="mb-1 text-[13px] font-medium text-content">No rows match</div>
+            {data.rows.length} row{data.rows.length === 1 ? ' is' : 's are'} hidden by the search or filters in this view.
+            {filtersActive && (
+              <div className="mt-2">
+                <button type="button" onClick={clearFilters} className="rounded-md px-2.5 py-1 text-[12px] text-muted ring-1 ring-border hover:bg-surface-hover">Clear search and filters</button>
+              </div>
+            )}
+          </>
+        )}
+      </div>
+    </div>
+  );
+
   const renderTable = () => (
     <div className="min-h-0 flex-1 overflow-auto">
       <table className="min-w-full border-separate border-spacing-0 text-left">
@@ -501,7 +536,7 @@ const BaseEditor: React.FC<EditorProps> = ({ initialContent, onSave, projectFile
             </tr>
           ))}
         </tbody>
-        <tfoot className="sticky bottom-0 bg-bg">
+        <tfoot className={cn('sticky bottom-0 bg-bg', rows.length === 0 && 'hidden')}>
           <tr>
             <td className="border-b border-border p-0" colSpan={shownColumns.length + 2}>
               <button type="button" onClick={() => addRow()} className="flex w-full items-center gap-1.5 px-3 py-1.5 text-[0.8125rem] text-faint hover:bg-surface-hover hover:text-content">
@@ -532,6 +567,7 @@ const BaseEditor: React.FC<EditorProps> = ({ initialContent, onSave, projectFile
           </tr>
         </tfoot>
       </table>
+      {rows.length === 0 && renderEmpty()}
     </div>
   );
 
@@ -731,6 +767,7 @@ const BaseEditor: React.FC<EditorProps> = ({ initialContent, onSave, projectFile
               onClick={() => update(d => ({ ...d, activeViewId: v.id }))}
               onContextMenu={e => viewMenu(e, v)}
               onDoubleClick={e => viewMenu(e, v)}
+              title={active ? `${v.name} view — right-click or double-click to rename, duplicate, or delete` : `Switch to ${v.name}`}
               className={cn('flex shrink-0 items-center gap-1.5 rounded-md px-2 py-1 text-[0.8125rem] transition-colors', active ? 'bg-surface-hover text-content' : 'text-muted hover:bg-surface-hover/60 hover:text-content')}
             >
               <Icon className="h-3.5 w-3.5" />
@@ -753,20 +790,21 @@ const BaseEditor: React.FC<EditorProps> = ({ initialContent, onSave, projectFile
         <div className="ml-auto flex shrink-0 items-center gap-1 pl-3">
           <div className="relative">
             <Search className="pointer-events-none absolute left-2 top-1/2 h-3.5 w-3.5 -translate-y-1/2 text-faint" />
-            <input value={search} onChange={e => setSearch(e.target.value)} placeholder="Search" aria-label="Search rows" className="h-7 w-36 rounded-md border border-border bg-surface-raised pl-7 pr-2 text-[0.8125rem] text-content outline-none placeholder:text-faint focus:w-48 focus:border-accent transition-[width]" />
+            <input value={search} onChange={e => setSearch(e.target.value)} placeholder="Search" aria-label="Search rows" className="h-7 w-28 rounded-md border border-border bg-surface-raised pl-7 pr-2 text-[0.8125rem] text-content outline-none placeholder:text-faint focus:border-accent" />
           </div>
-          <button type="button" className={cn('icon-btn w-auto px-1.5 gap-1 text-[12px]', filterCount > 0 && 'text-accent')} onClick={e => setPanel({ kind: 'filter', anchor: e.currentTarget })} title="Filter">
+          <button type="button" className={cn('icon-btn w-auto px-1.5 gap-1 text-[12px]', filterCount > 0 && 'text-accent')} onClick={e => setPanel({ kind: 'filter', anchor: e.currentTarget })} title="Filter rows in this view" aria-label="Filter">
             <Filter className="h-4 w-4" />{filterCount > 0 && filterCount}
           </button>
-          <button type="button" className={cn('icon-btn w-auto px-1.5 gap-1 text-[12px]', sortCount > 0 && 'text-accent')} onClick={e => setPanel({ kind: 'sort', anchor: e.currentTarget })} title="Sort">
+          <button type="button" className={cn('icon-btn w-auto px-1.5 gap-1 text-[12px]', sortCount > 0 && 'text-accent')} onClick={e => setPanel({ kind: 'sort', anchor: e.currentTarget })} title="Sort rows in this view" aria-label="Sort">
             <ArrowUpDown className="h-4 w-4" />{sortCount > 0 && sortCount}
           </button>
-          <button type="button" className="icon-btn" onClick={e => setPanel({ kind: 'options', anchor: e.currentTarget })} title="View options" aria-label="View options">
+          <button type="button" className="icon-btn" onClick={e => setPanel({ kind: 'options', anchor: e.currentTarget })} title="View options — grouping, hidden properties" aria-label="View options">
             <SlidersHorizontal className="h-4 w-4" />
           </button>
           <button type="button" className="icon-btn" onClick={() => restore(history.undo())} disabled={!history.canUndo} title="Undo (Ctrl+Z)" aria-label="Undo"><Undo2 className="h-4 w-4" /></button>
           <button type="button" className="icon-btn" onClick={() => restore(history.redo())} disabled={!history.canRedo} title="Redo (Ctrl+Y)" aria-label="Redo"><Redo2 className="h-4 w-4" /></button>
-          <Button size="sm" icon={Plus} onClick={() => addRow({}, view.type !== 'table')}>New</Button>
+          <SaveIndicator status={saveStatus} onSaveNow={flushSave} />
+          <Button size="sm" icon={Plus} onClick={() => addRow({}, view.type !== 'table')} title="Add a row to this base">New</Button>
         </div>
       </div>
 

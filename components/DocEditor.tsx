@@ -14,7 +14,7 @@ import { getFileTypeMeta } from './fileTypes';
 import MarkdownEditor, { MarkdownEditorHandle, MarkdownEditorContext } from './markdown/MarkdownEditor';
 import MarkdownView from './markdown/MarkdownView';
 import SearchPicker, { PickerItem } from './ui/SearchPicker';
-import { cn } from './ui';
+import { cn, SaveIndicator } from './ui';
 
 const FILE_LINK_DRAG_MIME = 'application/x-gdpm-file-id';
 const TASK_LINK_DRAG_MIME = 'application/x-gdpm-task-link';
@@ -406,7 +406,7 @@ const DocEditor: React.FC<EditorProps> = ({
       <div className="flex h-10 shrink-0 items-center gap-0.5 overflow-x-auto border-b border-border/70 bg-bg px-2 [scrollbar-width:none] [&::-webkit-scrollbar]:hidden">
         {editing && (
           <>
-            <ToolbarButton icon={Heading} title="Heading" onClick={headingMenu} />
+            <ToolbarButton icon={Heading} title="Heading (or type # at the start of a line)" onClick={headingMenu} />
             <ToolbarButton icon={Bold} title="Bold (Ctrl+B)" onClick={() => wrap('**', '**', 'bold text')} />
             <ToolbarButton icon={Italic} title="Italic (Ctrl+I)" onClick={() => wrap('*', '*', 'italic text')} />
             <ToolbarButton icon={Strikethrough} title="Strikethrough (Ctrl+Shift+X)" onClick={() => wrap('~~', '~~', 'text')} />
@@ -414,13 +414,13 @@ const DocEditor: React.FC<EditorProps> = ({
             <ToolbarButton icon={Code} title="Inline code (Ctrl+E)" onClick={() => wrap('`', '`', 'code')} />
             <ToolbarButton icon={Palette} title="Text color" onClick={colorMenu} />
             <Divider />
-            <ToolbarButton icon={List} title="Bullet list" onClick={() => prefix('- ')} />
-            <ToolbarButton icon={ListOrdered} title="Numbered list" onClick={() => prefix('1. ')} />
+            <ToolbarButton icon={List} title="Bullet list (or type - )" onClick={() => prefix('- ')} />
+            <ToolbarButton icon={ListOrdered} title="Numbered list (or type 1. )" onClick={() => prefix('1. ')} />
             <ToolbarButton icon={ListTodo} title="Task (Ctrl+L)" onClick={() => prefix('- [ ] ')} />
-            <ToolbarButton icon={Quote} title="Quote" onClick={() => prefix('> ')} />
-            <ToolbarButton icon={SquareCode} title="Insert block…" onClick={insertMenu} />
+            <ToolbarButton icon={Quote} title="Quote (or type > )" onClick={() => prefix('> ')} />
+            <ToolbarButton icon={SquareCode} title="Insert block — callout, table, code, math… (or type /)" onClick={insertMenu} />
             <Divider />
-            <ToolbarButton icon={LinkIcon} title="Link to file ([[)" onClick={openPicker('file')} active={picker?.kind === 'file'} disabled={projectFiles.length < 2} />
+            <ToolbarButton icon={LinkIcon} title="Link to file (or type [[)" onClick={openPicker('file')} active={picker?.kind === 'file'} disabled={projectFiles.length < 2} />
             <ToolbarButton icon={CheckSquare} title="Link to task" onClick={openPicker('task')} active={picker?.kind === 'task'} disabled={taskRecords.length === 0} />
             <ToolbarButton icon={FolderOpen} title="Insert from asset library" onClick={openPicker('asset')} active={picker?.kind === 'asset'} disabled={assetRecords.length === 0} />
             <ToolbarButton icon={ImagePlus} title="Upload image, video, or audio (or paste/drop it)" onClick={() => fileInputRef.current?.click()} disabled={!onAddAsset} />
@@ -439,15 +439,12 @@ const DocEditor: React.FC<EditorProps> = ({
             />
             <Divider />
             <ToolbarButton icon={Undo2} title="Undo (Ctrl+Z)" onClick={() => editorRef.current?.undo()} />
-            <ToolbarButton icon={Redo2} title="Redo (Ctrl+Shift+Z)" onClick={() => editorRef.current?.redo()} />
+            <ToolbarButton icon={Redo2} title="Redo (Ctrl+Y)" onClick={() => editorRef.current?.redo()} />
           </>
         )}
 
         <div className="ml-auto flex shrink-0 items-center gap-1 pl-2">
-          <span
-            className={cn('mr-1 h-1.5 w-1.5 rounded-full', saveStatus === 'saved' ? 'bg-success/70' : 'bg-warning')}
-            title={saveStatus === 'saved' ? 'Saved' : 'Unsaved changes (saving shortly — Ctrl+S to save now)'}
-          />
+          <SaveIndicator status={saveStatus} onSaveNow={saveNow} />
           <div className="flex rounded-md border border-border bg-surface-raised p-0.5" role="radiogroup" aria-label="Document view">
             {([
               { id: 'edit', icon: PenLine, label: prefs.livePreview ? 'Editing (live preview)' : 'Editing (source mode)' },
@@ -503,7 +500,15 @@ const DocEditor: React.FC<EditorProps> = ({
                   onToggleTask={toggleTaskAt}
                 />
               ) : (
-                <p className="text-faint">This document is empty. Switch to editing to start writing.</p>
+                <div className="mx-auto mt-10 max-w-sm rounded-lg border border-border bg-surface px-4 py-3 text-center text-[12px] leading-relaxed text-muted">
+                  <div className="mb-1 text-[13px] font-medium text-content">Nothing to read yet</div>
+                  This document is empty. Start writing — type <kbd className="rounded bg-surface-hover px-1">/</kbd> for blocks or <kbd className="rounded bg-surface-hover px-1">[[</kbd> to link another file.
+                  {viewMode === 'preview' && (
+                    <div className="mt-2">
+                      <button type="button" onClick={() => setViewMode('edit')} className="rounded-md bg-accent px-2.5 py-1 text-[12px] font-medium text-accent-content hover:bg-accent-hover">Start writing</button>
+                    </div>
+                  )}
+                </div>
               )}
             </div>
           </div>

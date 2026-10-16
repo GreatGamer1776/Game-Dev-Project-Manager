@@ -1,9 +1,10 @@
 import React, { useState, useEffect, useRef } from 'react';
-import { Save, Plus, Trash2, CheckSquare, Square, Calendar, ChevronDown, ChevronUp, ListChecks, Loader2, Check, AlertCircle, MoreHorizontal, Link as LinkIcon, Tags, X, Search, Filter, ArrowUpDown, Undo2, Redo2 } from 'lucide-react';
+import { Save, Plus, Trash2, CheckSquare, Square, Calendar, ChevronDown, ChevronUp, ListChecks, Check, MoreHorizontal, Link as LinkIcon, Tags, X, Search, Filter, ArrowUpDown, Undo2, Redo2 } from 'lucide-react';
 import { TodoItem, Priority, SubTask, EditorProps, TodoStatus } from '../types';
 import { SaveIndicator } from './ui/SaveIndicator';
 import { useUndoRedo } from '../hooks/useUndoRedo';
 import { confirmDialog } from '../stores/useUiStore';
+import { showMenu } from '../stores/useMenuStore';
 import { uid } from '../utils/id';
 
 const FILE_LINK_DRAG_MIME = 'application/x-gdpm-file-id';
@@ -365,6 +366,17 @@ const TodoEditor: React.FC<EditorProps> = ({ initialContent, onSave, fileName, p
         e.preventDefault();
         handleManualSave();
       }
+      if (isCreateModalOpen) {
+        if (e.key === 'Escape') handleCloseCreateModal();
+        return;
+      }
+      const target = e.target as HTMLElement | null;
+      if (target && (['INPUT', 'TEXTAREA', 'SELECT'].includes(target.tagName) || target.isContentEditable || target.closest('[role="dialog"]'))) return;
+      if (!e.ctrlKey && !e.metaKey && !e.altKey) {
+        if (e.key.toLowerCase() === 'n') { e.preventDefault(); openCreateModal(); return; }
+        if (selectedItemIds.length > 0 && (e.key === 'Delete' || e.key === 'Backspace')) { e.preventDefault(); void deleteSelectedItems(); return; }
+        if (selectedItemIds.length > 0 && e.key === 'Escape') { clearItemSelection(); return; }
+      }
       if ((e.ctrlKey || e.metaKey) && e.key === 'z' && !e.shiftKey) {
         e.preventDefault();
         const prev = undoRedo.undo();
@@ -378,7 +390,7 @@ const TodoEditor: React.FC<EditorProps> = ({ initialContent, onSave, fileName, p
     };
     window.addEventListener('keydown', handleKeyDown);
     return () => window.removeEventListener('keydown', handleKeyDown);
-  }, [undoRedo.redo, undoRedo.undo]);
+  }, [undoRedo.redo, undoRedo.undo, isCreateModalOpen, selectedItemIds]);
 
   // Push to undo stack when items change
   const lastUndoPushRef = useRef(JSON.stringify(items));
@@ -435,7 +447,8 @@ const TodoEditor: React.FC<EditorProps> = ({ initialContent, onSave, fileName, p
     setIsCreateModalOpen(false);
   };
 
-  const handleTopAddTaskClick = () => {
+  const openCreateModal = (status: TodoStatus = 'Backlog') => {
+    setNewItemStatus(status);
     setIsCreateModalOpen(true);
   };
 
@@ -823,148 +836,130 @@ const TodoEditor: React.FC<EditorProps> = ({ initialContent, onSave, fileName, p
 
   const selectedItemSet = new Set(selectedItemIds);
   const visibleColumns: TodoStatus[] = filterStatus === 'All' ? TODO_COLUMNS : [filterStatus];
-  const boardMinWidth = visibleColumns.length === 1 ? 320 : visibleColumns.length * 300 + (visibleColumns.length - 1) * 24;
+  const boardMinWidth = visibleColumns.length === 1 ? 320 : visibleColumns.length * 260 + (visibleColumns.length - 1) * 16;
+  const filtersActive = Boolean(searchQuery) || filterPriority !== 'All' || filterStatus !== 'All' || filterTags.length > 0 || sortBy !== 'Newest';
 
   return (
-    <div className="h-full flex flex-col bg-bg">
-      {/* Header */}
-      <div className="h-11 border-b border-border flex items-center justify-between px-6 bg-bg sticky top-0 z-10 shrink-0">
-        <div className="flex items-center gap-3">
-            <div className="flex items-center gap-0.5 mr-1">
-              <button onClick={() => { const prev = undoRedo.undo(); if (prev !== undefined) setItems(prev); }} disabled={!undoRedo.canUndo} className="p-1.5 rounded text-faint hover:text-content hover:bg-surface-hover disabled:opacity-30 disabled:pointer-events-none transition-colors" title="Undo (Ctrl+Z)"><Undo2 className="w-4 h-4" /></button>
-              <button onClick={() => { const next = undoRedo.redo(); if (next !== undefined) setItems(next); }} disabled={!undoRedo.canRedo} className="p-1.5 rounded text-faint hover:text-content hover:bg-surface-hover disabled:opacity-30 disabled:pointer-events-none transition-colors" title="Redo (Ctrl+Y)"><Redo2 className="w-4 h-4" /></button>
-            </div>
-            <SaveIndicator status={saveStatus} onSaveNow={handleManualSave} />
-            <button
-              onClick={handleTopAddTaskClick}
-              className="flex items-center gap-2 px-4 py-2 rounded-md text-sm font-medium transition-colors border border-border-strong bg-surface-raised hover:bg-surface-hover text-content"
-            >
-              <Plus className="w-4 h-4" /> Add Task
-            </button>
+    <div className="relative h-full flex flex-col bg-bg">
+      {/* Toolbar */}
+      <div className="flex h-10 shrink-0 items-center gap-1 overflow-x-auto border-b border-border bg-bg px-3 [scrollbar-width:thin]">
+        <button onClick={() => { const prev = undoRedo.undo(); if (prev !== undefined) setItems(prev); }} disabled={!undoRedo.canUndo} className="icon-btn" title="Undo (Ctrl+Z)" aria-label="Undo"><Undo2 className="w-4 h-4" /></button>
+        <button onClick={() => { const next = undoRedo.redo(); if (next !== undefined) setItems(next); }} disabled={!undoRedo.canRedo} className="icon-btn" title="Redo (Ctrl+Y)" aria-label="Redo"><Redo2 className="w-4 h-4" /></button>
+        <span className="mx-1 h-4 w-px shrink-0 bg-border" />
+        <button
+          onClick={() => openCreateModal()}
+          className="flex h-7 shrink-0 items-center gap-1.5 rounded-md bg-accent px-2.5 text-[12px] font-medium text-accent-content hover:bg-accent-hover"
+          title="New task (N)"
+        >
+          <Plus className="w-3.5 h-3.5" /> Task
+        </button>
+        <div className="relative ml-2 w-44 shrink-0">
+          <Search className="pointer-events-none absolute left-2 top-1/2 h-3.5 w-3.5 -translate-y-1/2 text-faint" />
+          <input
+            type="text"
+            value={searchQuery}
+            onChange={(e) => setSearchQuery(e.target.value)}
+            placeholder="Filter tasks…"
+            aria-label="Filter tasks by name, notes, or tags"
+            className="h-7 w-full rounded-md border border-border bg-surface-raised pl-7 pr-2 text-[12px] text-content outline-none placeholder:text-faint focus:border-accent"
+          />
         </div>
-      </div>
-
-      <div className="border-b border-border bg-surface px-6 py-4">
-        <div className="flex flex-wrap items-center gap-3">
-          <div className="relative w-full max-w-xs">
-            <Search className="pointer-events-none absolute left-3 top-1/2 h-4 w-4 -translate-y-1/2 text-faint" />
-            <input
-              type="text"
-              value={searchQuery}
-              onChange={(e) => setSearchQuery(e.target.value)}
-              placeholder="Search name, notes, or tags..."
-              className="w-full rounded-md border border-border bg-bg py-1.5 pl-9 pr-3 text-sm text-content focus:border-border-strong focus:outline-none"
-            />
-          </div>
-
-          <div className="hidden h-6 w-px bg-surface-raised lg:block"></div>
-
-          <div className="flex items-center gap-2 bg-bg border border-border rounded-md px-2 py-1.5 text-xs text-content">
-            <Filter className="h-3.5 w-3.5 text-faint" />
-            <span>Priority</span>
-            <select
-              value={filterPriority}
-              onChange={(e) => setFilterPriority(e.target.value as 'All' | Priority)}
-              className="bg-transparent text-xs text-content focus:outline-none"
-            >
-              <option value="All">All</option>
-              <option value="High">High</option>
-              <option value="Medium">Medium</option>
-              <option value="Low">Low</option>
-            </select>
-          </div>
-
-          <div className="flex items-center gap-2 bg-bg border border-border rounded-md px-2 py-1.5 text-xs text-content">
-            <span>Bucket</span>
-            <select
-              value={filterStatus}
-              onChange={(e) => setFilterStatus(e.target.value as 'All' | TodoStatus)}
-              className="bg-transparent text-xs text-content focus:outline-none"
-            >
-              <option value="All">All</option>
-              {TODO_COLUMNS.map(status => (
-                <option key={status} value={status}>{status}</option>
-              ))}
-            </select>
-          </div>
-
-          <div className="flex items-center gap-2 bg-bg border border-border rounded-md px-2 py-1.5 text-xs text-content">
-            <ArrowUpDown className="h-3.5 w-3.5 text-faint" />
-            <select
-              value={sortBy}
-              onChange={(e) => setSortBy(e.target.value as 'Newest' | 'Oldest' | 'Priority' | 'Due Date' | 'Alphabetical' | 'Effort')}
-              className="bg-transparent text-xs text-content focus:outline-none"
-            >
-              <option value="Newest">Newest</option>
-              <option value="Oldest">Oldest</option>
-              <option value="Priority">Priority</option>
-              <option value="Due Date">Due Date</option>
-              <option value="Alphabetical">Alphabetical</option>
-              <option value="Effort">Effort</option>
-            </select>
-          </div>
-
-          <button
-            onClick={resetTaskFilters}
-            className="rounded-md border border-border bg-bg px-2.5 py-1.5 text-xs text-content hover:text-content"
+        <select
+          value={filterPriority}
+          onChange={(e) => setFilterPriority(e.target.value as 'All' | Priority)}
+          aria-label="Filter by priority"
+          title="Filter by priority"
+          className={`h-7 shrink-0 rounded-md border bg-surface-raised px-1.5 text-[12px] outline-none focus:border-accent ${filterPriority === 'All' ? 'border-border text-muted' : 'border-accent/60 text-content'}`}
+        >
+          <option value="All">Any priority</option>
+          <option value="High">High</option>
+          <option value="Medium">Medium</option>
+          <option value="Low">Low</option>
+        </select>
+        <select
+          value={filterStatus}
+          onChange={(e) => setFilterStatus(e.target.value as 'All' | TodoStatus)}
+          aria-label="Show one column"
+          title="Show one column"
+          className={`h-7 shrink-0 rounded-md border bg-surface-raised px-1.5 text-[12px] outline-none focus:border-accent ${filterStatus === 'All' ? 'border-border text-muted' : 'border-accent/60 text-content'}`}
+        >
+          <option value="All">All columns</option>
+          {TODO_COLUMNS.map(status => (
+            <option key={status} value={status}>{status}</option>
+          ))}
+        </select>
+        <label className="flex h-7 shrink-0 items-center gap-1 rounded-md border border-border bg-surface-raised pl-1.5 text-[12px] text-muted focus-within:border-accent" title="Sort cards in each column">
+          <ArrowUpDown className="h-3.5 w-3.5 text-faint" />
+          <select
+            value={sortBy}
+            onChange={(e) => setSortBy(e.target.value as 'Newest' | 'Oldest' | 'Priority' | 'Due Date' | 'Alphabetical' | 'Effort')}
+            aria-label="Sort tasks"
+            className="h-full bg-transparent pr-1 text-[12px] text-muted outline-none"
           >
-            Reset Filters
+            <option value="Newest">Newest</option>
+            <option value="Oldest">Oldest</option>
+            <option value="Priority">Priority</option>
+            <option value="Due Date">Due date</option>
+            <option value="Alphabetical">A–Z</option>
+            <option value="Effort">Effort</option>
+          </select>
+        </label>
+        {filtersActive && (
+          <button onClick={resetTaskFilters} className="icon-btn" title="Clear filters" aria-label="Clear filters">
+            <X className="h-3.5 w-3.5" />
           </button>
-
-          <div className="ml-auto text-xs text-faint">
-            Showing {filteredItems.length} of {items.length} tasks
-          </div>
-        </div>
-
-        {selectedItemIds.length > 0 && (
-          <div className="mt-3 flex flex-wrap items-center gap-2 rounded-lg border border-blue-500/30 bg-blue-500/5 p-3">
-            <span className="text-xs font-medium text-blue-200">
-              {selectedItemIds.length} selected
-            </span>
-            <button
-              onClick={clearItemSelection}
-              className="rounded-md border border-border-strong bg-bg px-2.5 py-1 text-[11px] text-content hover:text-content"
-            >
-              Clear Selection
-            </button>
-            <button
-              onClick={deleteSelectedItems}
-              className="ml-auto rounded-md border border-red-500/40 bg-red-500/10 px-2.5 py-1 text-[11px] text-red-300 hover:bg-red-500/20"
-            >
-              Delete Selected
-            </button>
-          </div>
         )}
-
-        {allTags.length > 0 && (
-          <div className="mt-3 flex flex-wrap items-center gap-2">
-            <div className="mr-1 flex items-center gap-1.5 text-xs text-faint">
-              <Tags className="h-3.5 w-3.5" />
-              <span>Tags</span>
-            </div>
-            {allTags.map(tag => {
-              const isSelected = filterTags.includes(tag);
-              return (
-                <button
-                  key={tag}
-                  onClick={() => toggleFilterTag(tag)}
-                  className={`rounded-full border px-2 py-1 text-[11px] transition-colors ${
-                    isSelected
-                      ? 'border-blue-500/50 bg-blue-500/10 text-blue-300'
-                      : 'border-border bg-bg text-muted hover:text-content'
-                  }`}
-                >
-                  #{tag}
-                </button>
-              );
-            })}
-          </div>
-        )}
+        <span className="ml-auto shrink-0 pl-3 text-[11px] tabular-nums text-faint">
+          {filteredItems.length === items.length ? `${items.length} task${items.length === 1 ? '' : 's'}` : `${filteredItems.length} of ${items.length} tasks`}
+        </span>
+        <SaveIndicator status={saveStatus} onSaveNow={handleManualSave} />
       </div>
+
+      {allTags.length > 0 && (
+        <div className="flex shrink-0 items-center gap-1.5 overflow-x-auto border-b border-border bg-bg px-3 py-1.5 [scrollbar-width:thin]">
+          <Tags className="h-3.5 w-3.5 shrink-0 text-faint" aria-label="Filter by tag" />
+          {allTags.map(tag => {
+            const isSelected = filterTags.includes(tag);
+            return (
+              <button
+                key={tag}
+                onClick={() => toggleFilterTag(tag)}
+                aria-pressed={isSelected}
+                className={`shrink-0 rounded-full border px-2 py-0.5 text-[11px] transition-colors ${
+                  isSelected
+                    ? 'border-accent/60 bg-accent/10 text-accent'
+                    : 'border-border bg-bg text-muted hover:text-content'
+                }`}
+              >
+                #{tag}
+              </button>
+            );
+          })}
+        </div>
+      )}
 
       {/* Kanban Board */}
-      <div className="flex-1 overflow-x-auto p-6 bg-surface">
-        <div className="flex h-full gap-6" style={{ minWidth: `${boardMinWidth}px` }}>
+      <div className="relative flex-1 overflow-x-auto p-4 bg-surface">
+        {items.length === 0 && (
+          <div className="pointer-events-none absolute inset-x-0 top-16 z-10 flex justify-center px-4">
+            <div className="pointer-events-auto max-w-md rounded-lg border border-border bg-surface/95 px-4 py-3 text-[12px] leading-relaxed text-muted shadow-raised">
+              <div className="mb-1 text-[13px] font-medium text-content">No tasks yet</div>
+              Add a task, then drag its card from column to column as work moves from Backlog to Done. Click a card's checkbox corner to select several at once.
+              <div className="mt-2">
+                <button type="button" onClick={() => openCreateModal()} className="rounded-md bg-accent px-2 py-1 text-[12px] font-medium text-accent-content hover:bg-accent-hover">Add the first task</button>
+              </div>
+            </div>
+          </div>
+        )}
+        {items.length > 0 && filteredItems.length === 0 && (
+          <div className="pointer-events-none absolute inset-x-0 top-16 z-10 flex justify-center px-4">
+            <div className="pointer-events-auto rounded-lg border border-border bg-surface/95 px-4 py-2.5 text-[12px] text-muted shadow-raised">
+              No tasks match these filters.
+              <button type="button" onClick={resetTaskFilters} className="ml-1 text-accent hover:underline">Clear filters</button>
+            </div>
+          </div>
+        )}
+        <div className="flex h-full gap-4" style={{ minWidth: `${boardMinWidth}px` }}>
           {visibleColumns.map(column => {
              const colItems = filteredItems.filter(i => i.status === column);
              const isDropActive = activeDropZone === column;
@@ -974,12 +969,20 @@ const TodoEditor: React.FC<EditorProps> = ({ initialContent, onSave, fileName, p
                   key={column} 
                   onDragOver={(e) => handleDragOver(e, column)}
                   onDrop={(e) => handleDrop(e, column)}
-                  className={`flex-1 flex flex-col min-w-[280px] bg-bg/60 rounded-xl border transition-colors ${isDropActive ? 'border-blue-500/50 bg-surface' : 'border-border'}`}
+                  className={`flex-1 flex flex-col min-w-[240px] bg-bg/60 rounded-xl border transition-colors ${isDropActive ? 'border-blue-500/50 bg-surface' : 'border-border'}`}
                >
                  {/* Column Header */}
-                 <div className={`p-4 border-b border-border flex justify-between items-center rounded-t-xl border-t-4 ${getStatusColor(column)} bg-surface`}>
+                 <div className={`group/col px-3 py-2.5 border-b border-border flex items-center gap-2 rounded-t-xl border-t-4 ${getStatusColor(column)} bg-surface`}>
                     <h4 className="font-semibold text-content text-sm tracking-wide">{column}</h4>
                     <span className="bg-surface-raised text-faint text-xs px-2 py-0.5 rounded-full font-medium">{colItems.length}</span>
+                    <button
+                      onClick={() => openCreateModal(column)}
+                      className="icon-btn ml-auto opacity-0 group-hover/col:opacity-100 focus:opacity-100"
+                      title={`New task in ${column}`}
+                      aria-label={`New task in ${column}`}
+                    >
+                      <Plus className="h-3.5 w-3.5" />
+                    </button>
                  </div>
 
                  {/* Drop Area */}
@@ -1006,8 +1009,10 @@ const TodoEditor: React.FC<EditorProps> = ({ initialContent, onSave, fileName, p
                             >
                               {/* Card Header */}
                               <div className="flex items-start gap-3 mb-2">
-                                  <button 
+                                  <button
                                     onClick={() => updateItemStatus(item.id, item.status === 'Done' ? 'To Do' : 'Done')}
+                                    title={item.status === 'Done' ? 'Mark as not done' : 'Mark as done'}
+                                    aria-label={item.status === 'Done' ? 'Mark as not done' : 'Mark as done'}
                                     className={`mt-0.5 shrink-0 transition-colors ${item.status === 'Done' ? 'text-emerald-500' : 'text-faint hover:text-emerald-500'}`}
                                   >
                                      {item.status === 'Done' ? <CheckSquare className="w-5 h-5" /> : <Square className="w-5 h-5" />}
@@ -1042,13 +1047,14 @@ const TodoEditor: React.FC<EditorProps> = ({ initialContent, onSave, fileName, p
                                          toggleItemSelection(item.id);
                                        }}
                                        className="rounded-md p-1 text-faint transition-colors hover:bg-surface-hover hover:text-content"
-                                       title={isSelected ? 'Deselect task' : 'Select task'}
+                                       title={isSelected ? 'Deselect task' : 'Select task (to move or delete several)'}
+                                       aria-label={isSelected ? 'Deselect task' : 'Select task'}
                                      >
                                        <span className={`flex h-4 w-4 items-center justify-center rounded border ${isSelected ? 'border-blue-400 bg-blue-500 text-content' : 'border-border-strong bg-bg text-transparent group-hover:text-muted'}`}>
                                          <Check className="h-3 w-3" />
                                        </span>
                                      </button>
-                                     <button onClick={() => setExpandedId(isExpanded ? null : item.id)} className="text-faint hover:text-content transition-colors">
+                                     <button onClick={() => setExpandedId(isExpanded ? null : item.id)} className="text-faint hover:text-content transition-colors" title={isExpanded ? 'Hide details' : 'Show details — status, notes, sub-tasks'} aria-label={isExpanded ? 'Hide details' : 'Show details'}>
                                         {isExpanded ? <ChevronUp className="w-4 h-4" /> : <MoreHorizontal className="w-4 h-4" />}
                                      </button>
                                    </div>
@@ -1125,7 +1131,7 @@ const TodoEditor: React.FC<EditorProps> = ({ initialContent, onSave, fileName, p
                                                 type="date"
                                                 value={item.dueDate || ''}
                                                 onChange={(e) => updateItemField(item.id, { dueDate: e.target.value || undefined })}
-                                                className="mt-1 w-full bg-transparent text-xs text-content focus:outline-none [color-scheme:dark]"
+                                                className="mt-1 w-full bg-transparent text-xs text-content focus:outline-none [color-scheme:light] dark:[color-scheme:dark]"
                                               />
                                           </div>
                                       </div>
@@ -1260,11 +1266,13 @@ const TodoEditor: React.FC<EditorProps> = ({ initialContent, onSave, fileName, p
                            </div>
                         );
                     })}
-                    {colItems.length === 0 && (
-                        <div className="text-center py-10 opacity-30 text-faint select-none">
-                            <p className="text-xs italic">No tasks here</p>
-                            <p className="text-[11px] mt-1">Use Add Task or drag one into this column.</p>
-                        </div>
+                    {colItems.length === 0 && items.length > 0 && (
+                        <button
+                          onClick={() => openCreateModal(column)}
+                          className={`w-full rounded-lg border border-dashed px-3 py-6 text-center text-[12px] transition-colors ${isDropActive ? 'border-accent/60 text-accent' : 'border-border text-faint hover:border-border-strong hover:text-muted'}`}
+                        >
+                          {isDropActive ? `Drop to move to ${column}` : <>Drag a card here, or <span className="text-accent">add a task</span></>}
+                        </button>
                     )}
                  </div>
                </div>
@@ -1273,12 +1281,30 @@ const TodoEditor: React.FC<EditorProps> = ({ initialContent, onSave, fileName, p
         </div>
       </div>
 
+      {selectedItemIds.length > 0 && (
+        <div className="absolute bottom-4 left-1/2 z-20 flex -translate-x-1/2 items-center gap-0.5 rounded-lg border border-border bg-surface-raised px-1.5 py-1 shadow-raised">
+          <span className="px-1.5 text-[12px] text-muted">{selectedItemIds.length} selected</span>
+          <button
+            onClick={(e) => showMenu(e, TODO_COLUMNS.map(status => ({ label: status, onSelect: () => moveItemsToStatus(selectedItemIds, status) })))}
+            className="flex h-7 items-center gap-1 rounded-md px-2 text-[12px] text-content hover:bg-surface-hover"
+            title="Move the selected tasks to another column"
+          >
+            Move to…
+          </button>
+          <button onClick={deleteSelectedItems} className="flex h-7 items-center gap-1 rounded-md px-2 text-[12px] text-danger hover:bg-danger/10" title="Delete the selected tasks (Del)">
+            <Trash2 className="h-3.5 w-3.5" /> Delete
+          </button>
+          <span className="mx-0.5 h-4 w-px bg-border" />
+          <button onClick={clearItemSelection} className="icon-btn" title="Clear selection (Esc)" aria-label="Clear selection"><X className="h-3.5 w-3.5" /></button>
+        </div>
+      )}
+
       {isCreateModalOpen && (
-        <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/80 backdrop-blur-sm p-4">
-          <div className="bg-surface border border-border rounded-xl w-full max-w-2xl p-6 shadow-2xl">
+        <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/60 p-4" onMouseDown={(e) => { if (e.target === e.currentTarget) handleCloseCreateModal(); }}>
+          <div className="bg-surface border border-border rounded-xl w-full max-w-2xl max-h-[90vh] overflow-y-auto p-6 shadow-2xl">
             <div className="flex justify-between items-center mb-6">
-              <h2 className="text-xl font-bold text-content">Create Task</h2>
-              <button onClick={handleCloseCreateModal} className="text-faint hover:text-content">
+              <h2 className="text-lg font-semibold text-content">New task</h2>
+              <button onClick={handleCloseCreateModal} className="text-faint hover:text-content" title="Close (Esc)" aria-label="Close">
                 <X className="w-5 h-5" />
               </button>
             </div>
@@ -1326,7 +1352,7 @@ const TodoEditor: React.FC<EditorProps> = ({ initialContent, onSave, fileName, p
                     type="date"
                     value={newItemDate}
                     onChange={(e) => setNewItemDate(e.target.value)}
-                    className="w-full bg-bg border border-border rounded-lg p-2.5 text-content focus:ring-2 focus:ring-accent focus:border-transparent outline-none transition-all [color-scheme:dark]"
+                    className="w-full bg-bg border border-border rounded-lg p-2.5 text-content focus:ring-2 focus:ring-accent focus:border-transparent outline-none transition-all [color-scheme:light] dark:[color-scheme:dark]"
                   />
                 </div>
                 <div>
@@ -1415,7 +1441,7 @@ const TodoEditor: React.FC<EditorProps> = ({ initialContent, onSave, fileName, p
                   type="submit"
                   className="bg-accent hover:bg-accent-hover text-accent-content px-5 py-2 rounded-lg text-sm font-medium transition-colors"
                 >
-                  Create Task
+                  Add task
                 </button>
               </div>
             </form>

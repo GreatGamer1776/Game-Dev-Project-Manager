@@ -1,5 +1,5 @@
 import React, { useEffect, useMemo, useState } from 'react';
-import { Upload, Trash2, Copy, Search, Grid, Check, Download, FolderOpen, FolderPlus, Folder, ChevronRight, ChevronDown, Music, File as FileIcon, Pencil } from 'lucide-react';
+import { Upload, Trash2, Copy, Search, Check, Download, FolderOpen, FolderPlus, Folder, ChevronRight, ChevronDown, Music, File as FileIcon, Pencil, ImagePlus, X, Loader2 } from 'lucide-react';
 import { EditorProps } from '../types';
 import { ASSET_LINK_DRAG_MIME, AssetKind, getAssetExtensionFromMime, getAssetKindFromMime, getAssetMimeType } from '../services/assetUtils';
 import { confirmDialog, promptDialog, toast } from '../stores/useUiStore';
@@ -54,6 +54,8 @@ const AssetBrowser: React.FC<EditorProps> = ({ initialContent, assets = {}, onAd
   const [expandedFolders, setExpandedFolders] = useState<Set<string>>(new Set());
   const [draggedAssetId, setDraggedAssetId] = useState<string | null>(null);
   const [activeDropFolderId, setActiveDropFolderId] = useState<string | 'root' | null>(null);
+  const [selectedAssetId, setSelectedAssetId] = useState<string | null>(null);
+  const [isFileDragOver, setIsFileDragOver] = useState(false);
 
   useEffect(() => {
     const normalized = normalizeLibraryContent(initialContent, assets);
@@ -238,7 +240,7 @@ const AssetBrowser: React.FC<EditorProps> = ({ initialContent, assets = {}, onAd
           <button
             onClick={() => createFolder(folder.id)}
             className="p-1 text-faint hover:text-content hover:bg-surface-hover rounded opacity-0 group-hover:opacity-100"
-            title="New Subfolder"
+            title="New subfolder"
           >
             <FolderPlus className="w-3.5 h-3.5" />
           </button>
@@ -396,6 +398,44 @@ const AssetBrowser: React.FC<EditorProps> = ({ initialContent, assets = {}, onAd
       }));
   };
 
+  const selectedAsset = selectedAssetId ? assetList.find(item => item.id === selectedAssetId) || null : null;
+
+  useEffect(() => {
+    if (selectedAssetId && !assets[selectedAssetId]) setSelectedAssetId(null);
+  }, [assets, selectedAssetId]);
+
+  useEffect(() => {
+    if (!selectedAssetId) return;
+    const onKey = (e: KeyboardEvent) => {
+      const target = e.target as HTMLElement | null;
+      if (target && (['INPUT', 'TEXTAREA', 'SELECT'].includes(target.tagName) || target.isContentEditable || target.closest('[role="dialog"]'))) return;
+      if (e.key === 'Escape') { setSelectedAssetId(null); return; }
+      if (e.key === 'Delete' || e.key === 'Backspace') { e.preventDefault(); void handleDelete(selectedAssetId); return; }
+      if (e.key === 'F2') { e.preventDefault(); e.stopPropagation(); void handleRename(selectedAssetId); return; }
+      if ((e.ctrlKey || e.metaKey) && e.key.toLowerCase() === 'c' && !window.getSelection()?.toString()) { e.preventDefault(); handleCopy(selectedAssetId); }
+    };
+    // Capture so F2 renames the asset rather than the open file.
+    window.addEventListener('keydown', onKey, true);
+    return () => window.removeEventListener('keydown', onKey, true);
+  });
+
+  /** Files dragged in from the desktop (not assets being moved between folders). */
+  const isOsFileDrag = (e: React.DragEvent) => e.dataTransfer.types.includes('Files') && !e.dataTransfer.types.includes(ASSET_LINK_DRAG_MIME);
+
+  const handleGridDragOver = (e: React.DragEvent) => {
+    if (!isOsFileDrag(e) || !onAddAsset) return;
+    e.preventDefault();
+    e.dataTransfer.dropEffect = 'copy';
+    if (!isFileDragOver) setIsFileDragOver(true);
+  };
+
+  const handleGridDrop = (e: React.DragEvent) => {
+    if (!isOsFileDrag(e)) return;
+    e.preventDefault();
+    setIsFileDragOver(false);
+    void uploadSelectedAssets(e.dataTransfer.files, 'files');
+  };
+
   const downloadAsset = (data: string, id: string, name: string) => {
       const a = document.createElement('a');
       a.href = data;
@@ -407,40 +447,39 @@ const AssetBrowser: React.FC<EditorProps> = ({ initialContent, assets = {}, onAd
 
   return (
     <div className="h-full flex flex-col bg-bg">
-      <div className="h-11 border-b border-border flex items-center justify-between px-6 bg-bg sticky top-0 z-20">
-        <div className="flex items-center gap-3">
-            <div className="relative">
-                <Search className="w-4 h-4 text-faint absolute left-3 top-1/2 -translate-y-1/2" />
-                <input 
-                    type="text" 
-                    placeholder="Search assets..." 
-                    value={searchQuery}
-                    onChange={(e) => setSearchQuery(e.target.value)}
-                    className="bg-bg border border-border rounded-full py-1.5 pl-9 pr-4 text-sm text-content focus:outline-none focus:border-border-strong w-48"
-                />
-            </div>
-            <button 
-                onClick={handleUploadFiles}
-                disabled={isUploading}
-                className="flex items-center gap-2 bg-purple-600 hover:bg-purple-700 disabled:opacity-60 disabled:cursor-not-allowed text-content px-4 py-2 rounded-md text-sm font-medium transition-colors shadow-lg shadow-purple-900/20"
-            >
-                <Upload className="w-4 h-4" /> Upload Files
-            </button>
-            <button
-                onClick={handleUploadFolder}
-                disabled={isUploading}
-                className="flex items-center gap-2 bg-surface-raised hover:bg-surface-hover disabled:opacity-60 disabled:cursor-not-allowed text-content px-4 py-2 rounded-md text-sm font-medium transition-colors border border-border-strong"
-            >
-                <FolderOpen className="w-4 h-4" /> Upload Folder
-            </button>
+      <div className="flex h-10 shrink-0 items-center gap-1 overflow-x-auto border-b border-border bg-bg px-3 [scrollbar-width:thin]">
+        <button
+          onClick={handleUploadFiles}
+          disabled={isUploading || !onAddAsset}
+          className="flex h-7 shrink-0 items-center gap-1.5 rounded-md bg-accent px-2.5 text-[12px] font-medium text-accent-content hover:bg-accent-hover disabled:opacity-60"
+          title="Upload images, video, or audio (or drop files onto the grid)"
+        >
+          <Upload className="w-3.5 h-3.5" /> Upload
+        </button>
+        <button
+          onClick={handleUploadFolder}
+          disabled={isUploading || !onAddAsset}
+          className="flex h-7 shrink-0 items-center gap-1.5 rounded-md px-2.5 text-[12px] text-muted hover:bg-surface-hover hover:text-content disabled:opacity-60"
+          title="Upload every media file in a folder"
+        >
+          <FolderOpen className="w-3.5 h-3.5" /> Folder
+        </button>
+        <div className="relative ml-2 w-48 shrink-0">
+          <Search className="pointer-events-none absolute left-2 top-1/2 h-3.5 w-3.5 -translate-y-1/2 text-faint" />
+          <input
+            type="text"
+            placeholder="Filter by name…"
+            aria-label="Filter assets by name"
+            value={searchQuery}
+            onChange={(e) => setSearchQuery(e.target.value)}
+            className="h-7 w-full rounded-md border border-border bg-surface-raised pl-7 pr-2 text-[12px] text-content outline-none placeholder:text-faint focus:border-accent"
+          />
         </div>
+        <span className="ml-auto flex shrink-0 items-center gap-1.5 pl-3 text-[11px] tabular-nums text-faint">
+          {isUploading && <Loader2 className="h-3 w-3 animate-spin" />}
+          {uploadStatus || (searchQuery ? `${filteredAssets.length} match${filteredAssets.length === 1 ? '' : 'es'}` : `${assetList.length} asset${assetList.length === 1 ? '' : 's'}`)}
+        </span>
       </div>
-
-      {uploadStatus && (
-        <div className="px-6 py-2 text-xs text-muted border-b border-border bg-surface/70">
-          {uploadStatus}
-        </div>
-      )}
 
       <div className="flex-1 min-h-0 flex">
         <aside className="w-64 border-r border-border p-3 overflow-y-auto custom-scrollbar">
@@ -449,7 +488,7 @@ const AssetBrowser: React.FC<EditorProps> = ({ initialContent, assets = {}, onAd
             <button
               onClick={() => createFolder(selectedFolderId)}
               className="p-1.5 text-muted hover:text-content hover:bg-surface-hover rounded"
-              title={selectedFolderId ? 'New Subfolder' : 'New Folder'}
+              title={selectedFolderId ? 'New subfolder inside the selected folder' : 'New folder'}
             >
               <FolderPlus className="w-4 h-4" />
             </button>
@@ -460,123 +499,110 @@ const AssetBrowser: React.FC<EditorProps> = ({ initialContent, assets = {}, onAd
             onDragOver={handleRootDragOver}
             onDrop={handleRootDrop}
             className={`w-full mb-2 flex items-center gap-2 px-2 py-2 rounded-md text-sm transition-colors ${selectedFolderId === null ? 'bg-surface-raised text-content' : 'text-content hover:bg-surface-hover'} ${activeDropFolderId === 'root' ? 'ring-1 ring-blue-500/40 bg-blue-500/10' : ''}`}
-            title="Drop here to move asset to root"
+            title="Assets that aren't in a folder — drop one here to take it out of its folder"
           >
             <FolderOpen className="w-4 h-4 text-faint" />
-            <span>Root (No Folder)</span>
+            <span>Unfiled</span>
           </button>
 
           <div>
             {sortedRootFolders.map(folder => renderFolderTree(folder))}
             {sortedRootFolders.length === 0 && (
-              <div className="text-xs text-faint px-2 py-3">No folders yet.</div>
+              <div className="px-2 py-3 text-[11px] leading-relaxed text-faint">No folders yet. Use <FolderPlus className="inline h-3 w-3" /> above to make one, then drag assets onto it.</div>
             )}
           </div>
         </aside>
 
-        <div className="flex-1 overflow-y-auto p-6 custom-scrollbar">
+        <div
+          className={`relative flex flex-1 flex-col overflow-y-auto p-4 custom-scrollbar ${isFileDragOver ? 'bg-accent/5 ring-2 ring-inset ring-accent/50' : ''}`}
+          onDragOver={handleGridDragOver}
+          onDragLeave={(e) => { if (!e.currentTarget.contains(e.relatedTarget as Node)) setIsFileDragOver(false); }}
+          onDrop={handleGridDrop}
+          onClick={(e) => { if (e.target === e.currentTarget) setSelectedAssetId(null); }}
+        >
           {assetList.length === 0 ? (
-              <div className="h-full flex flex-col items-center justify-center text-faint opacity-50">
-                  <Grid className="w-16 h-16 mb-4" />
-                  <p>No assets in this project yet.</p>
-                  <p className="text-sm mt-2">Upload media or reuse what your documents already imported.</p>
-               </div>
-          ) : filteredAssets.length === 0 ? (
-              <div className="h-full flex flex-col items-center justify-center text-faint opacity-60">
-                  <Grid className="w-12 h-12 mb-3" />
-                  <p>No assets in this folder.</p>
-                  <p className="text-xs mt-2">Drag assets onto folders to reorganize or into documents to reuse them.</p>
-               </div>
-           ) : (
-               <div className="grid grid-cols-2 md:grid-cols-3 lg:grid-cols-4 xl:grid-cols-5 gap-6">
-                   {filteredAssets.map(({ id, data, name, kind, mime }) => (
-                       <div
-                         key={id}
-                         draggable
-                         onDragStart={(e) => handleAssetDragStart(e, id, name, kind, mime)}
-                         onDragEnd={handleAssetDragEnd}
-                         className={`group bg-bg border border-border rounded-xl overflow-hidden hover:border-border-strong transition-all shadow-sm hover:shadow-xl cursor-grab active:cursor-grabbing ${draggedAssetId === id ? 'opacity-45 grayscale' : ''}`}
-                       >
-                           {/* Image Preview */}
-                           <div className="aspect-square bg-[#101012] relative flex items-center justify-center overflow-hidden bg-[url('data:image/svg+xml;base64,PHN2ZyB3aWR0aD0iMjAiIGhlaWdodD0iMjAiIHhtbG5zPSJodHRwOi8vd3d3LnczLm9yZy8yMDAwL3N2ZyI+PHBhdGggZD0iTTAgMGgyMHYyMEgwem0xMCAxMGgxMHYxMEgxMHoiIGZpbGw9IiMxODE4MWIiIGZpbGwtb3BhY2l0eT0iMC40Ii8+PC9zdmc+')]">
-                               {kind === 'image' ? (
-                                 <img src={data} alt={name} className="max-w-full max-h-full object-contain" />
-                               ) : kind === 'video' ? (
-                                 <video src={data} className="h-full w-full object-cover" muted preload="metadata" playsInline />
-                               ) : kind === 'audio' ? (
-                                 <div className="flex flex-col items-center gap-2 text-content">
-                                   <Music className="w-12 h-12 text-purple-400" />
-                                   <span className="text-xs uppercase tracking-wide text-muted">Audio</span>
-                                 </div>
-                               ) : (
-                                 <div className="flex flex-col items-center gap-2 text-content">
-                                   <FileIcon className="w-12 h-12 text-faint" />
-                                   <span className="text-xs uppercase tracking-wide text-muted">Asset</span>
-                                 </div>
-                               )}
-                               <div className="absolute left-2 top-2 rounded-full border border-border-strong/80 bg-black/70 px-2 py-0.5 text-[10px] uppercase tracking-wide text-content">
-                                 {kind}
-                               </div>
-                               
-                               {/* Overlay Actions */}
-                               <div className="absolute inset-0 bg-black/60 opacity-0 group-hover:opacity-100 transition-opacity flex items-center justify-center gap-2 backdrop-blur-sm">
-                                  <button 
-                                      onClick={() => handleCopy(id)}
-                                      className="p-2 bg-white text-black rounded-full hover:scale-110 transition-transform" 
-                                      title="Copy ID"
-                                  >
-                                      {copiedId === id ? <Check className="w-4 h-4" /> : <Copy className="w-4 h-4" />}
-                                  </button>
-                                   <button 
-                                       onClick={() => downloadAsset(data, id, name)}
-                                       className="p-2 bg-surface-raised text-content rounded-full hover:scale-110 transition-transform"
-                                       title="Download"
-                                   >
-                                       <Download className="w-4 h-4" />
-                                   </button>
-                                   <button
-                                       onClick={() => handleRename(id)}
-                                       className="p-2 bg-surface-raised text-content rounded-full hover:scale-110 transition-transform"
-                                       title="Rename Asset"
-                                   >
-                                       <Pencil className="w-4 h-4" />
-                                   </button>
-                                   <button 
-                                       onClick={() => handleDelete(id)}
-                                       className="p-2 bg-red-600 text-content rounded-full hover:scale-110 transition-transform"
-                                       title="Delete Asset"
-                                  >
-                                      <Trash2 className="w-4 h-4" />
-                                  </button>
-                              </div>
-                          </div>
-
-                           {/* Footer info */}
-                           <div className="p-3 border-t border-border bg-surface/60">
-                                <div className="flex items-start gap-2">
-                                    <div className="min-w-0 flex-1">
-                                        <div className="text-[11px] text-content truncate" title={name}>
-                                            {name}
-                                        </div>
-                                    </div>
-                                    <button
-                                        onClick={() => handleRename(id)}
-                                        className="shrink-0 rounded p-1 text-faint transition-colors hover:bg-surface-hover hover:text-content"
-                                        title="Rename Asset"
-                                    >
-                                        <Pencil className="w-3.5 h-3.5" />
-                                    </button>
-                                </div>
-                                <div className="text-[10px] font-mono text-faint truncate" title={id}>
-                                    {id}
-                                </div>
-                               <div className="text-[10px] text-faint mt-1">
-                                   {(data.length / 1024).toFixed(1)} KB • {mime}
-                               </div>
-                           </div>
-                       </div>
-                  ))}
+            <div className="flex justify-center px-4 pt-10">
+              <div className="max-w-md rounded-lg border border-border bg-surface px-4 py-3 text-[12px] leading-relaxed text-muted">
+                <div className="mb-1 flex items-center gap-1.5 text-[13px] font-medium text-content"><ImagePlus className="h-4 w-4 text-faint" /> Your asset library is empty</div>
+                Upload sprites, concept art, video, or audio — or drop files anywhere here. Then drag an asset into a document or whiteboard to use it; every file in the project shares this library.
+                <div className="mt-2 flex flex-wrap gap-1.5">
+                  <button type="button" onClick={handleUploadFiles} disabled={!onAddAsset} className="rounded-md bg-accent px-2 py-1 text-[12px] font-medium text-accent-content hover:bg-accent-hover disabled:opacity-60">Upload files</button>
+                  <button type="button" onClick={handleUploadFolder} disabled={!onAddAsset} className="rounded-md px-2 py-1 text-[12px] text-muted ring-1 ring-border hover:bg-surface-hover disabled:opacity-60">Upload a folder</button>
+                </div>
               </div>
+            </div>
+          ) : filteredAssets.length === 0 ? (
+            <div className="flex justify-center px-4 pt-10">
+              <div className="max-w-sm rounded-lg border border-border bg-surface px-4 py-3 text-center text-[12px] leading-relaxed text-muted">
+                {searchQuery ? (
+                  <>
+                    No assets here match <b className="text-content">{searchQuery}</b>.
+                    <button type="button" onClick={() => setSearchQuery('')} className="ml-1 text-accent hover:underline">Clear filter</button>
+                  </>
+                ) : (
+                  <>
+                    <div className="mb-1 text-[13px] font-medium text-content">This folder is empty</div>
+                    Drag assets from another folder onto it in the sidebar, or upload straight into it.
+                    <div className="mt-2">
+                      <button type="button" onClick={handleUploadFiles} disabled={!onAddAsset} className="rounded-md bg-accent px-2 py-1 text-[12px] font-medium text-accent-content hover:bg-accent-hover disabled:opacity-60">Upload here</button>
+                    </div>
+                  </>
+                )}
+              </div>
+            </div>
+          ) : (
+            <div className="grid grid-cols-[repeat(auto-fill,minmax(150px,1fr))] gap-3">
+              {filteredAssets.map(({ id, data, name, kind, mime }) => {
+                const isSelected = selectedAssetId === id;
+                return (
+                  <div
+                    key={id}
+                    draggable
+                    onDragStart={(e) => handleAssetDragStart(e, id, name, kind, mime)}
+                    onDragEnd={handleAssetDragEnd}
+                    onClick={() => setSelectedAssetId(id)}
+                    onDoubleClick={() => handleRename(id)}
+                    title={`${name} — drag into a document or onto a folder · double-click to rename`}
+                    className={`group overflow-hidden rounded-lg border bg-bg transition-colors cursor-grab active:cursor-grabbing ${isSelected ? 'border-accent ring-2 ring-accent/30' : 'border-border hover:border-border-strong'} ${draggedAssetId === id ? 'opacity-45 grayscale' : ''}`}
+                  >
+                    <div className="relative flex aspect-square items-center justify-center overflow-hidden bg-surface-raised">
+                      {kind === 'image' ? (
+                        <img src={data} alt={name} className="max-h-full max-w-full object-contain" draggable={false} />
+                      ) : kind === 'video' ? (
+                        <video src={data} className="h-full w-full object-cover" muted preload="metadata" playsInline />
+                      ) : kind === 'audio' ? (
+                        <Music className="h-10 w-10 text-faint" />
+                      ) : (
+                        <FileIcon className="h-10 w-10 text-faint" />
+                      )}
+                      <div className="absolute left-1.5 top-1.5 rounded bg-bg/85 px-1.5 py-px text-[10px] uppercase tracking-wide text-muted">
+                        {kind}
+                      </div>
+                    </div>
+                    <div className="border-t border-border px-2 py-1.5">
+                      <div className="truncate text-[12px] text-content">{name}</div>
+                      <div className="truncate text-[10px] text-faint">{(data.length / 1024).toFixed(1)} KB · {mime}</div>
+                    </div>
+                  </div>
+                );
+              })}
+            </div>
+          )}
+
+          {selectedAsset && (
+            <div className="sticky bottom-0 mt-auto flex justify-center pt-2">
+              <div className="flex max-w-full items-center gap-0.5 rounded-lg border border-border bg-surface-raised px-1.5 py-1 shadow-raised">
+                <span className="max-w-[12rem] truncate px-1.5 text-[12px] text-muted">{selectedAsset.name}</span>
+                <button onClick={() => handleCopy(selectedAsset.id)} className="flex h-7 items-center gap-1 rounded-md px-2 text-[12px] text-content hover:bg-surface-hover" title="Copy an asset:// link to paste into a document (Ctrl+C)">
+                  {copiedId === selectedAsset.id ? <Check className="h-3.5 w-3.5 text-success" /> : <Copy className="h-3.5 w-3.5" />} Copy link
+                </button>
+                <button onClick={() => downloadAsset(selectedAsset.data, selectedAsset.id, selectedAsset.name)} className="icon-btn" title="Download" aria-label="Download"><Download className="h-3.5 w-3.5" /></button>
+                <button onClick={() => handleRename(selectedAsset.id)} className="icon-btn" title="Rename (F2)" aria-label="Rename"><Pencil className="h-3.5 w-3.5" /></button>
+                <button onClick={() => handleDelete(selectedAsset.id)} className="icon-btn hover:!text-danger" title="Delete (Del)" aria-label="Delete"><Trash2 className="h-3.5 w-3.5" /></button>
+                <span className="mx-0.5 h-4 w-px bg-border" />
+                <button onClick={() => setSelectedAssetId(null)} className="icon-btn" title="Deselect (Esc)" aria-label="Deselect"><X className="h-3.5 w-3.5" /></button>
+              </div>
+            </div>
           )}
         </div>
       </div>

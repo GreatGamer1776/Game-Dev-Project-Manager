@@ -15,7 +15,8 @@ import { uid } from '../utils/id';
 import { getFileTypeMeta } from './fileTypes';
 import MarkdownView from './markdown/MarkdownView';
 import SearchPicker, { PickerItem } from './ui/SearchPicker';
-import { cn } from './ui';
+import { cn, SaveIndicator } from './ui';
+import type { SaveStatus } from './ui';
 
 // JSON Canvas-compatible document (https://jsoncanvas.org), as Obsidian uses.
 type Side = 'top' | 'right' | 'bottom' | 'left';
@@ -113,13 +114,13 @@ const NodeShell: React.FC<{ props: NodeProps<CanvasNodeData>; children: React.Re
       <NodeResizer isVisible={props.selected} minWidth={minWidth} minHeight={minHeight} lineClassName="!border-accent" handleClassName="!h-2 !w-2 !rounded-sm !border-accent !bg-bg" />
       <NodeToolbar isVisible={props.selected && ctx.editingId !== props.id} position={Position.Top} className="flex items-center gap-0.5 rounded-md bg-surface-raised p-0.5 shadow-menu">
         {props.data.type === 'text' && (
-          <button type="button" className="icon-btn" title="Edit" aria-label="Edit card" onClick={() => ctx.setEditingId(props.id)}><Pencil className="h-3.5 w-3.5" /></button>
+          <button type="button" className="icon-btn" title="Edit (or double-click the card)" aria-label="Edit card" onClick={() => ctx.setEditingId(props.id)}><Pencil className="h-3.5 w-3.5" /></button>
         )}
         {props.data.type === 'file' && props.data.file && (
-          <button type="button" className="icon-btn" title="Open file" aria-label="Open file" onClick={() => ctx.openFile(props.data.file!)}><ExternalLink className="h-3.5 w-3.5" /></button>
+          <button type="button" className="icon-btn" title="Open file (or double-click the card)" aria-label="Open file" onClick={() => ctx.openFile(props.data.file!)}><ExternalLink className="h-3.5 w-3.5" /></button>
         )}
         <button type="button" className="icon-btn" title="Color" aria-label="Set color" onClick={colorMenu}><Palette className="h-3.5 w-3.5" /></button>
-        <button type="button" className="icon-btn hover:!text-danger" title="Delete" aria-label="Delete" onClick={() => ctx.removeNode(props.id)}><Trash2 className="h-3.5 w-3.5" /></button>
+        <button type="button" className="icon-btn hover:!text-danger" title="Delete (Del)" aria-label="Delete" onClick={() => ctx.removeNode(props.id)}><Trash2 className="h-3.5 w-3.5" /></button>
       </NodeToolbar>
       <div
         className={cn('group h-full w-full overflow-hidden rounded-lg border-2 bg-surface shadow-soft', props.selected ? 'border-accent' : 'border-border-strong', className)}
@@ -141,11 +142,20 @@ const TextNode: React.FC<NodeProps<CanvasNodeData>> = props => {
   const ctx = useCanvas();
   const editing = ctx.editingId === props.id;
   const [draft, setDraft] = useState(props.data.text || '');
+  const textareaRef = useRef<HTMLTextAreaElement>(null);
   useEffect(() => { if (!editing) setDraft(props.data.text || ''); }, [editing, props.data.text]);
+  // React Flow keeps a new node hidden until it is measured, so autoFocus
+  // alone misses it; focus once it has been shown.
+  useEffect(() => {
+    if (!editing) return;
+    const frame = window.requestAnimationFrame(() => window.requestAnimationFrame(() => textareaRef.current?.focus()));
+    return () => window.cancelAnimationFrame(frame);
+  }, [editing]);
   return (
     <NodeShell props={props}>
       {editing ? (
         <textarea
+          ref={textareaRef}
           autoFocus
           value={draft}
           onChange={e => setDraft(e.target.value)}
@@ -215,7 +225,7 @@ const GroupNode: React.FC<NodeProps<CanvasNodeData>> = props => {
           { label: 'No color', checked: !props.data.color, onSelect: () => ctx.updateNode(props.id, { color: undefined }) },
           ...CANVAS_COLORS.map(c => ({ label: c.name, checked: props.data.color === c.id, icon: swatch(c.rgb), onSelect: () => ctx.updateNode(props.id, { color: c.id }) })),
         ], 'below')}><Palette className="h-3.5 w-3.5" /></button>
-        <button type="button" className="icon-btn hover:!text-danger" title="Delete group" aria-label="Delete group" onClick={() => ctx.removeNode(props.id)}><Trash2 className="h-3.5 w-3.5" /></button>
+        <button type="button" className="icon-btn hover:!text-danger" title="Delete group (Del) — the cards inside stay" aria-label="Delete group" onClick={() => ctx.removeNode(props.id)}><Trash2 className="h-3.5 w-3.5" /></button>
       </NodeToolbar>
       <div
         className={cn('h-full w-full rounded-xl border-2', props.selected ? 'border-accent' : 'border-border-strong')}
@@ -313,21 +323,27 @@ const CanvasInner: React.FC<EditorProps> = ({ initialContent, onSave, projectFil
   const wrapperRef = useRef<HTMLDivElement>(null);
   const restoringRef = useRef(false);
   const lastSavedRef = useRef(JSON.stringify(initial));
+  const [saveStatus, setSaveStatus] = useState<SaveStatus>('saved');
   const groupDragRef = useRef<{ ids: string[]; start: { x: number; y: number }; origins: Map<string, { x: number; y: number }> } | null>(null);
 
   // Debounced save + undo snapshot whenever the serialized doc actually changes.
+  const saveNow = () => {
+    const doc = fromFlow(nodes, edges);
+    const json = JSON.stringify(doc);
+    setSaveStatus('saved');
+    if (json === lastSavedRef.current) return;
+    lastSavedRef.current = json;
+    onSave(doc);
+    if (restoringRef.current) restoringRef.current = false;
+    else history.pushState(doc);
+  };
+  const saveNowRef = useRef(saveNow);
+  saveNowRef.current = saveNow;
   useEffect(() => {
-    const timer = window.setTimeout(() => {
-      const doc = fromFlow(nodes, edges);
-      const json = JSON.stringify(doc);
-      if (json === lastSavedRef.current) return;
-      lastSavedRef.current = json;
-      onSave(doc);
-      if (restoringRef.current) restoringRef.current = false;
-      else history.pushState(doc);
-    }, SAVE_DEBOUNCE_MS);
+    if (JSON.stringify(fromFlow(nodes, edges)) !== lastSavedRef.current) setSaveStatus('unsaved');
+    const timer = window.setTimeout(() => saveNowRef.current(), SAVE_DEBOUNCE_MS);
     return () => window.clearTimeout(timer);
-  }, [nodes, edges]); // eslint-disable-line react-hooks/exhaustive-deps
+  }, [nodes, edges]);
 
   const restore = (doc: CanvasDoc | undefined) => {
     if (!doc) return;
@@ -465,8 +481,9 @@ const CanvasInner: React.FC<EditorProps> = ({ initialContent, onSave, projectFil
   useEffect(() => {
     const onKey = (e: KeyboardEvent) => {
       const target = e.target as HTMLElement;
-      if (['INPUT', 'TEXTAREA'].includes(target.tagName) || target.isContentEditable) return;
       if (!wrapperRef.current?.contains(document.activeElement) && document.activeElement !== document.body) return;
+      if ((e.ctrlKey || e.metaKey) && e.key.toLowerCase() === 's') { e.preventDefault(); saveNow(); return; }
+      if (['INPUT', 'TEXTAREA'].includes(target.tagName) || target.isContentEditable) return;
       if ((e.ctrlKey || e.metaKey) && e.key.toLowerCase() === 'z' && !e.shiftKey) { e.preventDefault(); restore(history.undo()); }
       if ((e.ctrlKey || e.metaKey) && (e.key.toLowerCase() === 'y' || (e.key.toLowerCase() === 'z' && e.shiftKey))) { e.preventDefault(); restore(history.redo()); }
     };
@@ -517,17 +534,29 @@ const CanvasInner: React.FC<EditorProps> = ({ initialContent, onSave, projectFil
         </ReactFlow>
 
         {nodes.length === 0 && (
-          <div className="pointer-events-none absolute inset-0 flex items-center justify-center text-[0.8125rem] text-faint">
-            Double-click to add a card · drag files in from the sidebar
+          <div className="pointer-events-none absolute inset-x-0 top-6 flex justify-center px-4">
+            <div className="pointer-events-auto max-w-md rounded-lg border border-border bg-surface/95 px-4 py-3 text-[12px] text-muted shadow-raised">
+              <div className="mb-1 text-[13px] font-medium text-content">Empty canvas</div>
+              <p className="leading-relaxed">
+                <b className="text-content">Double-click</b> anywhere to add a markdown card, or drag files in from the sidebar. Drag from the dot on a card's edge to another card to connect them; right-click a connection to label it.
+              </p>
+              <div className="mt-2 flex flex-wrap gap-1.5">
+                <button type="button" onClick={() => addNode({ type: 'text', width: 260, height: 140, text: '' })} className="rounded-md bg-accent px-2 py-1 text-[12px] font-medium text-accent-content hover:bg-accent-hover">Add a card</button>
+                <button type="button" onClick={e => setFilePicker(e.currentTarget)} disabled={projectFiles.length < 2} className="rounded-md px-2 py-1 text-[12px] text-muted ring-1 ring-border hover:bg-surface-hover disabled:opacity-40">Embed a file</button>
+                <button type="button" onClick={() => void addLink()} className="rounded-md px-2 py-1 text-[12px] text-muted ring-1 ring-border hover:bg-surface-hover">Add a web link</button>
+              </div>
+            </div>
           </div>
         )}
+
+        <SaveIndicator status={saveStatus} onSaveNow={saveNow} className="absolute right-3 top-3 z-10 bg-bg/80" />
 
         {/* Obsidian-style bottom toolbar */}
         <div className="absolute bottom-4 left-1/2 z-10 flex -translate-x-1/2 items-center gap-0.5 rounded-lg border border-border bg-surface-raised p-1 shadow-pop">
           <button type="button" className="icon-btn h-8 w-8" title="Add card (or double-click the canvas)" aria-label="Add card" onClick={() => addNode({ type: 'text', width: 260, height: 140, text: '' })}><StickyNote className="h-4 w-4" /></button>
-          <button type="button" className="icon-btn h-8 w-8" title="Add file from project" aria-label="Add file" onClick={e => setFilePicker(e.currentTarget)}><FileSymlink className="h-4 w-4" /></button>
+          <button type="button" className="icon-btn h-8 w-8" title="Embed a project file (or drag one in from the sidebar)" aria-label="Add file" onClick={e => setFilePicker(e.currentTarget)}><FileSymlink className="h-4 w-4" /></button>
           <button type="button" className="icon-btn h-8 w-8" title="Add web link" aria-label="Add web link" onClick={() => void addLink()}><Link2 className="h-4 w-4" /></button>
-          <button type="button" className="icon-btn h-8 w-8" title="Add group (wraps the selection)" aria-label="Add group" onClick={addGroup}><BoxSelect className="h-4 w-4" /></button>
+          <button type="button" className="icon-btn h-8 w-8" title="Add group — wraps the selected cards (drag across empty space to select several)" aria-label="Add group" onClick={addGroup}><BoxSelect className="h-4 w-4" /></button>
           <span className="mx-1 h-5 w-px bg-border" />
           <button type="button" className="icon-btn h-8 w-8" title="Zoom to fit" aria-label="Zoom to fit" onClick={() => flow.fitView({ padding: 0.2, duration: 250 })}><Maximize className="h-4 w-4" /></button>
           <button type="button" className="icon-btn h-8 w-8" title="Undo (Ctrl+Z)" aria-label="Undo" disabled={!history.canUndo} onClick={() => restore(history.undo())}><Undo2 className="h-4 w-4" /></button>

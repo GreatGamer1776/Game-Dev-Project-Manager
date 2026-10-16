@@ -1,12 +1,11 @@
 import React, { useEffect, useState } from 'react';
-import { FileText, Network, CheckSquare, Bug, Map, Table, PenTool, Image as ImageIcon, Box, Keyboard, Lightbulb, FolderOpen, Workflow, HardDrive, ChevronDown, ChevronRight, BookOpen } from 'lucide-react';
-import { APP_CHANGELOG } from '../services/appChangelog';
+import { SHORTCUTS } from './HelpModal';
+import { FileText, Network, CheckSquare, Bug, Map, Table, PenTool, Image as ImageIcon, Box, Keyboard, Lightbulb, FolderOpen, Workflow, HardDrive, ChevronDown, ChevronRight, Database, LayoutDashboard, Spline, Waypoints } from 'lucide-react';
 
-export type GuideSectionId = 'overview' | 'updates' | 'tools' | 'shortcuts' | 'workflows' | 'storage' | 'tips';
+export type GuideSectionId = 'overview' | 'tools' | 'shortcuts' | 'workflows' | 'storage' | 'tips';
 
 const sections: { id: GuideSectionId; label: string }[] = [
   { id: 'overview', label: 'Overview' },
-  { id: 'updates', label: "What's New" },
   { id: 'tools', label: 'File Types & Tools' },
   { id: 'shortcuts', label: 'Keyboard Shortcuts' },
   { id: 'workflows', label: 'Workflows' },
@@ -21,8 +20,8 @@ const tools = [
     bg: 'bg-blue-500/10',
     title: 'Document',
     type: 'doc',
-    summary: 'Markdown-based rich text editor for long-form writing.',
-    description: 'Documents are the backbone of your project planning. They use a custom Markdown renderer with support for headings, bold, italic, strikethrough, inline code, code blocks, blockquotes, ordered/unordered lists, horizontal rules, and embedded images from the Asset Library.',
+    summary: 'Obsidian-style markdown notes with live preview.',
+    description: 'Documents are the backbone of your project planning. Live preview renders markdown as you type and only shows the raw markup on the line you are editing; switch to source mode or reading view any time. Obsidian syntax works throughout: [[wikilinks]], ![[embeds]], #tags, ==highlights==, > [!callouts], properties, math ($…$), Mermaid diagrams, tables, footnotes, and task lists.',
     useCases: [
       'Game Design Documents (GDD) — describe mechanics, world-building, lore, and rules',
       'Technical specifications — architecture notes, engine choices, API documentation',
@@ -31,13 +30,84 @@ const tools = [
       'README files and onboarding guides for your team',
     ],
     features: [
-      'Live Markdown preview with custom parser',
-      'Embed images from Asset Library using [[asset:id]] syntax',
-      'Link to other project files using [[file:id]] syntax',
-      'Link to specific tasks using [[task:id]] syntax',
-      'Auto-save with manual save (Ctrl+S)',
-      'Undo / Redo with debounced history (Ctrl+Z / Ctrl+Y)',
+      'Type [[ to link a file, # for tags, / at the start of a line for blocks and templates',
+      'Paste or drop images, video, and audio to add them to the Asset Library',
+      'Click a [[link]] to a missing note to create it; renaming a file updates its links',
+      'Tick task checkboxes right in live preview or reading view',
+      'Find & replace (Ctrl+F), Ctrl+B / I / K / L shortcuts, multiple cursors',
+      'Auto-save, plus Export as .md from the ⋯ menu',
     ],
+  },
+  {
+    icon: Database,
+    color: 'text-accent',
+    bg: 'bg-accent/10',
+    title: 'Base',
+    type: 'base',
+    summary: 'A Notion / Obsidian Bases style database with several views.',
+    description: 'Bases hold rows with typed properties — text, number, select, multi-select, date, checkbox, URL, and links to other project files. The same rows can be shown as a table, a board grouped by a select property, a gallery of cards, or a month calendar.',
+    useCases: [
+      'Character, item, or quest catalogues with tags and statuses',
+      'Playtest feedback tracking with a board per status',
+      'Content calendars and release schedules',
+      'Asset or level checklists that link to their design documents',
+    ],
+    features: [
+      'Table, Board, Gallery, and Calendar views — each with its own filters, sorts, and hidden properties',
+      'Drag cards between board columns or calendar days',
+      'Column totals (count, sum, average, min, max, checked)',
+      'Open any row as a panel with all properties and markdown notes',
+      'Change a property type and values are converted',
+    ],
+  },
+  {
+    icon: LayoutDashboard,
+    color: 'text-accent',
+    bg: 'bg-accent/10',
+    title: 'Canvas',
+    type: 'canvas',
+    summary: 'An Obsidian-style infinite board of cards, files, links, and groups.',
+    description: 'Canvases (JSON Canvas compatible) arrange markdown cards, live previews of other project files, web links, and coloured groups on an infinite surface, connected by labelled arrows.',
+    useCases: [
+      'Mood boards and moment-to-moment design sketches',
+      'Mapping how documents and systems relate',
+      'Story and quest structure with linked notes',
+    ],
+    features: [
+      'Double-click empty space to add a card; cards render markdown, [[links]], and #tags',
+      'Drag files from the sidebar onto the canvas to embed them',
+      'Groups carry the cards inside them when moved',
+      'Six colours for cards and connections, edge labels, arrows on/off',
+    ],
+  },
+  {
+    icon: Spline,
+    color: 'text-accent',
+    bg: 'bg-accent/10',
+    title: 'Vector Art',
+    type: 'vector',
+    summary: 'A point-and-line drawing tool that exports clean SVG and PNG.',
+    description: 'Draw by dropping points joined by lines; any closed region can be filled (rings and cut-outs included), and fills follow the shape as you move its points. Circles, warpable text boxes, layers and tracing images complete the toolkit.',
+    useCases: ['Icons and UI glyphs', 'Level blockouts and map diagrams', 'Logos and simple sprites'],
+    features: [
+      'Pen (L), Point (P), Line (E), Circle (C), Text (T), Fill (F), Eyedropper (I), Guide line (X), Select (V), Pan (H)',
+      'Snaps to points, lines, alignment, parallel/perpendicular angles, guide lines and an optional grid',
+      'Scale, rotate and move handles; group (G), split, disconnect, merge; Alt-drag tears a line off a point',
+      'Layers with hide/lock, faded tracing images, live length and angle readouts',
+      'Zero-width lines act as invisible construction guides',
+      'Export SVG or 1×/2× PNG, or copy the SVG markup',
+    ],
+  },
+  {
+    icon: Waypoints,
+    color: 'text-accent',
+    bg: 'bg-accent/10',
+    title: 'Graph view',
+    type: 'graph',
+    summary: 'See how every file links together (Ctrl+G).',
+    description: 'The graph view draws each file as a node and each link — [[wikilinks]], file links, canvas file cards, Base file properties — as an edge. The right sidebar also has a local graph for the open file.',
+    useCases: ['Finding orphaned documents', 'Seeing which systems a feature touches'],
+    features: ['Drag nodes, scroll to zoom, click to open', 'Optionally show tags and project systems', 'Tune link distance and repel force'],
   },
   {
     icon: Network,
@@ -84,7 +154,7 @@ const tools = [
       'Sub-tasks for breaking large items into smaller steps',
       'Drag-and-drop reordering',
       'Undo / Redo for all changes (Ctrl+Z / Ctrl+Y)',
-      'Tasks can be linked from Documents using [[task:id]]',
+      'Tasks can be linked from Documents with the task-link toolbar button',
     ],
   },
   {
@@ -200,13 +270,9 @@ const tools = [
 ];
 
 const shortcuts = [
-  { category: 'Global', items: [
-    { keys: 'Ctrl + K', desc: 'Open Command Palette — quick-search files, actions, and navigation' },
-    { keys: 'Ctrl + \\', desc: 'Toggle sidebar collapse (project view)' },
-    { keys: 'Ctrl + N', desc: 'Create a new file in the current project' },
-  ]},
+  { category: 'Global', items: SHORTCUTS.filter(s => !s.desc.includes('inside editors')) },
   { category: 'Editors (when focused)', items: [
-    { keys: 'Ctrl + S', desc: 'Manual save — forces an immediate write to storage' },
+    { keys: 'Ctrl + S', desc: 'Save now — forces an immediate write to storage' },
     { keys: 'Ctrl + Z', desc: 'Undo — revert the last change' },
     { keys: 'Ctrl + Y', desc: 'Redo — re-apply an undone change' },
   ]},
@@ -273,62 +339,20 @@ const GuideView: React.FC<GuideViewProps> = ({ initialSection = 'overview' }) =>
       <div className="bg-surface border border-border rounded-xl p-5">
         <h4 className="font-semibold text-content mb-3">Quick Start</h4>
         <ol className="space-y-2 text-sm text-muted">
-          <li className="flex gap-3"><span className="shrink-0 w-6 h-6 rounded-full bg-accent/20 text-blue-400 flex items-center justify-center text-xs font-bold">1</span><span><strong className="text-content">Create a project</strong> from the dashboard — give it a name, type, and description.</span></li>
-          <li className="flex gap-3"><span className="shrink-0 w-6 h-6 rounded-full bg-accent/20 text-blue-400 flex items-center justify-center text-xs font-bold">2</span><span><strong className="text-content">Add files</strong> using the "New File" button in the sidebar. Choose the editor type that fits your content.</span></li>
-          <li className="flex gap-3"><span className="shrink-0 w-6 h-6 rounded-full bg-accent/20 text-blue-400 flex items-center justify-center text-xs font-bold">3</span><span><strong className="text-content">Organize with folders</strong> — create folders to group related files (e.g., "Design", "Art", "Code").</span></li>
-          <li className="flex gap-3"><span className="shrink-0 w-6 h-6 rounded-full bg-accent/20 text-blue-400 flex items-center justify-center text-xs font-bold">4</span><span><strong className="text-content">Save your work</strong> — files auto-save, but use Ctrl+S for manual saves. Export the project as a .zip for backup.</span></li>
-          <li className="flex gap-3"><span className="shrink-0 w-6 h-6 rounded-full bg-accent/20 text-blue-400 flex items-center justify-center text-xs font-bold">5</span><span><strong className="text-content">Pick up anywhere</strong> — sign in from another browser or device and your projects are right where you left them.</span></li>
+          <li className="flex gap-3"><span className="shrink-0 w-6 h-6 rounded-full bg-accent/15 text-accent flex items-center justify-center text-xs font-bold">1</span><span><strong className="text-content">Create a project</strong> from the dashboard — give it a name, type, and description.</span></li>
+          <li className="flex gap-3"><span className="shrink-0 w-6 h-6 rounded-full bg-accent/15 text-accent flex items-center justify-center text-xs font-bold">2</span><span><strong className="text-content">Add files</strong> with the new-file button at the top of the file sidebar, or right-click a folder. Choose the editor type that fits your content.</span></li>
+          <li className="flex gap-3"><span className="shrink-0 w-6 h-6 rounded-full bg-accent/15 text-accent flex items-center justify-center text-xs font-bold">3</span><span><strong className="text-content">Organize with folders</strong> — create folders to group related files (e.g., "Design", "Art", "Code").</span></li>
+          <li className="flex gap-3"><span className="shrink-0 w-6 h-6 rounded-full bg-accent/15 text-accent flex items-center justify-center text-xs font-bold">4</span><span><strong className="text-content">Save your work</strong> — everything auto-saves; the status bar shows when changes reach the server. Export the project as a .zip for backup.</span></li>
+          <li className="flex gap-3"><span className="shrink-0 w-6 h-6 rounded-full bg-accent/15 text-accent flex items-center justify-center text-xs font-bold">5</span><span><strong className="text-content">Pick up anywhere</strong> — sign in from another browser or device and your projects are right where you left them.</span></li>
         </ol>
       </div>
-    </div>
-  );
-
-  const renderUpdates = () => (
-    <div className="space-y-6">
-      <div className="bg-surface-raised/40 border border-border rounded-xl p-6">
-        <h3 className="text-xl font-semibold text-content mb-2">App Changelog</h3>
-        <p className="text-muted leading-relaxed">
-          This section tracks updates to DevArchitect itself so users can quickly see what changed between releases.
-        </p>
-      </div>
-
-      {APP_CHANGELOG.map((entry, index) => (
-        <div key={entry.id} className="relative border border-border rounded-xl bg-surface overflow-hidden">
-          <div className="px-5 py-4 border-b border-border bg-bg/70">
-            <div className="flex flex-col gap-2 md:flex-row md:items-center md:justify-between">
-              <div>
-                <h4 className="text-lg font-semibold text-content">{entry.title}</h4>
-                <p className="text-sm text-muted mt-1">{entry.summary}</p>
-              </div>
-              <span className="shrink-0 text-xs uppercase tracking-wide text-blue-400 bg-blue-500/10 border border-blue-500/20 rounded-full px-3 py-1">
-                {entry.date}
-              </span>
-            </div>
-          </div>
-          <div className="px-5 py-4">
-            <ul className="space-y-2">
-              {entry.changes.map((change, changeIndex) => (
-                <li key={`${entry.id}-${changeIndex}`} className="text-sm text-muted flex gap-2">
-                  <span className="text-emerald-400 shrink-0 mt-1">•</span>
-                  <span>{change}</span>
-                </li>
-              ))}
-            </ul>
-          </div>
-          {index === 0 && (
-            <div className="absolute top-4 right-4 md:right-28">
-              <span className="text-[10px] uppercase tracking-[0.2em] text-faint">Latest</span>
-            </div>
-          )}
-        </div>
-      ))}
     </div>
   );
 
   const renderTools = () => (
     <div className="space-y-4">
       <p className="text-muted text-sm mb-2">
-        DevArchitect provides 8 specialized file types. Click any tool below to see its full capabilities and suggested use cases.
+        DevArchitect provides 11 specialized file types plus a graph view. Click any tool below to see its full capabilities and suggested use cases.
       </p>
       {tools.map((tool) => (
         <CollapsibleSection key={tool.type} title={tool.title}>
@@ -348,7 +372,7 @@ const GuideView: React.FC<GuideViewProps> = ({ initialSection = 'overview' }) =>
                 <ul className="space-y-1.5">
                   {tool.useCases.map((uc, i) => (
                     <li key={i} className="text-sm text-muted flex gap-2">
-                      <span className="text-blue-500 shrink-0 mt-1">•</span>
+                      <span className="text-accent shrink-0 mt-1">•</span>
                       <span>{uc}</span>
                     </li>
                   ))}
@@ -359,7 +383,7 @@ const GuideView: React.FC<GuideViewProps> = ({ initialSection = 'overview' }) =>
                 <ul className="space-y-1.5">
                   {tool.features.map((f, i) => (
                     <li key={i} className="text-sm text-muted flex gap-2">
-                      <span className="text-emerald-500 shrink-0 mt-1">✓</span>
+                      <span className="text-accent shrink-0 mt-1">✓</span>
                       <span>{f}</span>
                     </li>
                   ))}
@@ -399,11 +423,11 @@ const GuideView: React.FC<GuideViewProps> = ({ initialSection = 'overview' }) =>
         <div className="space-y-3 text-sm text-muted">
           <p>DevArchitect files can reference each other using a special link syntax in Documents:</p>
           <div className="bg-bg border border-border rounded-lg p-4 font-mono text-xs space-y-2">
-            <p><span className="text-blue-400">[[file:&lt;file-id&gt;]]</span> — Creates a clickable link to another file. Click it in preview to jump to that file.</p>
-            <p><span className="text-emerald-400">[[task:&lt;task-id&gt;]]</span> — Links directly to a specific task in a Task List. Clicking navigates to the task and highlights it.</p>
-            <p><span className="text-purple-400">[[asset:&lt;asset-id&gt;]]</span> — Embeds an image from the Asset Library inline in the document.</p>
+            <p><span className="text-accent">[Name](file://&lt;file-id&gt;)</span> — Creates a clickable link to another file. Click it in preview to jump to that file.</p>
+            <p><span className="text-success">[Task](task://&lt;file-id&gt;/&lt;task-id&gt;)</span> — Links directly to a specific task in a Task List. Clicking navigates to the task and highlights it.</p>
+            <p><span className="text-accent">![Caption](asset://&lt;asset-id&gt;)</span> — Embeds an image from the Asset Library inline in the document.</p>
           </div>
-          <p>To get a file's ID, hover over it in the sidebar and click the copy icon. For task IDs, look at the task details in the Task List editor.</p>
+          <p>The easiest way to link is to drag a file from the sidebar into a document, or right-click it and choose <strong className="text-content">Copy link</strong>. Every file's incoming links appear in the right sidebar under <strong className="text-content">Links</strong>.</p>
         </div>
       </CollapsibleSection>
 
@@ -431,11 +455,11 @@ const GuideView: React.FC<GuideViewProps> = ({ initialSection = 'overview' }) =>
 
       <CollapsibleSection title="Command Palette">
         <div className="space-y-3 text-sm text-muted">
-          <p>Press <kbd className="px-2 py-0.5 bg-surface-raised border border-border-strong rounded text-xs font-mono text-content">Ctrl + K</kbd> anywhere to open the Command Palette. It lets you:</p>
+          <p>Press <kbd className="kbd">Ctrl + O</kbd> anywhere to open the quick switcher, or <kbd className="kbd">Ctrl + P</kbd> for the command palette. They let you:</p>
           <ul className="space-y-1.5 ml-1">
-            <li className="flex gap-2"><span className="text-blue-500">•</span>Search and open any file in the current project by name</li>
-            <li className="flex gap-2"><span className="text-blue-500">•</span>Quickly switch between files without navigating the sidebar tree</li>
-            <li className="flex gap-2"><span className="text-blue-500">•</span>Access files deep inside nested folders instantly</li>
+            <li className="flex gap-2"><span className="text-accent">•</span>Fuzzy-search and open any file in the current project, or switch projects</li>
+            <li className="flex gap-2"><span className="text-accent">•</span>Create a new document by typing a name and pressing Shift + Enter</li>
+            <li className="flex gap-2"><span className="text-accent">•</span>Run any command — type "&gt;" in the switcher to jump to commands</li>
           </ul>
         </div>
       </CollapsibleSection>
@@ -444,10 +468,10 @@ const GuideView: React.FC<GuideViewProps> = ({ initialSection = 'overview' }) =>
         <div className="space-y-3 text-sm text-muted">
           <p>Every editor supports undo and redo with up to 50 history levels (200 for Whiteboard):</p>
           <ul className="space-y-1.5 ml-1">
-            <li className="flex gap-2"><span className="text-emerald-500">✓</span><strong className="text-content">Ctrl+Z</strong> to undo, <strong className="text-content">Ctrl+Y</strong> to redo</li>
-            <li className="flex gap-2"><span className="text-emerald-500">✓</span>Toolbar buttons are also available at the top of each editor</li>
-            <li className="flex gap-2"><span className="text-emerald-500">✓</span>History is per-file and resets when you switch files</li>
-            <li className="flex gap-2"><span className="text-emerald-500">✓</span>Document editor uses smart debouncing — rapid typing is grouped into single undo steps</li>
+            <li className="flex gap-2"><span className="text-accent">✓</span><strong className="text-content">Ctrl+Z</strong> to undo, <strong className="text-content">Ctrl+Y</strong> to redo</li>
+            <li className="flex gap-2"><span className="text-accent">✓</span>Toolbar buttons are also available at the top of each editor</li>
+            <li className="flex gap-2"><span className="text-accent">✓</span>History is per-file and resets when you switch files</li>
+            <li className="flex gap-2"><span className="text-accent">✓</span>Document editor uses smart debouncing — rapid typing is grouped into single undo steps</li>
           </ul>
         </div>
       </CollapsibleSection>
@@ -467,9 +491,9 @@ const GuideView: React.FC<GuideViewProps> = ({ initialSection = 'overview' }) =>
         <div className="space-y-3 text-sm text-muted">
           <p>All projects are stored in the workspace database behind your account. This means:</p>
           <ul className="space-y-1.5 ml-1">
-            <li className="flex gap-2"><span className="text-blue-500">•</span>Data persists across browsers, devices, and sessions — sign in anywhere to pick up where you left off</li>
-            <li className="flex gap-2"><span className="text-blue-500">•</span>Each account sees only its own projects</li>
-            <li className="flex gap-2"><span className="text-blue-500">•</span>Clearing browser data only signs you out — your projects stay safe on the server</li>
+            <li className="flex gap-2"><span className="text-accent">•</span>Data persists across browsers, devices, and sessions — sign in anywhere to pick up where you left off</li>
+            <li className="flex gap-2"><span className="text-accent">•</span>Each account sees only its own projects</li>
+            <li className="flex gap-2"><span className="text-accent">•</span>Clearing browser data only signs you out — your projects stay safe on the server</li>
           </ul>
         </div>
       </CollapsibleSection>
@@ -478,10 +502,10 @@ const GuideView: React.FC<GuideViewProps> = ({ initialSection = 'overview' }) =>
         <div className="space-y-3 text-sm text-muted">
           <p>Accounts are just a username and password — no email or personal information is collected or stored.</p>
           <ul className="space-y-1.5 ml-1">
-            <li className="flex gap-2"><span className="text-blue-500">•</span>Sign-up is invite-only — an admin creates accounts from Manage Users in the sidebar</li>
-            <li className="flex gap-2"><span className="text-blue-500">•</span>Sessions last 30 days; sign back in anytime with the same credentials</li>
-            <li className="flex gap-2"><span className="text-blue-500">•</span>Forgot your password? An admin can set a new one from Manage Users</li>
-            <li className="flex gap-2"><span className="text-blue-500">•</span>Sign out from the bottom of the sidebar</li>
+            <li className="flex gap-2"><span className="text-accent">•</span>Sign-up is invite-only — an admin creates accounts from Manage users (account menu at the bottom of the ribbon)</li>
+            <li className="flex gap-2"><span className="text-accent">•</span>Sessions last 30 days; sign back in anytime with the same credentials</li>
+            <li className="flex gap-2"><span className="text-accent">•</span>Forgot your password? An admin can set a new one from Manage Users</li>
+            <li className="flex gap-2"><span className="text-accent">•</span>Sign out from the account menu at the bottom of the ribbon, or Settings → Account</li>
           </ul>
         </div>
       </CollapsibleSection>
@@ -489,7 +513,7 @@ const GuideView: React.FC<GuideViewProps> = ({ initialSection = 'overview' }) =>
       <CollapsibleSection title="Export as ZIP">
         <div className="space-y-3 text-sm text-muted">
           <p>Export any project as a <code className="text-content bg-surface-raised px-1.5 py-0.5 rounded text-xs">.zip</code> file for backup or sharing. The archive contains all files and assets in a structured format that can be re-imported later.</p>
-          <p>To export: go to the Dashboard, find the project card, and click the download icon.</p>
+          <p>To export: open the project switcher at the bottom of the file sidebar and choose <strong className="text-content">Export as ZIP</strong>, or right-click a project on the projects screen.</p>
         </div>
       </CollapsibleSection>
     </div>
@@ -501,10 +525,10 @@ const GuideView: React.FC<GuideViewProps> = ({ initialSection = 'overview' }) =>
         <div className="space-y-2 text-sm text-muted">
           <p>Structure your GDD as a Document file with clear sections:</p>
           <ul className="space-y-1.5 ml-1">
-            <li className="flex gap-2"><span className="text-amber-500">★</span>Start with a one-paragraph "elevator pitch" for the game concept</li>
-            <li className="flex gap-2"><span className="text-amber-500">★</span>Use headings for each major section: Core Mechanics, Art Style, Audio, UI, Monetization</li>
-            <li className="flex gap-2"><span className="text-amber-500">★</span>Embed flowcharts for game loops and system diagrams using file links</li>
-            <li className="flex gap-2"><span className="text-amber-500">★</span>Reference data grids for any numerical values — keeps the GDD readable while stats stay editable</li>
+            <li className="flex gap-2"><span className="text-accent">★</span>Start with a one-paragraph "elevator pitch" for the game concept</li>
+            <li className="flex gap-2"><span className="text-accent">★</span>Use headings for each major section: Core Mechanics, Art Style, Audio, UI, Monetization</li>
+            <li className="flex gap-2"><span className="text-accent">★</span>Embed flowcharts for game loops and system diagrams using file links</li>
+            <li className="flex gap-2"><span className="text-accent">★</span>Reference data grids for any numerical values — keeps the GDD readable while stats stay editable</li>
           </ul>
         </div>
       </CollapsibleSection>
@@ -513,9 +537,9 @@ const GuideView: React.FC<GuideViewProps> = ({ initialSection = 'overview' }) =>
         <div className="space-y-2 text-sm text-muted">
           <p>Use Data Grids as your single source of truth for game stats:</p>
           <ul className="space-y-1.5 ml-1">
-            <li className="flex gap-2"><span className="text-amber-500">★</span>Create one grid per data category (Weapons, Enemies, Items, Levels)</li>
-            <li className="flex gap-2"><span className="text-amber-500">★</span>Keep columns consistent — use the same naming conventions across grids</li>
-            <li className="flex gap-2"><span className="text-amber-500">★</span>Include a "Notes" column for explaining balance rationale</li>
+            <li className="flex gap-2"><span className="text-accent">★</span>Create one grid per data category (Weapons, Enemies, Items, Levels)</li>
+            <li className="flex gap-2"><span className="text-accent">★</span>Keep columns consistent — use the same naming conventions across grids</li>
+            <li className="flex gap-2"><span className="text-accent">★</span>Include a "Notes" column for explaining balance rationale</li>
           </ul>
         </div>
       </CollapsibleSection>
@@ -523,10 +547,10 @@ const GuideView: React.FC<GuideViewProps> = ({ initialSection = 'overview' }) =>
       <CollapsibleSection title="Production Planning">
         <div className="space-y-2 text-sm text-muted">
           <ul className="space-y-1.5 ml-1">
-            <li className="flex gap-2"><span className="text-amber-500">★</span>Use the Roadmap for high-level milestones (monthly/quarterly goals)</li>
-            <li className="flex gap-2"><span className="text-amber-500">★</span>Use Task Lists for weekly sprint tasks — break milestones into actionable items</li>
-            <li className="flex gap-2"><span className="text-amber-500">★</span>Use the Bug Tracker during and after playtests — triage bugs by severity immediately</li>
-            <li className="flex gap-2"><span className="text-amber-500">★</span>Link tasks in documents so stakeholders can click through to the actual work items</li>
+            <li className="flex gap-2"><span className="text-accent">★</span>Use the Roadmap for high-level milestones (monthly/quarterly goals)</li>
+            <li className="flex gap-2"><span className="text-accent">★</span>Use Task Lists for weekly sprint tasks — break milestones into actionable items</li>
+            <li className="flex gap-2"><span className="text-accent">★</span>Use the Bug Tracker during and after playtests — triage bugs by severity immediately</li>
+            <li className="flex gap-2"><span className="text-accent">★</span>Link tasks in documents so stakeholders can click through to the actual work items</li>
           </ul>
         </div>
       </CollapsibleSection>
@@ -534,8 +558,8 @@ const GuideView: React.FC<GuideViewProps> = ({ initialSection = 'overview' }) =>
       <CollapsibleSection title="Keeping Projects Portable">
         <div className="space-y-2 text-sm text-muted">
           <ul className="space-y-1.5 ml-1">
-            <li className="flex gap-2"><span className="text-amber-500">★</span>Export a .zip backup regularly — it is the portable, self-contained copy of a project</li>
-            <li className="flex gap-2"><span className="text-amber-500">★</span>Keep asset images reasonably sized — very large images increase project file size significantly</li>
+            <li className="flex gap-2"><span className="text-accent">★</span>Export a .zip backup regularly — it is the portable, self-contained copy of a project</li>
+            <li className="flex gap-2"><span className="text-accent">★</span>Keep asset images reasonably sized — very large images increase project file size significantly</li>
           </ul>
         </div>
       </CollapsibleSection>
@@ -544,7 +568,6 @@ const GuideView: React.FC<GuideViewProps> = ({ initialSection = 'overview' }) =>
 
   const contentMap: Record<GuideSectionId, () => React.ReactNode> = {
     overview: renderOverview,
-    updates: renderUpdates,
     tools: renderTools,
     shortcuts: renderShortcuts,
     workflows: renderWorkflows,
@@ -554,7 +577,6 @@ const GuideView: React.FC<GuideViewProps> = ({ initialSection = 'overview' }) =>
 
   const sectionIcons: Record<GuideSectionId, React.ReactNode> = {
     overview: <Box className="w-4 h-4" />,
-    updates: <BookOpen className="w-4 h-4" />,
     tools: <FolderOpen className="w-4 h-4" />,
     shortcuts: <Keyboard className="w-4 h-4" />,
     workflows: <Workflow className="w-4 h-4" />,
@@ -565,20 +587,13 @@ const GuideView: React.FC<GuideViewProps> = ({ initialSection = 'overview' }) =>
   return (
     <div className="h-full flex flex-col bg-bg">
       {/* Header */}
-      <div className="shrink-0 px-8 py-6 border-b border-border bg-bg">
-        <div className="flex items-center gap-3 mb-1">
-          <div className="p-2 bg-accent/20 rounded-lg">
-            <Box className="w-6 h-6 text-blue-500" />
-          </div>
-          <div>
-            <h1 className="text-2xl font-bold text-content">DevArchitect Guide</h1>
-            <p className="text-sm text-faint">Everything you need to know about this project management workspace.</p>
-          </div>
-        </div>
+      <div className="shrink-0 px-8 pt-6 pb-4 bg-bg">
+        <h1 className="text-2xl font-semibold text-content">DevArchitect Guide</h1>
+        <p className="text-[0.8125rem] text-muted mt-1">Everything you need to know about this project management workspace.</p>
       </div>
 
       {/* Nav tabs */}
-      <div className="shrink-0 px-8 border-b border-border bg-bg/80">
+      <div className="shrink-0 px-8 border-b border-border bg-bg">
         <div className="flex gap-1 -mb-px overflow-x-auto">
           {sections.map((s) => (
             <button
@@ -586,7 +601,7 @@ const GuideView: React.FC<GuideViewProps> = ({ initialSection = 'overview' }) =>
               onClick={() => setActiveSection(s.id)}
               className={`flex items-center gap-2 px-4 py-3 text-sm font-medium border-b-2 transition-colors whitespace-nowrap ${
                 activeSection === s.id
-                  ? 'border-blue-500 text-blue-400'
+                  ? 'border-accent text-content'
                   : 'border-transparent text-faint hover:text-content hover:border-border-strong'
               }`}
             >
@@ -598,7 +613,7 @@ const GuideView: React.FC<GuideViewProps> = ({ initialSection = 'overview' }) =>
       </div>
 
       {/* Content */}
-      <div className="flex-1 overflow-y-auto custom-scrollbar">
+      <div className="flex-1 min-h-0 overflow-y-auto">
         <div className="max-w-4xl mx-auto px-8 py-8">
           {contentMap[activeSection]()}
         </div>

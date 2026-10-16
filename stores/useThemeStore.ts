@@ -2,6 +2,7 @@ import { create } from 'zustand';
 
 export type ThemePreference = 'light' | 'dark' | 'system';
 export type ColorScheme =
+  | 'amethyst'
   | 'blue'
   | 'cyan'
   | 'teal'
@@ -13,10 +14,15 @@ export type ColorScheme =
 export type SurfaceTint = 'neutral' | 'warm' | 'cool';
 export type CornerStyle = 'sharp' | 'precise' | 'rounded';
 export type Density = 'comfortable' | 'compact';
-export type Typeface = 'technical' | 'editorial' | 'mono';
+export type Typeface = 'interface' | 'technical' | 'editorial' | 'mono';
+export type TextScale = 'small' | 'default' | 'large';
+export type Motion = 'full' | 'reduced';
+export type LineWidth = 'readable' | 'full';
+export type EditorText = 'small' | 'default' | 'large';
 
 /** Accent schemes offered in Settings. `swatch` is a solid color for the chip. */
 export const COLOR_SCHEMES: { id: ColorScheme; label: string; swatch: string }[] = [
+  { id: 'amethyst', label: 'Amethyst', swatch: '#8a6cef' },
   { id: 'blue', label: 'Azure', swatch: '#3b82f6' },
   { id: 'cyan', label: 'Cyan', swatch: '#06b6d4' },
   { id: 'teal', label: 'Teal', swatch: '#14b8a6' },
@@ -35,7 +41,7 @@ export const SURFACE_TINTS: { id: SurfaceTint; label: string; hint: string }[] =
 
 export const CORNER_STYLES: { id: CornerStyle; label: string; hint: string }[] = [
   { id: 'sharp', label: 'Sharp', hint: 'Hard edges' },
-  { id: 'precise', label: 'Precise', hint: 'Drafting crisp' },
+  { id: 'precise', label: 'Precise', hint: 'Crisp' },
   { id: 'rounded', label: 'Rounded', hint: 'Soft' },
 ];
 
@@ -45,9 +51,32 @@ export const DENSITIES: { id: Density; label: string; hint: string }[] = [
 ];
 
 export const TYPEFACES: { id: Typeface; label: string; hint: string }[] = [
+  { id: 'interface', label: 'Interface', hint: 'Inter' },
   { id: 'technical', label: 'Technical', hint: 'Archivo' },
   { id: 'editorial', label: 'Editorial', hint: 'Fraunces' },
   { id: 'mono', label: 'Mono', hint: 'JetBrains' },
+];
+
+export const TEXT_SCALES: { id: TextScale; label: string; hint: string }[] = [
+  { id: 'small', label: 'Small', hint: '14.5px base' },
+  { id: 'default', label: 'Default', hint: '16px base' },
+  { id: 'large', label: 'Large', hint: '17.5px base' },
+];
+
+export const MOTION_MODES: { id: Motion; label: string; hint: string }[] = [
+  { id: 'full', label: 'Full', hint: 'All animations' },
+  { id: 'reduced', label: 'Reduced', hint: 'Minimal motion' },
+];
+
+export const LINE_WIDTHS: { id: LineWidth; label: string; hint: string }[] = [
+  { id: 'readable', label: 'Readable', hint: 'Capped column' },
+  { id: 'full', label: 'Full width', hint: 'Edge to edge' },
+];
+
+export const EDITOR_TEXT_SIZES: { id: EditorText; label: string; hint: string }[] = [
+  { id: 'small', label: 'Small', hint: '14px' },
+  { id: 'default', label: 'Default', hint: '15px' },
+  { id: 'large', label: 'Large', hint: '17px' },
 ];
 
 const KEYS = {
@@ -57,14 +86,22 @@ const KEYS = {
   corners: 'devarchitect-corners',
   density: 'devarchitect-density',
   typeface: 'devarchitect-typeface',
+  scale: 'devarchitect-scale',
+  motion: 'devarchitect-motion',
+  lineWidth: 'devarchitect-line-width',
+  editorText: 'devarchitect-editor-text',
 } as const;
 
 const DEFAULTS = {
-  scheme: 'indigo' as ColorScheme,
+  scheme: 'amethyst' as ColorScheme,
   tint: 'neutral' as SurfaceTint,
   corners: 'precise' as CornerStyle,
   density: 'comfortable' as Density,
-  typeface: 'technical' as Typeface,
+  typeface: 'interface' as Typeface,
+  scale: 'default' as TextScale,
+  motion: 'full' as Motion,
+  lineWidth: 'readable' as LineWidth,
+  editorText: 'default' as EditorText,
 };
 
 const prefersDark = () =>
@@ -72,17 +109,16 @@ const prefersDark = () =>
   window.matchMedia('(prefers-color-scheme: dark)').matches;
 
 const read = <T extends string>(key: string, allowed: readonly T[], fallback: T): T => {
-  if (typeof window === 'undefined') return fallback;
-  const stored = window.localStorage.getItem(key) as T | null;
-  return stored && allowed.includes(stored) ? stored : fallback;
+  try {
+    const stored = window.localStorage.getItem(key) as T | null;
+    return stored && allowed.includes(stored) ? stored : fallback;
+  } catch {
+    return fallback;
+  }
 };
 
-const readStoredPreference = (): ThemePreference => {
-  if (typeof window === 'undefined') return 'dark';
-  const stored = window.localStorage.getItem(KEYS.theme);
-  if (stored === 'light' || stored === 'dark' || stored === 'system') return stored;
-  return 'dark'; // app has always been dark-first
-};
+const readStoredPreference = (): ThemePreference =>
+  read<ThemePreference>(KEYS.theme, ['light', 'dark', 'system'], 'dark'); // dark-first
 
 const resolveIsDark = (preference: ThemePreference): boolean =>
   preference === 'system' ? prefersDark() : preference === 'dark';
@@ -105,12 +141,20 @@ interface ThemeStoreState {
   corners: CornerStyle;
   density: Density;
   typeface: Typeface;
+  textScale: TextScale;
+  motion: Motion;
+  lineWidth: LineWidth;
+  editorText: EditorText;
   setPreference: (preference: ThemePreference) => void;
   setScheme: (scheme: ColorScheme) => void;
   setTint: (tint: SurfaceTint) => void;
   setCorners: (corners: CornerStyle) => void;
   setDensity: (density: Density) => void;
   setTypeface: (typeface: Typeface) => void;
+  setTextScale: (scale: TextScale) => void;
+  setMotion: (motion: Motion) => void;
+  setLineWidth: (width: LineWidth) => void;
+  setEditorText: (size: EditorText) => void;
   toggle: () => void;
   /** Reset every appearance axis to its default. */
   resetAppearance: () => void;
@@ -121,7 +165,9 @@ interface ThemeStoreState {
 const initialPreference = readStoredPreference();
 
 const persist = (key: string, value: string) => {
-  if (typeof window !== 'undefined') window.localStorage.setItem(key, value);
+  try {
+    window.localStorage.setItem(key, value);
+  } catch { /* storage unavailable — the choice still applies for this session */ }
 };
 
 export const useThemeStore = create<ThemeStoreState>((set, get) => ({
@@ -132,6 +178,10 @@ export const useThemeStore = create<ThemeStoreState>((set, get) => ({
   corners: read(KEYS.corners, CORNER_STYLES.map((s) => s.id), DEFAULTS.corners),
   density: read(KEYS.density, DENSITIES.map((s) => s.id), DEFAULTS.density),
   typeface: read(KEYS.typeface, TYPEFACES.map((s) => s.id), DEFAULTS.typeface),
+  textScale: read(KEYS.scale, TEXT_SCALES.map((s) => s.id), DEFAULTS.scale),
+  motion: read(KEYS.motion, MOTION_MODES.map((s) => s.id), DEFAULTS.motion),
+  lineWidth: read(KEYS.lineWidth, LINE_WIDTHS.map((s) => s.id), DEFAULTS.lineWidth),
+  editorText: read(KEYS.editorText, EDITOR_TEXT_SIZES.map((s) => s.id), DEFAULTS.editorText),
 
   setPreference: (preference) => {
     persist(KEYS.theme, preference);
@@ -163,17 +213,41 @@ export const useThemeStore = create<ThemeStoreState>((set, get) => ({
     setAttr('data-type', typeface);
     set({ typeface });
   },
+  setTextScale: (scale) => {
+    persist(KEYS.scale, scale);
+    setAttr('data-scale', scale);
+    set({ textScale: scale });
+  },
+  setMotion: (motion) => {
+    persist(KEYS.motion, motion);
+    setAttr('data-motion', motion);
+    set({ motion });
+  },
+  setLineWidth: (width) => {
+    persist(KEYS.lineWidth, width);
+    setAttr('data-linewidth', width);
+    set({ lineWidth: width });
+  },
+  setEditorText: (size) => {
+    persist(KEYS.editorText, size);
+    setAttr('data-editortext', size);
+    set({ editorText: size });
+  },
   toggle: () => {
     const next: ThemePreference = get().isDark ? 'light' : 'dark';
     get().setPreference(next);
   },
   resetAppearance: () => {
-    const { setScheme, setTint, setCorners, setDensity, setTypeface } = get();
+    const { setScheme, setTint, setCorners, setDensity, setTypeface, setTextScale, setMotion, setLineWidth, setEditorText } = get();
     setScheme(DEFAULTS.scheme);
     setTint(DEFAULTS.tint);
     setCorners(DEFAULTS.corners);
     setDensity(DEFAULTS.density);
     setTypeface(DEFAULTS.typeface);
+    setTextScale(DEFAULTS.scale);
+    setMotion(DEFAULTS.motion);
+    setLineWidth(DEFAULTS.lineWidth);
+    setEditorText(DEFAULTS.editorText);
   },
   syncSystem: () => {
     if (get().preference !== 'system') return;
@@ -181,3 +255,8 @@ export const useThemeStore = create<ThemeStoreState>((set, get) => ({
     set({ isDark: prefersDark() });
   },
 }));
+
+// Follow live OS theme changes while the preference is `system`.
+if (typeof window !== 'undefined' && typeof window.matchMedia === 'function') {
+  window.matchMedia('(prefers-color-scheme: dark)').addEventListener('change', () => useThemeStore.getState().syncSystem());
+}

@@ -1,6 +1,8 @@
 import React, { useRef, useState, useEffect, useMemo } from 'react';
-import { Save, Eraser, Pen, Highlighter, Trash2, Loader2, Check, AlertCircle, Image as ImageIcon, X, Maximize2, Undo2, Redo2, Type as TypeIcon, Upload } from 'lucide-react';
+import { Eraser, Pen, Highlighter, Trash2, Image as ImageIcon, X, Maximize2, Undo2, Redo2, Type as TypeIcon, Upload } from 'lucide-react';
 import { EditorProps } from '../types';
+import { SaveIndicator } from './ui/SaveIndicator';
+import { confirmDialog } from '../stores/useUiStore';
 import { uid } from '../utils/id';
 
 type ToolType = 'pen' | 'highlighter' | 'eraser' | 'text';
@@ -165,6 +167,8 @@ const detectMediaTypeFromFile = (file: File): MediaType | null => {
   if (/\.(mp3|wav|ogg|m4a|aac|flac)$/i.test(file.name)) return 'audio';
   return null;
 };
+
+const WHITEBOARD_TOOL_KEYS: Record<string, ToolType> = { p: 'pen', h: 'highlighter', e: 'eraser', t: 'text' };
 
 const WhiteboardEditor: React.FC<EditorProps> = ({ initialContent, onSave, fileName, assets = {} }) => {
   const baseCanvasRef = useRef<HTMLCanvasElement>(null);
@@ -909,6 +913,14 @@ const WhiteboardEditor: React.FC<EditorProps> = ({ initialContent, onSave, fileN
         commitCanvasSnapshot(true);
         return;
       }
+      if (!isTypingTarget && !e.ctrlKey && !e.metaKey && !e.altKey && !target?.closest('[role="dialog"]')) {
+        const tool = WHITEBOARD_TOOL_KEYS[e.key.toLowerCase()];
+        if (tool) {
+          e.preventDefault();
+          setActiveTool(tool);
+          return;
+        }
+      }
       if (e.key === 'Escape') {
         if (editingTextId) {
           finishTextEditing(editingTextId, true);
@@ -921,8 +933,14 @@ const WhiteboardEditor: React.FC<EditorProps> = ({ initialContent, onSave, fileN
     return () => window.removeEventListener('keydown', handleKeyDown);
   }, [selectedElement, editingTextId]);
 
-  const clearCanvas = () => {
-    if (!confirm('Clear whiteboard? This cannot be undone.')) return;
+  const clearCanvas = async () => {
+    const confirmed = await confirmDialog({
+      title: 'Clear whiteboard?',
+      message: 'This cannot be undone.',
+      confirmText: 'Clear',
+      danger: true,
+    });
+    if (!confirmed) return;
     const refs = getCanvasContexts();
     if (!refs) return;
     fillCanvasBackground(refs.baseCtx, refs.baseCanvas);
@@ -958,37 +976,43 @@ const WhiteboardEditor: React.FC<EditorProps> = ({ initialContent, onSave, fileN
       onMouseLeave={handleWindowMouseUp}
     >
       {/* Toolbar */}
-      <div className="h-16 border-b border-border flex items-center justify-between px-4 sm:px-6 bg-surface/60 backdrop-blur-sm sticky top-0 z-20 shrink-0 select-none">
-        <h3 className="text-content font-medium truncate max-w-[100px] sm:max-w-none">{fileName}</h3>
-
+      <div className="h-11 border-b border-border flex items-center justify-between px-4 sm:px-6 bg-bg sticky top-0 z-20 shrink-0 select-none">
         <div className="flex items-center gap-4">
           {/* Tools */}
           <div className="flex bg-surface-raised p-1 rounded-lg border border-border-strong">
             <button
               onClick={() => setActiveTool('pen')}
               className={`p-2 rounded transition-all ${activeTool === 'pen' ? 'bg-accent text-accent-content shadow-sm' : 'text-muted hover:text-content'}`}
-              title="Pen"
+              title="Pen (P)"
+              aria-label="Pen"
+              aria-pressed={activeTool === 'pen'}
             >
               <Pen className="w-4 h-4" />
             </button>
             <button
               onClick={() => setActiveTool('highlighter')}
               className={`p-2 rounded transition-all ${activeTool === 'highlighter' ? 'bg-yellow-500 text-black shadow-sm' : 'text-muted hover:text-content'}`}
-              title="Highlighter"
+              title="Highlighter (H)"
+              aria-label="Highlighter"
+              aria-pressed={activeTool === 'highlighter'}
             >
               <Highlighter className="w-4 h-4" />
             </button>
             <button
               onClick={() => setActiveTool('eraser')}
               className={`p-2 rounded transition-all ${activeTool === 'eraser' ? 'bg-accent text-accent-content shadow-sm' : 'text-muted hover:text-content'}`}
-              title="Eraser"
+              title="Eraser (E)"
+              aria-label="Eraser"
+              aria-pressed={activeTool === 'eraser'}
             >
               <Eraser className="w-4 h-4" />
             </button>
             <button
               onClick={() => setActiveTool('text')}
               className={`p-2 rounded transition-all ${activeTool === 'text' ? 'bg-indigo-600 text-content shadow-sm' : 'text-muted hover:text-content'}`}
-              title="Text"
+              title="Text (T) — click the board to type"
+              aria-label="Text"
+              aria-pressed={activeTool === 'text'}
             >
               <TypeIcon className="w-4 h-4" />
             </button>
@@ -996,14 +1020,16 @@ const WhiteboardEditor: React.FC<EditorProps> = ({ initialContent, onSave, fileN
             <button
               onClick={() => setIsAssetMenuOpen(!isAssetMenuOpen)}
               className={`p-2 rounded transition-all ${isAssetMenuOpen ? 'bg-purple-600 text-content' : 'text-muted hover:text-content'}`}
-              title="Import Image"
+              title="Insert from the asset library"
+              aria-label="Insert from the asset library"
             >
               <ImageIcon className="w-4 h-4" />
             </button>
             <button
               onClick={launchMediaUploadPicker}
               className="p-2 rounded transition-all text-muted hover:text-content"
-              title="Upload Image / Video / Audio"
+              title="Upload an image, video, or audio file"
+              aria-label="Upload media"
             >
               <Upload className="w-4 h-4" />
             </button>
@@ -1080,7 +1106,7 @@ const WhiteboardEditor: React.FC<EditorProps> = ({ initialContent, onSave, fileN
                     commitCanvasSnapshot(true);
                   }}
                   className={`px-2 py-1 text-xs rounded ${selectedText.fontWeight === 'bold' ? 'bg-accent text-accent-content' : 'bg-surface-raised text-content'}`}
-                  title="Toggle Bold"
+                  title="Bold"
                 >
                   B
                 </button>
@@ -1090,7 +1116,7 @@ const WhiteboardEditor: React.FC<EditorProps> = ({ initialContent, onSave, fileN
                     commitCanvasSnapshot(true);
                   }}
                   className={`px-2 py-1 text-xs rounded ${selectedText.fontStyle === 'italic' ? 'bg-accent text-accent-content' : 'bg-surface-raised text-content'}`}
-                  title="Toggle Italic"
+                  title="Italic"
                 >
                   I
                 </button>
@@ -1130,7 +1156,8 @@ const WhiteboardEditor: React.FC<EditorProps> = ({ initialContent, onSave, fileN
             onClick={handleUndo}
             disabled={!canUndo}
             className="text-faint hover:text-content p-2 disabled:opacity-40 disabled:cursor-not-allowed"
-            title="Undo (Ctrl/Cmd+Z)"
+            title="Undo (Ctrl+Z)"
+            aria-label="Undo"
           >
             <Undo2 className="w-4 h-4" />
           </button>
@@ -1138,19 +1165,13 @@ const WhiteboardEditor: React.FC<EditorProps> = ({ initialContent, onSave, fileN
             onClick={handleRedo}
             disabled={!canRedo}
             className="text-faint hover:text-content p-2 disabled:opacity-40 disabled:cursor-not-allowed"
-            title="Redo (Ctrl/Cmd+Y)"
+            title="Redo (Ctrl+Y)"
+            aria-label="Redo"
           >
             <Redo2 className="w-4 h-4" />
           </button>
-          <div className="flex items-center mr-2 hidden sm:flex">
-            {saveStatus === 'saving' && <span className="text-xs text-faint"><Loader2 className="w-3 h-3 animate-spin" /></span>}
-            {saveStatus === 'saved' && <span className="text-xs text-faint opacity-50"><Check className="w-3 h-3" /></span>}
-            {saveStatus === 'unsaved' && <span className="text-xs text-orange-400"><AlertCircle className="w-3 h-3" /></span>}
-          </div>
-          <button onClick={clearCanvas} className="text-faint hover:text-red-400 p-2"><Trash2 className="w-4 h-4" /></button>
-          <button onClick={handleManualSave} className={`flex items-center gap-2 px-3 py-1.5 rounded-md text-sm font-medium transition-colors shadow-lg ${saveStatus === 'unsaved' ? 'bg-accent text-accent-content' : 'bg-surface-raised text-content'}`}>
-            <Save className="w-4 h-4" /> Save
-          </button>
+          <button onClick={clearCanvas} className="text-faint hover:text-danger p-2" title="Clear the whole whiteboard" aria-label="Clear whiteboard"><Trash2 className="w-4 h-4" /></button>
+          <SaveIndicator status={saveStatus} onSaveNow={handleManualSave} />
         </div>
       </div>
 

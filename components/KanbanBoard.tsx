@@ -1,7 +1,9 @@
 import React, { useState, useEffect, useRef } from 'react';
-import { Save, Plus, AlertCircle, ChevronLeft, ChevronRight, X, Trash2, Bug as BugIcon, Search, Filter, Pencil, Loader2, Check, Link as LinkIcon, ArrowUpDown, Calendar, Undo2, Redo2 } from 'lucide-react';
+import { Save, Plus, AlertCircle, ChevronLeft, ChevronRight, X, Trash2, Search, Filter, Pencil, Loader2, Check, Link as LinkIcon, ArrowUpDown, Calendar, Undo2, Redo2 } from 'lucide-react';
 import { Bug, BugSeverity, BugStatus, EditorProps } from '../types';
+import { SaveIndicator } from './ui/SaveIndicator';
 import { useUndoRedo } from '../hooks/useUndoRedo';
+import { confirmDialog } from '../stores/useUiStore';
 import { uid } from '../utils/id';
 
 const FILE_LINK_DRAG_MIME = 'application/x-gdpm-file-id';
@@ -281,8 +283,13 @@ const KanbanBoard: React.FC<EditorProps> = ({ initialContent, onSave, fileName, 
     setBugs(prev => prev.map(b => b.id === id ? { ...b, status: newStatus } : b));
   };
 
-  const deleteBug = (id: string) => {
-    if (confirm("Delete this bug ticket?")) {
+  const deleteBug = async (id: string) => {
+    const confirmed = await confirmDialog({
+      title: 'Delete this bug ticket?',
+      confirmText: 'Delete',
+      danger: true,
+    });
+    if (confirmed) {
       setBugs(prev => prev.filter(b => b.id !== id));
     }
   };
@@ -436,9 +443,14 @@ const KanbanBoard: React.FC<EditorProps> = ({ initialContent, onSave, fileName, 
     setSelectedBugIds([]);
   };
 
-  const deleteSelectedBugs = () => {
+  const deleteSelectedBugs = async () => {
     if (selectedBugIds.length === 0) return;
-    if (!confirm(`Delete ${selectedBugIds.length} selected bug${selectedBugIds.length === 1 ? '' : 's'}?`)) return;
+    const confirmed = await confirmDialog({
+      title: `Delete ${selectedBugIds.length} selected bug${selectedBugIds.length === 1 ? '' : 's'}?`,
+      confirmText: 'Delete',
+      danger: true,
+    });
+    if (!confirmed) return;
 
     const selectedSet = new Set(selectedBugIds);
     setBugs(currentBugs => currentBugs.filter(bug => !selectedSet.has(bug.id)));
@@ -539,25 +551,15 @@ const KanbanBoard: React.FC<EditorProps> = ({ initialContent, onSave, fileName, 
   };
 
   return (
-    <div className="h-full flex flex-col bg-surface">
-      <div className="h-16 border-b border-border flex items-center justify-between px-6 bg-surface/60 backdrop-blur-sm sticky top-0 z-10 shrink-0">
-        <div className="flex items-center gap-3">
-          <div className="p-2 bg-red-500/10 rounded-lg">
-             <BugIcon className="w-5 h-5 text-red-500" />
-          </div>
-          <h3 className="text-content font-medium">{fileName}</h3>
-        </div>
+    <div className="h-full flex flex-col bg-bg">
+      <div className="h-11 border-b border-border flex items-center justify-between px-6 bg-bg sticky top-0 z-10 shrink-0">
         <div className="flex gap-3">
           <div className="flex items-center gap-3">
             <div className="flex items-center gap-0.5 mr-1">
               <button onClick={() => { const prev = undoRedo.undo(); if (prev !== undefined) setBugs(prev); }} disabled={!undoRedo.canUndo} className="p-1.5 rounded text-faint hover:text-content hover:bg-surface-hover disabled:opacity-30 disabled:pointer-events-none transition-colors" title="Undo (Ctrl+Z)"><Undo2 className="w-4 h-4" /></button>
               <button onClick={() => { const next = undoRedo.redo(); if (next !== undefined) setBugs(next); }} disabled={!undoRedo.canRedo} className="p-1.5 rounded text-faint hover:text-content hover:bg-surface-hover disabled:opacity-30 disabled:pointer-events-none transition-colors" title="Redo (Ctrl+Y)"><Redo2 className="w-4 h-4" /></button>
             </div>
-            <div className="flex items-center mr-2">
-                {saveStatus === 'saving' && <span className="text-xs text-faint flex items-center gap-1"><Loader2 className="w-3 h-3 animate-spin" /> Saving...</span>}
-                {saveStatus === 'saved' && <span className="text-xs text-faint flex items-center gap-1 opacity-50"><Check className="w-3 h-3" /> Saved</span>}
-                {saveStatus === 'unsaved' && <span className="text-xs text-orange-400 flex items-center gap-1"><AlertCircle className="w-3 h-3" /> Unsaved</span>}
-            </div>
+            <SaveIndicator status={saveStatus} onSaveNow={handleManualSave} />
 
             <button
                 onClick={handleOpenCreate}
@@ -565,13 +567,6 @@ const KanbanBoard: React.FC<EditorProps> = ({ initialContent, onSave, fileName, 
             >
                 <Plus className="w-4 h-4" />
                 Report Bug
-            </button>
-            <button
-                onClick={handleManualSave}
-                className={`flex items-center gap-2 px-4 py-2 rounded-md text-sm font-medium transition-colors shadow-lg ${saveStatus === 'unsaved' ? 'bg-accent hover:bg-accent-hover text-accent-content shadow-blue-900/20' : 'bg-surface-raised hover:bg-surface-hover text-content'}`}
-            >
-                <Save className="w-4 h-4" />
-                Save Board
             </button>
           </div>
         </div>
@@ -804,8 +799,8 @@ const KanbanBoard: React.FC<EditorProps> = ({ initialContent, onSave, fileName, 
                      )})}
                     {bottomSpacerHeight > 0 && <div style={{ height: bottomSpacerHeight }} />}
                     {colBugs.length === 0 && (
-                      <div className={`text-center py-8 pointer-events-none transition-opacity ${isActiveDrop ? 'opacity-50 text-blue-400' : 'opacity-30 text-faint'}`}>
-                        <div className="text-sm italic">{isActiveDrop ? 'Drop to move here' : 'Drop items here'}</div>
+                      <div className={`text-center py-8 pointer-events-none transition-opacity ${isActiveDrop ? 'opacity-50 text-blue-400' : 'text-faint'}`}>
+                        <div className="text-sm">{isActiveDrop ? 'Drop to move here' : 'No bugs here'}</div>{!isActiveDrop && <div className="mt-1 text-[11px]">Drag a card here, or use Report Bug</div>}
                       </div>
                     )}
                  </div>

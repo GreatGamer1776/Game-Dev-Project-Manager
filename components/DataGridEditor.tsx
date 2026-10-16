@@ -1,23 +1,26 @@
 import React, { useEffect, useMemo, useRef, useState } from 'react';
 import {
-  AlertCircle,
   ArrowDown,
   ArrowUp,
   ArrowUpDown,
   Check,
-  Columns,
+  ChevronDown,
   Download,
-  Loader2,
+  Hash,
   Plus,
-  Save,
   Search,
+  ToggleLeft,
+  Type as TypeIcon,
   Trash2,
   Upload,
   Undo2,
   Redo2
 } from 'lucide-react';
 import { EditorProps } from '../types';
+import { SaveIndicator } from './ui/SaveIndicator';
+import { showMenu } from '../stores/useMenuStore';
 import { useUndoRedo } from '../hooks/useUndoRedo';
+import { confirmDialog, toast } from '../stores/useUiStore';
 import { uid } from '../utils/id';
 
 interface GridColumn {
@@ -190,6 +193,9 @@ const parseCsvToGrid = (text: string): GridData => {
   return { columns, rows };
 };
 
+const TYPE_LABEL: Record<GridColumn['type'], string> = { text: 'Text', number: 'Number', boolean: 'Checkbox' };
+const TYPE_ICON: Record<GridColumn['type'], React.ComponentType<{ className?: string }>> = { text: TypeIcon, number: Hash, boolean: ToggleLeft };
+
 const DataGridEditor: React.FC<EditorProps> = ({ initialContent, onSave, fileName }) => {
   const initialDataRef = useRef<GridData>(normalizeInitialData(initialContent));
   const [columns, setColumns] = useState<GridColumn[]>(initialDataRef.current.columns);
@@ -199,8 +205,7 @@ const DataGridEditor: React.FC<EditorProps> = ({ initialContent, onSave, fileNam
   const [selectedRowIds, setSelectedRowIds] = useState<Set<string>>(new Set());
   const [sortColumnId, setSortColumnId] = useState<string | null>(null);
   const [sortDirection, setSortDirection] = useState<SortDirection>(null);
-  const [newColumnName, setNewColumnName] = useState('');
-  const [newColumnType, setNewColumnType] = useState<GridColumn['type']>('text');
+  const [focusColumnId, setFocusColumnId] = useState<string | null>(null);
   const [saveStatus, setSaveStatus] = useState<SaveStatus>('saved');
 
   const lastSavedData = useRef(JSON.stringify(initialDataRef.current));
@@ -352,19 +357,12 @@ const DataGridEditor: React.FC<EditorProps> = ({ initialContent, onSave, fileNam
     saveStatusTimerRef.current = setTimeout(() => setSaveStatus('saved'), 300);
   };
 
-  const addColumn = () => {
-    const trimmedName = newColumnName.trim();
-    if (!trimmedName) return;
-
-    const nextColumn: GridColumn = {
-      id: uid(),
-      name: trimmedName,
-      type: newColumnType
-    };
+  /** Adds a column with a placeholder name and puts the cursor in its name so it can be typed over. */
+  const addColumn = (type: GridColumn['type'] = 'text') => {
+    const nextColumn: GridColumn = { id: uid(), name: `Column ${columns.length + 1}`, type };
     setColumns(prev => [...prev, nextColumn]);
-    setRows(prev => prev.map(row => ({ ...row, [nextColumn.id]: defaultValueForType(newColumnType) })));
-    setNewColumnName('');
-    setNewColumnType('text');
+    setRows(prev => prev.map(row => ({ ...row, [nextColumn.id]: defaultValueForType(type) })));
+    setFocusColumnId(nextColumn.id);
   };
 
   const addRow = () => {
@@ -373,6 +371,14 @@ const DataGridEditor: React.FC<EditorProps> = ({ initialContent, onSave, fileNam
       newRow[column.id] = defaultValueForType(column.type);
     });
     setRows(prev => [...prev, newRow]);
+    setSearchQuery('');
+    // Scroll the new row into view and put the cursor in its first cell.
+    window.setTimeout(() => {
+      const el = tableScrollRef.current;
+      if (!el) return;
+      el.scrollTop = el.scrollHeight;
+      window.setTimeout(() => el.querySelector<HTMLInputElement>(`[data-row="${newRow.id}"] input`)?.focus(), 30);
+    }, 0);
   };
 
   const updateCell = (rowId: string, column: GridColumn, value: unknown) => {
@@ -393,10 +399,15 @@ const DataGridEditor: React.FC<EditorProps> = ({ initialContent, onSave, fileNam
     );
   };
 
-  const deleteColumn = (columnId: string) => {
+  const deleteColumn = async (columnId: string) => {
     const column = columns.find(c => c.id === columnId);
     if (!column) return;
-    const confirmed = confirm(`Delete "${column.name}" column? This removes all values in that column.`);
+    const confirmed = await confirmDialog({
+      title: `Delete "${column.name}" column?`,
+      message: 'This removes all values in that column.',
+      confirmText: 'Delete column',
+      danger: true,
+    });
     if (!confirmed) return;
 
     setColumns(prev => prev.filter(c => c.id !== columnId));
@@ -423,9 +434,13 @@ const DataGridEditor: React.FC<EditorProps> = ({ initialContent, onSave, fileNam
     });
   };
 
-  const deleteSelectedRows = () => {
+  const deleteSelectedRows = async () => {
     if (selectedRowIds.size === 0) return;
-    const confirmed = confirm(`Delete ${selectedRowIds.size} selected row${selectedRowIds.size === 1 ? '' : 's'}?`);
+    const confirmed = await confirmDialog({
+      title: `Delete ${selectedRowIds.size} selected row${selectedRowIds.size === 1 ? '' : 's'}?`,
+      confirmText: 'Delete rows',
+      danger: true,
+    });
     if (!confirmed) return;
     setRows(prev => prev.filter(row => !selectedRowIds.has(row.id)));
     setSelectedRowIds(new Set());
@@ -503,7 +518,12 @@ const DataGridEditor: React.FC<EditorProps> = ({ initialContent, onSave, fileNam
         const text = await file.text();
         const parsed = parseCsvToGrid(text);
         if (rows.length > 0 || columns.length > 0) {
-          const confirmed = confirm('Replace current grid with imported CSV data?');
+          const confirmed = await confirmDialog({
+            title: 'Replace current grid?',
+            message: 'The imported CSV will replace all existing columns and rows.',
+            confirmText: 'Replace',
+            danger: true,
+          });
           if (!confirmed) return;
         }
         setColumns(parsed.columns);
@@ -514,7 +534,7 @@ const DataGridEditor: React.FC<EditorProps> = ({ initialContent, onSave, fileNam
         setSearchQuery('');
       } catch (error) {
         console.error(error);
-        alert('Failed to import CSV.');
+        toast.error('Failed to import CSV.');
       }
     };
     input.click();
@@ -526,109 +546,39 @@ const DataGridEditor: React.FC<EditorProps> = ({ initialContent, onSave, fileNam
   };
 
   return (
-    <div className="h-full flex flex-col bg-surface">
-      <div className="border-b border-border bg-surface/60 backdrop-blur-sm px-6 py-3 space-y-3 shrink-0">
-        <div className="flex items-center justify-between gap-4">
-          <h3 className="text-content font-medium flex items-center gap-2">
-            <Columns className="w-4 h-4 text-emerald-400" />
-            {fileName}
-          </h3>
-          <div className="flex items-center gap-2">
-            <div className="flex items-center gap-0.5 mr-1">
-              <button onClick={() => { const prev = undoRedo.undo(); if (prev !== undefined) { setColumns(prev.columns); setRows(prev.rows); } }} disabled={!undoRedo.canUndo} className="p-1.5 rounded text-faint hover:text-content hover:bg-surface-hover disabled:opacity-30 disabled:pointer-events-none transition-colors" title="Undo (Ctrl+Z)"><Undo2 className="w-4 h-4" /></button>
-              <button onClick={() => { const next = undoRedo.redo(); if (next !== undefined) { setColumns(next.columns); setRows(next.rows); } }} disabled={!undoRedo.canRedo} className="p-1.5 rounded text-faint hover:text-content hover:bg-surface-hover disabled:opacity-30 disabled:pointer-events-none transition-colors" title="Redo (Ctrl+Y)"><Redo2 className="w-4 h-4" /></button>
-            </div>
-            <div className="text-xs">
-              {saveStatus === 'saving' && (
-                <span className="text-muted flex items-center gap-1">
-                  <Loader2 className="w-3 h-3 animate-spin" />
-                  Saving...
-                </span>
-              )}
-              {saveStatus === 'saved' && (
-                <span className="text-faint flex items-center gap-1 opacity-70">
-                  <Check className="w-3 h-3" />
-                  Saved
-                </span>
-              )}
-              {saveStatus === 'unsaved' && (
-                <span className="text-amber-400 flex items-center gap-1">
-                  <AlertCircle className="w-3 h-3" />
-                  Unsaved
-                </span>
-              )}
-            </div>
-            <button onClick={importCsv} className="p-2 text-muted hover:text-content hover:bg-surface-hover rounded" title="Import CSV">
-              <Upload className="w-4 h-4" />
-            </button>
-            <button onClick={exportCsv} className="p-2 text-muted hover:text-content hover:bg-surface-hover rounded" title="Export CSV">
-              <Download className="w-4 h-4" />
-            </button>
-            <button
-              onClick={handleManualSave}
-              className={`flex items-center gap-2 px-4 py-2 rounded-md text-sm font-medium transition-colors ${
-                saveStatus === 'unsaved' ? 'bg-emerald-600 hover:bg-emerald-700 text-content' : 'bg-surface-raised hover:bg-surface-hover text-content'
-              }`}
-            >
-              <Save className="w-4 h-4" />
-              Save
-            </button>
-          </div>
-        </div>
-
-        <div className="flex flex-wrap items-center gap-3">
-          <div className="relative w-72 max-w-full">
-            <Search className="w-4 h-4 text-faint absolute left-3 top-1/2 -translate-y-1/2" />
-            <input
-              type="text"
-              value={searchQuery}
-              onChange={(e) => setSearchQuery(e.target.value)}
-              placeholder="Search across all columns..."
-              className="w-full bg-bg border border-border rounded-md py-2 pl-9 pr-3 text-sm text-content focus:outline-none focus:border-border-strong"
-            />
-          </div>
-
-          <button onClick={addRow} className="flex items-center gap-2 px-3 py-2 rounded-md bg-accent hover:bg-accent-hover text-accent-content text-sm font-medium">
-            <Plus className="w-4 h-4" />
-            Add Row
+    <div className="h-full flex flex-col bg-bg">
+      <div className="flex h-10 shrink-0 items-center gap-1 overflow-x-auto border-b border-border bg-bg px-3 [scrollbar-width:thin]">
+        <button onClick={() => { const prev = undoRedo.undo(); if (prev !== undefined) { setColumns(prev.columns); setRows(prev.rows); } }} disabled={!undoRedo.canUndo} className="icon-btn" title="Undo (Ctrl+Z)" aria-label="Undo"><Undo2 className="w-4 h-4" /></button>
+        <button onClick={() => { const next = undoRedo.redo(); if (next !== undefined) { setColumns(next.columns); setRows(next.rows); } }} disabled={!undoRedo.canRedo} className="icon-btn" title="Redo (Ctrl+Y)" aria-label="Redo"><Redo2 className="w-4 h-4" /></button>
+        <span className="mx-1 h-4 w-px shrink-0 bg-border" />
+        <button onClick={addRow} className="flex h-7 shrink-0 items-center gap-1.5 rounded-md bg-accent px-2.5 text-[12px] font-medium text-accent-content hover:bg-accent-hover">
+          <Plus className="w-3.5 h-3.5" /> Row
+        </button>
+        <button onClick={() => addColumn()} className="flex h-7 shrink-0 items-center gap-1.5 rounded-md px-2.5 text-[12px] text-muted hover:bg-surface-hover hover:text-content" title="Add a column">
+          <Plus className="w-3.5 h-3.5" /> Column
+        </button>
+        {selectedRowIds.size > 0 && (
+          <button onClick={deleteSelectedRows} className="flex h-7 shrink-0 items-center gap-1.5 rounded-md px-2.5 text-[12px] text-muted hover:bg-danger/10 hover:text-danger">
+            <Trash2 className="w-3.5 h-3.5" /> Delete {selectedRowIds.size} row{selectedRowIds.size === 1 ? '' : 's'}
           </button>
-
-          <button
-            onClick={deleteSelectedRows}
-            disabled={selectedRowIds.size === 0}
-            className="flex items-center gap-2 px-3 py-2 rounded-md bg-surface-raised hover:bg-surface-hover disabled:opacity-50 disabled:cursor-not-allowed text-content text-sm font-medium"
-          >
-            <Trash2 className="w-4 h-4" />
-            Delete Selected
-          </button>
-
-          <div className="h-6 w-px bg-surface-raised" />
-
+        )}
+        <div className="relative ml-2 w-56 shrink-0">
+          <Search className="pointer-events-none absolute left-2 top-1/2 h-3.5 w-3.5 -translate-y-1/2 text-faint" />
           <input
             type="text"
-            value={newColumnName}
-            onChange={(e) => setNewColumnName(e.target.value)}
-            placeholder="New column name"
-            className="bg-bg border border-border rounded-md px-3 py-2 text-sm text-content focus:outline-none focus:border-border-strong w-44"
+            value={searchQuery}
+            onChange={(e) => setSearchQuery(e.target.value)}
+            placeholder="Filter rows…"
+            aria-label="Filter rows"
+            className="h-7 w-full rounded-md border border-border bg-surface-raised pl-7 pr-2 text-[12px] text-content outline-none placeholder:text-faint focus:border-accent"
           />
-          <select
-            value={newColumnType}
-            onChange={(e) => setNewColumnType(e.target.value as GridColumn['type'])}
-            className="bg-bg border border-border rounded-md px-3 py-2 text-sm text-content focus:outline-none focus:border-border-strong"
-          >
-            <option value="text">Text</option>
-            <option value="number">Number</option>
-            <option value="boolean">Boolean</option>
-          </select>
-          <button onClick={addColumn} className="flex items-center gap-2 px-3 py-2 rounded-md bg-surface-raised hover:bg-surface-hover text-content text-sm font-medium">
-            <Plus className="w-4 h-4" />
-            Add Column
-          </button>
-
-          <div className="ml-auto text-xs text-faint">
-            {rows.length} rows | {columns.length} columns | {displayedRows.length} shown
-          </div>
         </div>
+        <span className="ml-auto shrink-0 pl-3 text-[11px] tabular-nums text-faint">
+          {displayedRows.length === rows.length ? `${rows.length} row${rows.length === 1 ? '' : 's'}` : `${displayedRows.length} of ${rows.length} rows`} · {columns.length} column{columns.length === 1 ? '' : 's'}
+        </span>
+        <button onClick={importCsv} className="icon-btn shrink-0" title="Import CSV" aria-label="Import CSV"><Upload className="w-4 h-4" /></button>
+        <button onClick={exportCsv} className="icon-btn shrink-0" title="Export CSV" aria-label="Export CSV"><Download className="w-4 h-4" /></button>
+        <SaveIndicator status={saveStatus} onSaveNow={handleManualSave} />
       </div>
 
       <div
@@ -661,8 +611,22 @@ const DataGridEditor: React.FC<EditorProps> = ({ initialContent, onSave, fileNam
                   {columns.map((column) => (
                     <th key={column.id} className="min-w-[220px] px-2 py-2 text-left align-top border-l border-border">
                       <div className="flex items-center gap-1">
+                        <button
+                          type="button"
+                          title={`${TYPE_LABEL[column.type]} column — click to change type`}
+                          aria-label={`Change type of ${column.name}`}
+                          onClick={(e) => showMenu(e, (['text', 'number', 'boolean'] as GridColumn['type'][]).map(t => ({
+                            label: TYPE_LABEL[t], icon: TYPE_ICON[t], checked: column.type === t, onSelect: () => updateColumnType(column.id, t),
+                          })), 'below')}
+                          className="flex shrink-0 items-center rounded p-1 text-faint hover:bg-surface-hover hover:text-content"
+                        >
+                          {React.createElement(TYPE_ICON[column.type], { className: 'h-3.5 w-3.5' })}
+                          <ChevronDown className="h-2.5 w-2.5" />
+                        </button>
                         <input
                           value={column.name}
+                          aria-label="Column name"
+                          ref={el => { if (el && focusColumnId === column.id) { el.focus(); el.select(); setFocusColumnId(null); } }}
                           onChange={(e) => updateColumnName(column.id, e.target.value)}
                           className="w-full bg-transparent text-sm font-semibold text-content focus:outline-none"
                         />
@@ -675,24 +639,17 @@ const DataGridEditor: React.FC<EditorProps> = ({ initialContent, onSave, fileNam
                         </button>
                         <button
                           onClick={() => deleteColumn(column.id)}
-                          className="p-1 text-faint hover:text-red-400 hover:bg-surface-hover rounded"
+                          className="p-1 text-faint hover:text-danger hover:bg-surface-hover rounded"
                           title="Delete column"
                         >
                           <Trash2 className="h-3.5 w-3.5" />
                         </button>
                       </div>
-                      <select
-                        value={column.type}
-                        onChange={(e) => updateColumnType(column.id, e.target.value as GridColumn['type'])}
-                        className="mt-1 w-full bg-bg border border-border rounded px-2 py-1 text-[11px] text-content focus:outline-none focus:border-border-strong"
-                      >
-                        <option value="text">Text</option>
-                        <option value="number">Number</option>
-                        <option value="boolean">Boolean</option>
-                      </select>
                     </th>
                   ))}
-                  <th className="w-10 px-2 py-2 border-l border-border" />
+                  <th className="w-10 px-1 py-2 border-l border-border">
+                    <button type="button" onClick={() => addColumn()} className="icon-btn h-7 w-7" title="Add column" aria-label="Add column"><Plus className="h-4 w-4" /></button>
+                  </th>
                 </tr>
               </thead>
 
@@ -706,7 +663,7 @@ const DataGridEditor: React.FC<EditorProps> = ({ initialContent, onSave, fileNam
                 {visibleRows.map((row, idx) => {
                   const isSelected = selectedRowIds.has(row.id);
                   return (
-                    <tr key={row.id} className={`border-b border-border hover:bg-surface-hover/60 ${isSelected ? 'bg-blue-500/10' : 'bg-bg'}`}>
+                    <tr key={row.id} data-row={row.id} className={`border-b border-border hover:bg-surface-hover/60 ${isSelected ? 'bg-blue-500/10' : 'bg-bg'}`}>
                       <td className="px-2 py-2 align-middle" style={{ height: ROW_HEIGHT }}>
                         <button
                           type="button"
@@ -769,7 +726,20 @@ const DataGridEditor: React.FC<EditorProps> = ({ initialContent, onSave, fileNam
                 {displayedRows.length === 0 && (
                   <tr>
                     <td colSpan={columns.length + 3} className="px-6 py-10 text-center text-sm text-faint">
-                      No rows match your filter.
+                      {rows.length === 0 ? (
+                        <>No rows yet. <button type="button" onClick={addRow} className="text-accent hover:underline">Add the first row</button></>
+                      ) : (
+                        <>No rows match “{searchQuery}”. <button type="button" onClick={() => setSearchQuery('')} className="text-accent hover:underline">Clear filter</button></>
+                      )}
+                    </td>
+                  </tr>
+                )}
+                {displayedRows.length > 0 && (
+                  <tr>
+                    <td colSpan={columns.length + 3} className="p-0">
+                      <button type="button" onClick={addRow} className="flex w-full items-center gap-1.5 px-3 py-2 text-left text-[12px] text-faint hover:bg-surface-hover hover:text-content">
+                        <Plus className="h-3.5 w-3.5" /> New row
+                      </button>
                     </td>
                   </tr>
                 )}

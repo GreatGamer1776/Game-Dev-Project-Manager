@@ -31,6 +31,7 @@ export default {
       colors: {
         // App surfaces
         bg: withOpacity('--color-bg'),
+        chrome: withOpacity('--color-chrome'),
         surface: withOpacity('--color-surface'),
         'surface-raised': withOpacity('--color-surface-raised'),
         'surface-hover': withOpacity('--color-surface-hover'),
@@ -70,10 +71,7 @@ export default {
         soft: '0 1px 2px 0 rgb(0 0 0 / 0.05), 0 1px 3px 0 rgb(0 0 0 / 0.08)',
         raised: '0 4px 12px -2px rgb(0 0 0 / 0.12), 0 2px 6px -2px rgb(0 0 0 / 0.08)',
         pop: '0 12px 32px -8px rgb(0 0 0 / 0.30), 0 6px 12px -6px rgb(0 0 0 / 0.20)',
-      },
-      backgroundImage: {
-        // Subtle same-hue vertical sheen for primary buttons (depth, not a rainbow).
-        'accent-soft': 'linear-gradient(180deg, rgb(var(--color-accent)) 0%, rgb(var(--color-accent-hover)) 100%)',
+        menu: '0 8px 24px rgb(0 0 0 / 0.28), 0 0 0 1px rgb(var(--color-border-strong) / 0.6)',
       },
       keyframes: {
         'fade-in': {
@@ -84,10 +82,15 @@ export default {
           from: { opacity: '0', transform: 'translateY(8px) scale(0.98)' },
           to: { opacity: '1', transform: 'translateY(0) scale(1)' },
         },
+        'menu-in': {
+          from: { opacity: '0', transform: 'scale(0.98)' },
+          to: { opacity: '1', transform: 'scale(1)' },
+        },
       },
       animation: {
         'fade-in': 'fade-in 0.15s ease-out',
         'scale-in': 'scale-in 0.18s cubic-bezier(0.16, 1, 0.3, 1)',
+        'menu-in': 'menu-in 0.1s ease-out',
       },
     },
   },

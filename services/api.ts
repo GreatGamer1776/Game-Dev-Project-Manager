@@ -4,7 +4,21 @@ export type PersistedAppState = {
   currentView: ViewState;
   activeProjectId: string | null;
   activeFileId: string | null;
+  /** @deprecated superseded by filePanelOpen; kept for old saved state. */
   sidebarCollapsed?: boolean;
+  filePanelOpen?: boolean;
+  rightPanelOpen?: boolean;
+  /** Open tabs (current file per tab) for the active project. */
+  tabs?: Array<{ fileId: string | null; pinned: boolean }>;
+  activeTabIndex?: number;
+  /** Bookmarked file ids, per project id. */
+  bookmarks?: Record<string, string[]>;
+  /** Split-pane layout + each pane's tabs (see hooks/useWorkspace). */
+  workspace?: {
+    layout: unknown;
+    panes: Record<string, { tabs: Array<{ fileId: string | null; pinned: boolean }>; activeIndex: number }>;
+    activePaneId: string;
+  };
 };
 
 export interface AuthUser {

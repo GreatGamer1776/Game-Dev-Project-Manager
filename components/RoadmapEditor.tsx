@@ -1,7 +1,9 @@
 import React, { useEffect, useMemo, useRef, useState } from 'react';
-import { AlertCircle, Calendar, Check, ChevronLeft, ChevronRight, Filter, Flag, Loader2, Pencil, Plus, RotateCcw, Save, Search, Trash2, Undo2, Redo2 } from 'lucide-react';
+import { Calendar, ChevronLeft, ChevronRight, Filter, Flag, Pencil, Plus, RotateCcw, Save, Search, Trash2, Undo2, Redo2 } from 'lucide-react';
 import { EditorProps, RoadmapItem, RoadmapItemType, RoadmapStatus } from '../types';
+import { SaveIndicator } from './ui/SaveIndicator';
 import { useUndoRedo } from '../hooks/useUndoRedo';
+import { confirmDialog } from '../stores/useUiStore';
 import { uid } from '../utils/id';
 
 const ROADMAP_STATUS_OPTIONS: RoadmapStatus[] = ['planned', 'in-progress', 'completed', 'delayed', 'dropped'];
@@ -218,6 +220,21 @@ const RoadmapEditor: React.FC<EditorProps> = ({ initialContent, onSave, fileName
         event.preventDefault();
         saveNow();
       }
+      if (isModalOpen) {
+        if (event.key === 'Escape') closeModal();
+        return;
+      }
+      const target = event.target as HTMLElement | null;
+      if (target && (['INPUT', 'TEXTAREA', 'SELECT'].includes(target.tagName) || target.isContentEditable || target.closest('[role="dialog"]'))) return;
+      if (!event.ctrlKey && !event.metaKey && !event.altKey) {
+        const selected = items.find(item => item.id === selectedId);
+        const key = event.key.toLowerCase();
+        if (key === 'n') { event.preventDefault(); openCreate('phase'); return; }
+        if (key === 'm') { event.preventDefault(); openCreate('milestone'); return; }
+        if (selected && event.key === 'Enter') { event.preventDefault(); openEdit(selected); return; }
+        if (selected && (event.key === 'Delete' || event.key === 'Backspace')) { event.preventDefault(); void handleDelete(selected.id); return; }
+        if (selected && event.key === 'Escape') { setSelectedId(null); return; }
+      }
       if ((event.ctrlKey || event.metaKey) && event.key === 'z' && !event.shiftKey) {
         event.preventDefault();
         const prev = undoRedo.undo();
@@ -231,7 +248,7 @@ const RoadmapEditor: React.FC<EditorProps> = ({ initialContent, onSave, fileName
     };
     window.addEventListener('keydown', onKeyDown);
     return () => window.removeEventListener('keydown', onKeyDown);
-  }, [items, undoRedo]);
+  }, [items, undoRedo, isModalOpen, selectedId]);
 
   // Push to undo stack when items change
   const lastUndoPushRef = useRef(JSON.stringify(items));
@@ -274,8 +291,13 @@ const RoadmapEditor: React.FC<EditorProps> = ({ initialContent, onSave, fileName
     setEditingId(null);
   };
 
-  const handleDelete = (id: string) => {
-    if (!confirm('Delete this roadmap item?')) return;
+  const handleDelete = async (id: string) => {
+    const confirmed = await confirmDialog({
+      title: 'Delete this roadmap item?',
+      confirmText: 'Delete',
+      danger: true,
+    });
+    if (!confirmed) return;
     setItems(prev => prev.filter(item => item.id !== id));
     setSelectedId(prev => (prev === id ? null : prev));
     if (editingId === id) closeModal();
@@ -429,6 +451,8 @@ const RoadmapEditor: React.FC<EditorProps> = ({ initialContent, onSave, fileName
     setCalendarMonthTs(firstOfMonthTs(Date.now()));
   };
 
+  const filtersActive = Boolean(searchQuery.trim()) || statusFilter !== 'All' || typeFilter !== 'All';
+
   const resetFilters = () => {
     setSearchQuery('');
     setStatusFilter('All');
@@ -436,127 +460,91 @@ const RoadmapEditor: React.FC<EditorProps> = ({ initialContent, onSave, fileName
   };
 
   return (
-    <div className="h-full flex flex-col bg-surface">
-      <div className="border-b border-border bg-surface/60 backdrop-blur-sm px-6 py-3 space-y-3 shrink-0">
-        <div className="flex items-center justify-between gap-3">
-          <div className="flex items-center gap-2">
-            <Calendar className="w-4 h-4 text-cyan-400" />
-            <h3 className="text-content font-semibold">{fileName}</h3>
-          </div>
-          <div className="flex items-center gap-2">
-            <div className="flex items-center gap-0.5 mr-1">
-              <button onClick={() => { const prev = undoRedo.undo(); if (prev !== undefined) setItems(prev); }} disabled={!undoRedo.canUndo} className="p-1.5 rounded text-faint hover:text-content hover:bg-surface-hover disabled:opacity-30 disabled:pointer-events-none transition-colors" title="Undo (Ctrl+Z)"><Undo2 className="w-4 h-4" /></button>
-              <button onClick={() => { const next = undoRedo.redo(); if (next !== undefined) setItems(next); }} disabled={!undoRedo.canRedo} className="p-1.5 rounded text-faint hover:text-content hover:bg-surface-hover disabled:opacity-30 disabled:pointer-events-none transition-colors" title="Redo (Ctrl+Y)"><Redo2 className="w-4 h-4" /></button>
-            </div>
-            <div className="text-xs">
-              {saveStatus === 'saving' && (
-                <span className="text-muted flex items-center gap-1">
-                  <Loader2 className="w-3 h-3 animate-spin" />
-                  Saving...
-                </span>
-              )}
-              {saveStatus === 'saved' && (
-                <span className="text-faint flex items-center gap-1">
-                  <Check className="w-3 h-3" />
-                  Saved
-                </span>
-              )}
-              {saveStatus === 'unsaved' && (
-                <span className="text-amber-400 flex items-center gap-1">
-                  <AlertCircle className="w-3 h-3" />
-                  Unsaved
-                </span>
-              )}
-            </div>
-            <button onClick={() => openCreate('phase')} className="px-3 py-2 rounded-md bg-accent hover:bg-accent-hover text-accent-content text-sm font-medium flex items-center gap-2">
-              <Plus className="w-4 h-4" />
-              New Phase
-            </button>
-            <button
-              onClick={() => openCreate('milestone')}
-              className="px-3 py-2 rounded-md bg-surface-raised hover:bg-surface-hover text-content text-sm font-medium flex items-center gap-2 border border-border-strong"
-            >
-              <Flag className="w-4 h-4" />
-              New Milestone
-            </button>
-            <button onClick={saveNow} className="px-3 py-2 rounded-md bg-emerald-600 hover:bg-emerald-700 text-content text-sm font-medium flex items-center gap-2">
-              <Save className="w-4 h-4" />
-              Save
-            </button>
-          </div>
+    <div className="h-full flex flex-col bg-bg">
+      <div className="flex h-10 shrink-0 items-center gap-1 overflow-x-auto border-b border-border bg-bg px-3 [scrollbar-width:thin]">
+        <button onClick={() => { const prev = undoRedo.undo(); if (prev !== undefined) setItems(prev); }} disabled={!undoRedo.canUndo} className="icon-btn" title="Undo (Ctrl+Z)" aria-label="Undo"><Undo2 className="w-4 h-4" /></button>
+        <button onClick={() => { const next = undoRedo.redo(); if (next !== undefined) setItems(next); }} disabled={!undoRedo.canRedo} className="icon-btn" title="Redo (Ctrl+Y)" aria-label="Redo"><Redo2 className="w-4 h-4" /></button>
+        <span className="mx-1 h-4 w-px shrink-0 bg-border" />
+        <button onClick={() => openCreate('phase')} className="flex h-7 shrink-0 items-center gap-1.5 rounded-md bg-accent px-2.5 text-[12px] font-medium text-accent-content hover:bg-accent-hover" title="New phase — a stretch of time like Alpha or Beta (N)">
+          <Plus className="w-3.5 h-3.5" /> Phase
+        </button>
+        <button onClick={() => openCreate('milestone')} className="flex h-7 shrink-0 items-center gap-1.5 rounded-md px-2.5 text-[12px] text-muted hover:bg-surface-hover hover:text-content" title="New milestone — a single date like Launch (M)">
+          <Flag className="w-3.5 h-3.5" /> Milestone
+        </button>
+        <div className="relative ml-2 w-44 shrink-0">
+          <Search className="pointer-events-none absolute left-2 top-1/2 h-3.5 w-3.5 -translate-y-1/2 text-faint" />
+          <input
+            type="text"
+            value={searchQuery}
+            onChange={(event) => setSearchQuery(event.target.value)}
+            placeholder="Filter items…"
+            aria-label="Filter roadmap items"
+            className="h-7 w-full rounded-md border border-border bg-surface-raised pl-7 pr-2 text-[12px] text-content outline-none placeholder:text-faint focus:border-accent"
+          />
         </div>
-
-        <div className="flex flex-wrap items-center gap-3">
-          <div className="relative w-64 max-w-full">
-            <Search className="w-4 h-4 text-faint absolute left-3 top-1/2 -translate-y-1/2" />
-            <input
-              type="text"
-              value={searchQuery}
-              onChange={(event) => setSearchQuery(event.target.value)}
-              placeholder="Search title or description..."
-              className="w-full bg-bg border border-border rounded-md py-2 pl-9 pr-3 text-sm text-content focus:outline-none focus:border-border-strong"
-            />
-          </div>
-
-          <div className="flex items-center gap-2 bg-bg border border-border rounded-md px-2 py-1.5 text-xs text-content">
-            <Filter className="w-3.5 h-3.5 text-faint" />
-            <span>Status</span>
-            <select
-              value={statusFilter}
-              onChange={(event) => setStatusFilter(event.target.value as 'All' | RoadmapStatus)}
-              className="bg-transparent text-xs text-content focus:outline-none"
-            >
-              <option value="All">All</option>
-              {ROADMAP_STATUS_OPTIONS.map(status => (
-                <option key={status} value={status}>
-                  {STATUS_META[status].label}
-                </option>
-              ))}
-            </select>
-          </div>
-
-          <div className="flex items-center gap-2 bg-bg border border-border rounded-md px-2 py-1.5 text-xs text-content">
-            <span>Type</span>
-            <select
-              value={typeFilter}
-              onChange={(event) => setTypeFilter(event.target.value as 'All' | RoadmapItemType)}
-              className="bg-transparent text-xs text-content focus:outline-none"
-            >
-              <option value="All">All</option>
-              {ROADMAP_TYPE_OPTIONS.map(type => (
-                <option key={type} value={type}>
-                  {type === 'phase' ? 'Phase' : 'Milestone'}
-                </option>
-              ))}
-            </select>
-          </div>
-
-          <span className="px-3 py-1.5 rounded-md border border-cyan-500/40 bg-cyan-500/15 text-cyan-300 text-xs font-medium">Single Calendar</span>
-
-          <button onClick={resetFilters} className="px-2.5 py-1.5 rounded-md border border-border bg-bg text-xs text-content hover:text-content flex items-center gap-1">
+        <select
+          value={statusFilter}
+          onChange={(event) => setStatusFilter(event.target.value as 'All' | RoadmapStatus)}
+          aria-label="Filter by status"
+          title="Filter by status"
+          className={`h-7 shrink-0 rounded-md border bg-surface-raised px-1.5 text-[12px] outline-none focus:border-accent ${statusFilter === 'All' ? 'border-border text-muted' : 'border-accent/60 text-content'}`}
+        >
+          <option value="All">All statuses</option>
+          {ROADMAP_STATUS_OPTIONS.map(status => (
+            <option key={status} value={status}>{STATUS_META[status].label}</option>
+          ))}
+        </select>
+        <select
+          value={typeFilter}
+          onChange={(event) => setTypeFilter(event.target.value as 'All' | RoadmapItemType)}
+          aria-label="Filter by type"
+          title="Filter by type"
+          className={`h-7 shrink-0 rounded-md border bg-surface-raised px-1.5 text-[12px] outline-none focus:border-accent ${typeFilter === 'All' ? 'border-border text-muted' : 'border-accent/60 text-content'}`}
+        >
+          <option value="All">All types</option>
+          {ROADMAP_TYPE_OPTIONS.map(type => (
+            <option key={type} value={type}>{type === 'phase' ? 'Phases' : 'Milestones'}</option>
+          ))}
+        </select>
+        {filtersActive && (
+          <button onClick={resetFilters} className="icon-btn" title="Clear filters" aria-label="Clear filters">
             <RotateCcw className="w-3.5 h-3.5" />
-            Reset
           </button>
-
-          <div className="ml-auto flex items-center gap-2 text-[11px] text-faint">
-            <span className="rounded border border-border bg-bg px-2 py-1">Total {stats.total}</span>
-            <span className="rounded border border-border bg-bg px-2 py-1">Active {stats.active}</span>
-            <span className="rounded border border-border bg-bg px-2 py-1">Delayed {stats.delayed}</span>
-            <span className="rounded border border-border bg-bg px-2 py-1">Done {stats.done}</span>
-          </div>
-        </div>
+        )}
+        <span className="ml-auto shrink-0 pl-3" />
+        <SaveIndicator status={saveStatus} onSaveNow={saveNow} />
       </div>
 
-      <div className="flex-1 min-h-0 overflow-hidden px-4 pt-4 pb-0">
-        <div className="h-full min-h-0 min-w-[1220px] border border-border rounded-xl overflow-hidden bg-bg grid grid-cols-[minmax(360px,40%)_1fr]">
+      <div className="flex-1 min-h-0 overflow-auto p-3">
+        <div className="h-full min-h-0 min-w-[640px] border border-border rounded-xl overflow-hidden bg-bg grid grid-cols-[minmax(240px,34%)_1fr]">
           <section className="min-h-0 border-r border-border flex flex-col">
-            <div className="h-10 px-3 flex items-center justify-between text-[11px] uppercase tracking-wide text-faint border-b border-border bg-surface">
-              <span>Roadmap Items</span>
-              <span>{visibleItems.length}</span>
+            <div className="h-10 px-3 flex items-center justify-between gap-2 text-[11px] text-faint border-b border-border bg-surface">
+              <span className="uppercase tracking-wide">Items</span>
+              <span className="truncate tabular-nums" title={`${stats.total} total · ${stats.active} in progress · ${stats.delayed} delayed · ${stats.done} done`}>
+                {visibleItems.length === stats.total ? stats.total : `${visibleItems.length} of ${stats.total}`}
+                {stats.active > 0 && ` · ${stats.active} active`}
+                {stats.delayed > 0 && <span className="text-warning"> · {stats.delayed} delayed</span>}
+                {stats.done > 0 && ` · ${stats.done} done`}
+              </span>
             </div>
 
             <div className="flex-1 min-h-0 overflow-auto custom-scrollbar p-2">
-              {visibleItems.length === 0 && <div className="p-8 text-center text-sm text-faint">No roadmap items match your current filters.</div>}
+              {items.length === 0 && (
+                <div className="m-2 rounded-lg border border-border bg-surface px-4 py-3 text-[12px] leading-relaxed text-muted">
+                  <div className="mb-1 text-[13px] font-medium text-content">Plan your roadmap</div>
+                  Add <b className="text-content">phases</b> for stretches of work (Prototype, Alpha, Beta) and <b className="text-content">milestones</b> for single dates (Demo day, Launch). They show up on the calendar on the right.
+                  <div className="mt-2 flex flex-wrap gap-1.5">
+                    <button type="button" onClick={() => openCreate('phase')} className="rounded-md bg-accent px-2 py-1 text-[12px] font-medium text-accent-content hover:bg-accent-hover">Add a phase</button>
+                    <button type="button" onClick={() => openCreate('milestone')} className="rounded-md px-2 py-1 text-[12px] text-muted ring-1 ring-border hover:bg-surface-hover">Add a milestone</button>
+                  </div>
+                </div>
+              )}
+              {items.length > 0 && visibleItems.length === 0 && (
+                <div className="p-6 text-center text-[12px] text-faint">
+                  No items match these filters.
+                  <button type="button" onClick={resetFilters} className="ml-1 text-accent hover:underline">Clear filters</button>
+                </div>
+              )}
 
               {visibleItems.map((item, index) => {
                 const meta = STATUS_META[item.status];
@@ -576,7 +564,9 @@ const RoadmapEditor: React.FC<EditorProps> = ({ initialContent, onSave, fileName
                         setSelectedId(item.id);
                         setCalendarMonthTs(firstOfMonthTs(dateToTs(item.startDate)));
                       }}
-                      className="w-full px-3 py-2.5 text-left hover:bg-surface-hover/60 rounded-lg transition-colors"
+                      onDoubleClick={() => openEdit(item)}
+                      title="Click to show on the calendar · double-click to edit"
+                      className={`w-full px-3 py-2.5 text-left hover:bg-surface-hover/60 rounded-lg transition-colors ${isSelected ? 'pr-16' : ''}`}
                     >
                       <div className="flex items-center gap-1.5 min-w-0">
                         {item.type === 'milestone' ? <Flag className="w-3.5 h-3.5 text-amber-400 shrink-0" /> : <Calendar className="w-3.5 h-3.5 text-cyan-400 shrink-0" />}
@@ -590,14 +580,16 @@ const RoadmapEditor: React.FC<EditorProps> = ({ initialContent, onSave, fileName
                       <p className="mt-1 text-[11px] text-faint truncate">{shortDescription || 'No description provided.'}</p>
                     </button>
 
-                    <div className="absolute right-2 top-2 z-20 flex items-center gap-1 opacity-0 group-hover:opacity-100 transition-opacity">
-                      <button onClick={() => openEdit(item)} className="p-1.5 rounded text-content bg-surface/90 border border-border-strong hover:text-blue-300 hover:border-blue-500/50" title="Edit">
-                        <Pencil className="w-3.5 h-3.5" />
-                      </button>
-                      <button onClick={() => handleDelete(item.id)} className="p-1.5 rounded text-content bg-surface/90 border border-border-strong hover:text-red-400 hover:border-red-500/50" title="Delete">
-                        <Trash2 className="w-3.5 h-3.5" />
-                      </button>
-                    </div>
+                    {isSelected && (
+                      <div className="absolute right-2 top-2 z-20 flex items-center gap-0.5">
+                        <button onClick={() => openEdit(item)} className="icon-btn" title="Edit (Enter)" aria-label="Edit item">
+                          <Pencil className="w-3.5 h-3.5" />
+                        </button>
+                        <button onClick={() => handleDelete(item.id)} className="icon-btn hover:!text-danger" title="Delete (Del)" aria-label="Delete item">
+                          <Trash2 className="w-3.5 h-3.5" />
+                        </button>
+                      </div>
+                    )}
                   </div>
                 );
               })}
@@ -608,18 +600,18 @@ const RoadmapEditor: React.FC<EditorProps> = ({ initialContent, onSave, fileName
             <div className="shrink-0 border-b border-border bg-surface">
               <div className="h-10 px-3 flex items-center justify-between border-b border-border">
                 <div className="flex items-center gap-2">
-                  <button onClick={() => shiftCalendarMonth(-1)} className="p-1.5 rounded border border-border-strong text-content hover:text-content hover:bg-surface-hover" title="Previous Month">
+                  <button onClick={() => shiftCalendarMonth(-1)} className="icon-btn" title="Previous month" aria-label="Previous month">
                     <ChevronLeft className="w-4 h-4" />
                   </button>
-                  <button onClick={jumpToCurrentMonth} className="px-2.5 py-1.5 rounded border border-border-strong text-xs text-content hover:text-content hover:bg-surface-hover">
+                  <button onClick={jumpToCurrentMonth} className="h-7 rounded-md px-2 text-[12px] text-muted ring-1 ring-border hover:bg-surface-hover hover:text-content">
                     Today
                   </button>
-                  <button onClick={() => shiftCalendarMonth(1)} className="p-1.5 rounded border border-border-strong text-content hover:text-content hover:bg-surface-hover" title="Next Month">
+                  <button onClick={() => shiftCalendarMonth(1)} className="icon-btn" title="Next month" aria-label="Next month">
                     <ChevronRight className="w-4 h-4" />
                   </button>
                 </div>
                 <div className="text-sm font-semibold text-content">{calendarMonthLabel}</div>
-                <div className="text-[11px] text-faint">Single Calendar</div>
+                <div className="w-[88px]" />
               </div>
 
               <div className="grid grid-cols-7">
@@ -681,9 +673,9 @@ const RoadmapEditor: React.FC<EditorProps> = ({ initialContent, onSave, fileName
                                   {item.type === 'milestone' && <span className="text-[9px] text-amber-300">M</span>}
                                   {!segment.isEnd && <span className="text-[9px] text-content/80">...</span>}
                                 </button>
-                                <div className="absolute left-0 top-full mt-1 w-64 rounded-md border border-border-strong bg-black/95 px-2.5 py-2 text-left opacity-0 group-hover:opacity-100 transition-opacity pointer-events-none z-30">
+                                <div className="absolute left-0 top-full mt-1 w-64 rounded-md border border-border-strong bg-surface-raised shadow-pop px-2.5 py-2 text-left opacity-0 group-hover:opacity-100 transition-opacity pointer-events-none z-30">
                                   <p className="text-xs font-semibold text-content mb-1">{item.title}</p>
-                                  <p className="text-[11px] text-content mb-1">{meta.label} • {item.type === 'milestone' ? 'Milestone' : 'Phase'}</p>
+                                  <p className="text-[11px] text-muted mb-1">{meta.label} • {item.type === 'milestone' ? 'Milestone' : 'Phase'}</p>
                                   <p className="text-[11px] text-muted mb-1">
                                     {formatDisplayDate(item.startDate)} - {formatDisplayDate(item.type === 'milestone' ? item.startDate : item.endDate)}
                                   </p>
@@ -704,9 +696,9 @@ const RoadmapEditor: React.FC<EditorProps> = ({ initialContent, onSave, fileName
       </div>
 
       {isModalOpen && (
-        <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/80 backdrop-blur-sm p-4">
+        <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/60 p-4" onMouseDown={(event) => { if (event.target === event.currentTarget) closeModal(); }}>
           <div className="bg-surface border border-border rounded-xl w-full max-w-2xl p-6 shadow-2xl">
-            <h2 className="text-xl font-bold text-content mb-5">{editingId ? 'Edit Roadmap Item' : 'Create Roadmap Item'}</h2>
+            <h2 className="text-lg font-semibold text-content mb-5">{editingId ? `Edit ${formData.type}` : formData.type === 'milestone' ? 'New milestone' : 'New phase'}</h2>
             <form onSubmit={handleSubmit} className="space-y-4">
               <div>
                 <label className="block text-sm text-muted mb-1">Title</label>
@@ -715,7 +707,7 @@ const RoadmapEditor: React.FC<EditorProps> = ({ initialContent, onSave, fileName
                   type="text"
                   value={formData.title}
                   onChange={(event) => setFormData(prev => ({ ...prev, title: event.target.value }))}
-                  className="w-full bg-bg border border-border rounded p-2.5 text-content focus:border-cyan-500 outline-none"
+                  className="w-full bg-bg border border-border rounded p-2.5 text-content focus:border-accent outline-none"
                   required
                 />
               </div>
@@ -733,7 +725,7 @@ const RoadmapEditor: React.FC<EditorProps> = ({ initialContent, onSave, fileName
                         endDate: nextType === 'milestone' ? prev.startDate : prev.endDate
                       }));
                     }}
-                    className="w-full bg-bg border border-border rounded p-2.5 text-content focus:border-cyan-500 outline-none"
+                    className="w-full bg-bg border border-border rounded p-2.5 text-content focus:border-accent outline-none"
                   >
                     {ROADMAP_TYPE_OPTIONS.map(type => (
                       <option key={type} value={type}>
@@ -747,7 +739,7 @@ const RoadmapEditor: React.FC<EditorProps> = ({ initialContent, onSave, fileName
                   <select
                     value={formData.status}
                     onChange={(event) => setFormData(prev => ({ ...prev, status: event.target.value as RoadmapStatus }))}
-                    className="w-full bg-bg border border-border rounded p-2.5 text-content focus:border-cyan-500 outline-none"
+                    className="w-full bg-bg border border-border rounded p-2.5 text-content focus:border-accent outline-none"
                   >
                     {ROADMAP_STATUS_OPTIONS.map(status => (
                       <option key={status} value={status}>
@@ -784,7 +776,7 @@ const RoadmapEditor: React.FC<EditorProps> = ({ initialContent, onSave, fileName
                         endDate: prev.type === 'milestone' ? event.target.value : prev.endDate
                       }))
                     }
-                    className="w-full bg-bg border border-border rounded p-2.5 text-content focus:border-cyan-500 outline-none [color-scheme:dark]"
+                    className="w-full bg-bg border border-border rounded p-2.5 text-content focus:border-accent outline-none [color-scheme:light] dark:[color-scheme:dark]"
                     required
                   />
                 </div>
@@ -795,7 +787,7 @@ const RoadmapEditor: React.FC<EditorProps> = ({ initialContent, onSave, fileName
                       type="date"
                       value={formData.endDate}
                       onChange={(event) => setFormData(prev => ({ ...prev, endDate: event.target.value }))}
-                      className="w-full bg-bg border border-border rounded p-2.5 text-content focus:border-cyan-500 outline-none [color-scheme:dark]"
+                      className="w-full bg-bg border border-border rounded p-2.5 text-content focus:border-accent outline-none [color-scheme:light] dark:[color-scheme:dark]"
                       required
                     />
                   </div>
@@ -807,14 +799,14 @@ const RoadmapEditor: React.FC<EditorProps> = ({ initialContent, onSave, fileName
                 <textarea
                   value={formData.description}
                   onChange={(event) => setFormData(prev => ({ ...prev, description: event.target.value }))}
-                  className="w-full bg-bg border border-border rounded p-2.5 text-content focus:border-cyan-500 outline-none min-h-[110px]"
+                  className="w-full bg-bg border border-border rounded p-2.5 text-content focus:border-accent outline-none min-h-[110px]"
                   placeholder="Context, risks, dependencies..."
                 />
               </div>
 
               <div className="flex items-center gap-3 pt-3 border-t border-border">
                 {editingId && (
-                  <button type="button" onClick={() => handleDelete(editingId)} className="px-4 py-2 rounded-md border border-red-500/40 bg-red-500/10 text-red-300 text-sm font-medium">
+                  <button type="button" onClick={() => handleDelete(editingId)} className="px-4 py-2 rounded-md text-danger hover:bg-danger/10 text-sm font-medium">
                     Delete
                   </button>
                 )}
@@ -822,8 +814,8 @@ const RoadmapEditor: React.FC<EditorProps> = ({ initialContent, onSave, fileName
                 <button type="button" onClick={closeModal} className="px-4 py-2 text-sm font-medium text-muted hover:text-content">
                   Cancel
                 </button>
-                <button type="submit" className="px-5 py-2 rounded-md bg-cyan-600 hover:bg-cyan-700 text-content text-sm font-medium">
-                  {editingId ? 'Save Changes' : 'Create Item'}
+                <button type="submit" className="px-5 py-2 rounded-md bg-accent hover:bg-accent-hover text-accent-content text-sm font-medium">
+                  {editingId ? 'Save changes' : formData.type === 'milestone' ? 'Add milestone' : 'Add phase'}
                 </button>
               </div>
             </form>

@@ -6,10 +6,18 @@ The app keeps project documents, task planning, bug tracking, roadmaps, flowchar
 
 ## Current Feature Set
 
-- Multi-project dashboard for creating, opening, updating, exporting, and deleting projects
-- Nested project folders with drag-and-drop file organization
-- Command palette for quickly opening files and creating common project artifacts
-- In-app guide, help modal, and release notes
+- Obsidian-style workspace: icon ribbon, resizable file/search sidebar, right sidebar (outline, backlinks, file info), status bar, and right-click context menus everywhere
+- Split panes (side by side and stacked): drag a tab or sidebar file onto a pane edge, use the split button, or `Ctrl+Alt+\`; resizable dividers, and the layout is restored on next sign-in
+- Tabs with per-tab back/forward history and pinning, draggable between panes
+- Hover actions on every sidebar row, one-click file creation from empty panes, and Undo for deletes
+- Quick switcher (`Ctrl+O`) with fuzzy matching and create-on-miss, plus a command palette (`Ctrl+P`)
+- Full-text search across every file type, and backlinks computed from cross-file links ([[wikilinks]] included)
+- Obsidian-style markdown editor (CodeMirror 6) with live preview, source mode, and reading view — wikilinks, embeds, tags, callouts, properties, math, Mermaid, find & replace, and `/` slash commands
+- Graph view (`Ctrl+G`) and a local graph for the open file
+- Daily notes (`Alt+D`), templates, bookmarks, and a tags panel
+- Project picker for creating, opening, updating, exporting, and deleting projects
+- Nested project folders with drag-and-drop for files and folders, and inline renaming
+- In-app guide and keyboard-shortcut reference
 - Username/password accounts — no email or PII collected
 - Server-side persistence in PostgreSQL via a Fastify REST API, with per-user data isolation
 - ZIP export for portable project backups
@@ -21,7 +29,10 @@ The app keeps project documents, task planning, bug tracking, roadmaps, flowchar
 
 | Type | Purpose | Notes |
 | --- | --- | --- |
-| Document | Markdown-style project docs, GDDs, specs, notes | Supports headings, lists, code, blockquotes, media embeds, file links, and task links |
+| Document | Markdown notes, GDDs, specs | CodeMirror live preview / source / reading views; Obsidian syntax (`[[links]]`, `![[embeds]]`, `#tags`, `==highlights==`, callouts, properties, KaTeX math, Mermaid); paste/drop media; renames update links |
+| Base | Notion / Obsidian Bases style database | Typed properties; table, board, gallery, and calendar views with per-view filters, sorts, and column totals; row panel with markdown notes |
+| Canvas | Obsidian Canvas (JSON Canvas) | Markdown cards, embedded project files, web links, coloured groups, labelled connections |
+| Vector Art | Vertex/edge drawing (like store-app's `.vec`) | Fills track closed regions; circles and text; SVG and PNG export |
 | Flowchart | Node-and-edge diagrams | Built on React Flow |
 | Task List | Todo and production task tracking | Single-instance project file |
 | Bug Tracker | Kanban-style bug tracking | Single-instance project file |
@@ -33,12 +44,9 @@ The app keeps project documents, task planning, bug tracking, roadmaps, flowchar
 ## Performance Model
 
 - Editor components are lazy-loaded with `React.lazy`, so the initial app bundle does not include every editor up front.
-- The document preview renderer is custom and optimized for large markdown files:
-  - preview rendering is skipped in edit-only mode
-  - preview updates are debounced
-  - parsing is scheduled during browser idle time when available
-  - block rendering uses chunked string assembly
-  - inline markdown is parsed in a single token pass
+- Documents edit in CodeMirror 6, which only renders the visible viewport; live-preview decorations are rebuilt for visible ranges only.
+- The reading view (react-markdown + remark-gfm/math + KaTeX) renders off the typing path and keeps its custom renderers stable so diagrams aren't re-rendered on every keystroke.
+- Mermaid is loaded on first use, and the graph view only redraws while its layout is settling or being interacted with.
 - Tailwind scans only application source paths, avoiding `node_modules` during development and production builds.
 
 ## Storage Model

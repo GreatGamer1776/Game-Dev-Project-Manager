@@ -1,5 +1,5 @@
 import React, { useEffect, useState } from 'react';
-import { Button, Card, Input, Field, Eyebrow } from './ui';
+import { Button, Input, Field } from './ui';
 import { useAuthStore } from '../stores/useAuthStore';
 import { api, ApiError } from '../services/api';
 
@@ -54,16 +54,17 @@ const AuthView: React.FC = () => {
   };
 
   return (
-    <div className="h-full flex items-center justify-center bg-bg p-6">
-      <Card className="w-full max-w-sm p-8">
-        <div className="w-10 h-10 bg-accent-soft rounded-xl flex items-center justify-center shadow-soft mb-5">
-          <span className="font-display text-sm font-extrabold tracking-tight text-accent-content">DA</span>
+    <div className="h-full flex items-center justify-center bg-chrome p-6">
+      <div className="w-full max-w-sm rounded-xl border border-border bg-bg p-8 shadow-pop animate-scale-in">
+        <div className="flex flex-col items-center text-center">
+          <div className="mb-4 flex h-12 w-12 items-center justify-center rounded-xl bg-accent/15 ring-1 ring-accent/30">
+            <span className="text-sm font-extrabold tracking-tight text-accent">DA</span>
+          </div>
+          <h1 className="text-xl font-semibold text-content">
+            {needsSetup ? 'Create admin account' : 'Sign in to DevArchitect'}
+          </h1>
         </div>
-        <Eyebrow className="block mb-1">DevArchitect</Eyebrow>
-        <h1 className="font-display text-2xl font-bold text-content tracking-tight">
-          {needsSetup ? 'Create admin account' : 'Sign in'}
-        </h1>
-        <p className="text-sm text-muted mt-1.5 mb-6">
+        <p className="text-[0.8125rem] text-muted text-center mt-1.5 mb-6">
           {needsSetup
             ? 'First run — this account becomes the administrator and can create other users.'
             : 'Sign in to open your workspace.'}
@@ -110,7 +111,7 @@ const AuthView: React.FC = () => {
             )}
 
             {error && (
-              <p className="text-sm text-danger bg-danger/10 border border-danger/30 rounded-lg px-3 py-2">
+              <p role="alert" className="text-[0.8125rem] text-danger bg-danger/10 border border-danger/30 rounded-md px-3 py-2">
                 {error}
               </p>
             )}
@@ -126,7 +127,7 @@ const AuthView: React.FC = () => {
             <p className="text-xs text-faint">Accounts are invite-only — ask an admin to create yours.</p>
           </div>
         )}
-      </Card>
+      </div>
     </div>
   );
 };

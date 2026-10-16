@@ -15,9 +15,13 @@
   } catch (e) {
     root.classList.add('dark');
   }
-  root.setAttribute('data-scheme', get('devarchitect-scheme', 'indigo'));
+  root.setAttribute('data-scheme', get('devarchitect-scheme', 'amethyst'));
   root.setAttribute('data-tint', get('devarchitect-tint', 'neutral'));
   root.setAttribute('data-corners', get('devarchitect-corners', 'precise'));
   root.setAttribute('data-density', get('devarchitect-density', 'comfortable'));
-  root.setAttribute('data-type', get('devarchitect-typeface', 'technical'));
+  root.setAttribute('data-type', get('devarchitect-typeface', 'interface'));
+  root.setAttribute('data-scale', get('devarchitect-scale', 'default'));
+  root.setAttribute('data-motion', get('devarchitect-motion', 'full'));
+  root.setAttribute('data-linewidth', get('devarchitect-line-width', 'readable'));
+  root.setAttribute('data-editortext', get('devarchitect-editor-text', 'default'));
 })();

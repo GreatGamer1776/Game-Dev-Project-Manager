@@ -1,6 +1,7 @@
 import React, { useRef, useState, useEffect, useMemo } from 'react';
 import { Save, Eraser, Pen, Highlighter, Trash2, Loader2, Check, AlertCircle, Image as ImageIcon, X, Maximize2, Undo2, Redo2, Type as TypeIcon, Upload } from 'lucide-react';
 import { EditorProps } from '../types';
+import { SaveIndicator } from './ui/SaveIndicator';
 import { confirmDialog } from '../stores/useUiStore';
 import { uid } from '../utils/id';
 
@@ -1147,15 +1148,8 @@ const WhiteboardEditor: React.FC<EditorProps> = ({ initialContent, onSave, fileN
           >
             <Redo2 className="w-4 h-4" />
           </button>
-          <div className="flex items-center mr-2 hidden sm:flex">
-            {saveStatus === 'saving' && <span className="text-xs text-faint"><Loader2 className="w-3 h-3 animate-spin" /></span>}
-            {saveStatus === 'saved' && <span className="text-xs text-faint opacity-50"><Check className="w-3 h-3" /></span>}
-            {saveStatus === 'unsaved' && <span className="text-xs text-orange-400"><AlertCircle className="w-3 h-3" /></span>}
-          </div>
-          <button onClick={clearCanvas} className="text-faint hover:text-red-400 p-2"><Trash2 className="w-4 h-4" /></button>
-          <button onClick={handleManualSave} className={`flex items-center gap-2 px-3 py-1.5 rounded-md text-sm font-medium transition-colors shadow-lg ${saveStatus === 'unsaved' ? 'bg-accent text-accent-content' : 'bg-surface-raised text-content'}`}>
-            <Save className="w-4 h-4" /> Save
-          </button>
+          <button onClick={clearCanvas} className="text-faint hover:text-danger p-2" title="Clear whiteboard" aria-label="Clear whiteboard"><Trash2 className="w-4 h-4" /></button>
+          <SaveIndicator status={saveStatus} onSaveNow={handleManualSave} />
         </div>
       </div>
 

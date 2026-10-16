@@ -212,8 +212,8 @@ const Dashboard: React.FC<DashboardProps> = ({
               </button>
               <h1 className="mb-6 text-xl font-semibold text-content">Create new project</h1>
               <div className="divide-y divide-border">
-                <div className="flex items-center gap-4 py-4">
-                  <label htmlFor="new-project-name" className="min-w-0 flex-1">
+                <div className="flex flex-wrap items-center gap-x-4 gap-y-2 py-4">
+                  <label htmlFor="new-project-name" className="min-w-[10rem] flex-1">
                     <div className="text-[0.875rem] font-medium text-content">Project name</div>
                     <div className="mt-0.5 text-xs text-muted">Shown in the sidebar and switcher.</div>
                   </label>
@@ -224,11 +224,11 @@ const Dashboard: React.FC<DashboardProps> = ({
                     value={newName}
                     onChange={e => setNewName(e.target.value)}
                     placeholder="Space Explorer RPG"
-                    className="w-52"
+                    className="w-full sm:w-60"
                   />
                 </div>
-                <div className="flex items-center gap-4 py-4">
-                  <div className="min-w-0 flex-1">
+                <div className="flex flex-wrap items-center gap-x-4 gap-y-2 py-4">
+                  <div className="min-w-[10rem] flex-1">
                     <div className="text-[0.875rem] font-medium text-content">Type</div>
                     <div className="mt-0.5 text-xs text-muted">Used for the project icon.</div>
                   </div>

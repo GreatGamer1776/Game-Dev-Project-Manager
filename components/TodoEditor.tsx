@@ -1,6 +1,7 @@
 import React, { useState, useEffect, useRef } from 'react';
 import { Save, Plus, Trash2, CheckSquare, Square, Calendar, ChevronDown, ChevronUp, ListChecks, Loader2, Check, AlertCircle, MoreHorizontal, Link as LinkIcon, Tags, X, Search, Filter, ArrowUpDown, Undo2, Redo2 } from 'lucide-react';
 import { TodoItem, Priority, SubTask, EditorProps, TodoStatus } from '../types';
+import { SaveIndicator } from './ui/SaveIndicator';
 import { useUndoRedo } from '../hooks/useUndoRedo';
 import { confirmDialog } from '../stores/useUiStore';
 import { uid } from '../utils/id';
@@ -833,19 +834,12 @@ const TodoEditor: React.FC<EditorProps> = ({ initialContent, onSave, fileName, p
               <button onClick={() => { const prev = undoRedo.undo(); if (prev !== undefined) setItems(prev); }} disabled={!undoRedo.canUndo} className="p-1.5 rounded text-faint hover:text-content hover:bg-surface-hover disabled:opacity-30 disabled:pointer-events-none transition-colors" title="Undo (Ctrl+Z)"><Undo2 className="w-4 h-4" /></button>
               <button onClick={() => { const next = undoRedo.redo(); if (next !== undefined) setItems(next); }} disabled={!undoRedo.canRedo} className="p-1.5 rounded text-faint hover:text-content hover:bg-surface-hover disabled:opacity-30 disabled:pointer-events-none transition-colors" title="Redo (Ctrl+Y)"><Redo2 className="w-4 h-4" /></button>
             </div>
-            <div className="flex items-center mr-2">
-                {saveStatus === 'saving' && <span className="text-xs text-faint flex items-center gap-1"><Loader2 className="w-3 h-3 animate-spin" /> Saving...</span>}
-                {saveStatus === 'saved' && <span className="text-xs text-faint flex items-center gap-1 opacity-50"><Check className="w-3 h-3" /> Saved</span>}
-                {saveStatus === 'unsaved' && <span className="text-xs text-orange-400 flex items-center gap-1"><AlertCircle className="w-3 h-3" /> Unsaved</span>}
-            </div>
+            <SaveIndicator status={saveStatus} onSaveNow={handleManualSave} />
             <button
               onClick={handleTopAddTaskClick}
               className="flex items-center gap-2 px-4 py-2 rounded-md text-sm font-medium transition-colors border border-border-strong bg-surface-raised hover:bg-surface-hover text-content"
             >
               <Plus className="w-4 h-4" /> Add Task
-            </button>
-            <button onClick={handleManualSave} className={`flex items-center gap-2 px-4 py-2 rounded-md text-sm font-medium transition-colors shadow-lg ${saveStatus === 'unsaved' ? 'bg-emerald-600 hover:bg-emerald-700 text-content shadow-emerald-900/20' : 'bg-surface-raised hover:bg-surface-hover text-content'}`}>
-              <Save className="w-4 h-4" /> Save
             </button>
         </div>
       </div>

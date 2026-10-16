@@ -1,6 +1,7 @@
 import React, { useEffect, useMemo, useRef, useState } from 'react';
 import { AlertCircle, Calendar, Check, ChevronLeft, ChevronRight, Filter, Flag, Loader2, Pencil, Plus, RotateCcw, Save, Search, Trash2, Undo2, Redo2 } from 'lucide-react';
 import { EditorProps, RoadmapItem, RoadmapItemType, RoadmapStatus } from '../types';
+import { SaveIndicator } from './ui/SaveIndicator';
 import { useUndoRedo } from '../hooks/useUndoRedo';
 import { confirmDialog } from '../stores/useUiStore';
 import { uid } from '../utils/id';
@@ -450,26 +451,7 @@ const RoadmapEditor: React.FC<EditorProps> = ({ initialContent, onSave, fileName
               <button onClick={() => { const prev = undoRedo.undo(); if (prev !== undefined) setItems(prev); }} disabled={!undoRedo.canUndo} className="p-1.5 rounded text-faint hover:text-content hover:bg-surface-hover disabled:opacity-30 disabled:pointer-events-none transition-colors" title="Undo (Ctrl+Z)"><Undo2 className="w-4 h-4" /></button>
               <button onClick={() => { const next = undoRedo.redo(); if (next !== undefined) setItems(next); }} disabled={!undoRedo.canRedo} className="p-1.5 rounded text-faint hover:text-content hover:bg-surface-hover disabled:opacity-30 disabled:pointer-events-none transition-colors" title="Redo (Ctrl+Y)"><Redo2 className="w-4 h-4" /></button>
             </div>
-            <div className="text-xs">
-              {saveStatus === 'saving' && (
-                <span className="text-muted flex items-center gap-1">
-                  <Loader2 className="w-3 h-3 animate-spin" />
-                  Saving...
-                </span>
-              )}
-              {saveStatus === 'saved' && (
-                <span className="text-faint flex items-center gap-1">
-                  <Check className="w-3 h-3" />
-                  Saved
-                </span>
-              )}
-              {saveStatus === 'unsaved' && (
-                <span className="text-amber-400 flex items-center gap-1">
-                  <AlertCircle className="w-3 h-3" />
-                  Unsaved
-                </span>
-              )}
-            </div>
+            <SaveIndicator status={saveStatus} onSaveNow={saveNow} />
             <button onClick={() => openCreate('phase')} className="px-3 py-2 rounded-md bg-accent hover:bg-accent-hover text-accent-content text-sm font-medium flex items-center gap-2">
               <Plus className="w-4 h-4" />
               New Phase
@@ -480,10 +462,6 @@ const RoadmapEditor: React.FC<EditorProps> = ({ initialContent, onSave, fileName
             >
               <Flag className="w-4 h-4" />
               New Milestone
-            </button>
-            <button onClick={saveNow} className="px-3 py-2 rounded-md bg-emerald-600 hover:bg-emerald-700 text-content text-sm font-medium flex items-center gap-2">
-              <Save className="w-4 h-4" />
-              Save
             </button>
           </div>
         </div>

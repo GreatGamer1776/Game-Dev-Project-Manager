@@ -41,7 +41,8 @@ export const getFileText = (file: ProjectFile): string => {
   }
   if (file.type === 'vector') {
     const texts = Array.isArray(file.content?.texts) ? file.content.texts : [];
-    return texts.map((t: { text?: string }) => t.text || '').join('\n');
+    const notes = typeof file.content?.notes === 'string' ? file.content.notes : '';
+    return [...texts.map((t: { content?: string; text?: string }) => t.content ?? t.text ?? ''), notes].filter(Boolean).join('\n');
   }
   if (typeof file.content === 'string') {
     // Whiteboards store a serialized JSON string; documents are markdown.

@@ -2,6 +2,7 @@ import { Project, ProjectFile, ProjectFolder, FileType } from '../types';
 import { ASSET_LIBRARY_TYPE, MANDATORY_SINGLETON_FILES, SINGLE_INSTANCE_FILE_TYPES } from '../components/fileTypes';
 import { uid } from './id';
 import { createDefaultBase } from './baseModel';
+import { emptyVector } from './vectorModel';
 
 // Pure project-shape helpers: default content, legacy migrations, and the
 // normalization every loaded/updated project passes through.
@@ -17,7 +18,7 @@ export const createDefaultContent = (type: FileType): any => {
     case 'whiteboard': return '';
     case 'base': return createDefaultBase();
     case 'canvas': return { nodes: [], edges: [] };
-    case 'vector': return { width: 800, height: 600, background: 'transparent', vertices: [], edges: [], fills: [], circles: [], texts: [] };
+    case 'vector': return emptyVector();
     case ASSET_LIBRARY_TYPE: return {};
     default: return '';
   }

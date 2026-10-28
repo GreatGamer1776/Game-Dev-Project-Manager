@@ -78,7 +78,12 @@ export class ApiError extends Error {
 }
 
 const request = async <T>(path: string, init?: RequestInit): Promise<T> => {
-  const headers: Record<string, string> = { 'Content-Type': 'application/json' };
+  // Only declare JSON when there is a body: Fastify rejects an empty body
+  // sent as application/json with a 400 (bodyless DELETE/POST requests).
+  const headers: Record<string, string> = {};
+  if (init?.body !== undefined && init?.body !== null) {
+    headers['Content-Type'] = 'application/json';
+  }
   if (authToken) {
     headers.Authorization = `Bearer ${authToken}`;
   }
@@ -90,7 +95,10 @@ const request = async <T>(path: string, init?: RequestInit): Promise<T> => {
     let message = `API request failed: ${init?.method || 'GET'} ${path} -> ${res.status}`;
     try {
       const body = await res.json();
-      if (body?.error) message = body.error;
+      // Our routes send { error }; Fastify's built-in errors send
+      // { error: 'Bad Request', message: '<detail>' }, so prefer the detail.
+      if (body?.message) message = body.message;
+      else if (body?.error) message = body.error;
     } catch {
       // Non-JSON error body — keep the status-based message.
     }

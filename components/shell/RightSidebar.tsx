@@ -24,11 +24,11 @@ interface RightSidebarProps {
   folderPath: string[];
 }
 
-const TABS: { id: RightTab; label: string; icon: React.ComponentType<{ className?: string }> }[] = [
-  { id: 'outline', label: 'Outline', icon: ListTree },
-  { id: 'links', label: 'Links', icon: Link2 },
-  { id: 'graph', label: 'Local graph', icon: Waypoints },
-  { id: 'info', label: 'File info', icon: Info },
+const TABS: { id: RightTab; label: string; short: string; icon: React.ComponentType<{ className?: string }> }[] = [
+  { id: 'outline', label: 'Outline', short: 'Outline', icon: ListTree },
+  { id: 'links', label: 'Links', short: 'Links', icon: Link2 },
+  { id: 'graph', label: 'Local graph', short: 'Graph', icon: Waypoints },
+  { id: 'info', label: 'File info', short: 'Info', icon: Info },
 ];
 
 const Empty: React.FC<{ children: React.ReactNode }> = ({ children }) => (
@@ -68,27 +68,29 @@ const RightSidebar: React.FC<RightSidebarProps> = ({ project, file, tab, onTabCh
 
   return (
     <div className="flex h-full min-h-0 flex-col">
-      <div className="flex h-[var(--header-h)] shrink-0 items-center gap-0.5 border-b border-border px-2">
-        {TABS.map(({ id, label, icon: Icon }) => (
-          <button
-            key={id}
-            type="button"
-            title={label}
-            aria-label={label}
-            aria-pressed={tab === id}
-            onClick={() => onTabChange(id)}
-            className="icon-btn"
-          >
-            <Icon className="h-4 w-4" />
-          </button>
-        ))}
+      <div className="shrink-0 px-2.5 pt-2">
+        <div className="seg" role="tablist" aria-label="File details">
+          {TABS.map(({ id, label, short }) => (
+            <button
+              key={id}
+              type="button"
+              role="tab"
+              aria-label={label}
+              aria-selected={tab === id}
+              onClick={() => onTabChange(id)}
+              className="seg-item"
+            >
+              <span className="truncate">{short}</span>
+            </button>
+          ))}
+        </div>
       </div>
-      <div className="shrink-0 px-3 pb-1 pt-2.5 text-[11px] font-semibold uppercase tracking-wide text-faint">
-        {activeTab.label}
+      <div className="shrink-0 truncate px-4 pb-1 pt-3 eyebrow">
+        {activeTab.label}{file ? ` · ${file.name}` : ''}
       </div>
 
       {tab === 'graph' ? (
-        <div className="min-h-0 flex-1 border-t border-border/60">
+        <div className="m-2 min-h-0 flex-1 overflow-hidden rounded-lg border border-border bg-bg">
           <Suspense fallback={null}>
             <GraphView files={project.files} activeFileId={file?.id ?? null} onOpenFile={onOpenFile} onOpenTag={onOpenTag} local compact />
           </Suspense>

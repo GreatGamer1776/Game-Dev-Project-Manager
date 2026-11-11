@@ -214,7 +214,7 @@ export const SettingsModal: React.FC = () => {
             </SettingItem>
 
             <Heading>Interface</Heading>
-            <SettingItem name="Heading font" description="Typeface for titles and headings. Body text always uses Inter.">
+            <SettingItem name="Heading font" description="Typeface for titles and headings. Body text always uses Geist.">
               <Dropdown label="Heading font" options={TYPEFACES} value={theme.typeface} onChange={theme.setTypeface} />
             </SettingItem>
             <SettingItem name="Zoom level" description="Scales the whole interface.">

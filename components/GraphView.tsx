@@ -281,7 +281,7 @@ const GraphView: React.FC<GraphViewProps> = ({ files, activeFileId, onOpenFile, 
           ctx.arc(n.x, n.y, r, 0, Math.PI * 2);
           ctx.fill();
           if (zoom > 0.65 || n.id === focus || active || (matches && matches.has(n.id))) {
-            ctx.font = `${active || n.id === focus ? 600 : 400} ${12 / Math.max(zoom, 0.75)}px Inter, sans-serif`;
+            ctx.font = `${active || n.id === focus ? 600 : 400} ${12 / Math.max(zoom, 0.75)}px Geist, Inter, sans-serif`;
             ctx.fillStyle = color('--color-content', faded ? 0.3 : 0.9);
             ctx.textAlign = 'center';
             ctx.fillText(n.label.length > 32 ? `${n.label.slice(0, 30)}…` : n.label, n.x, n.y + r + 13 / Math.max(zoom, 0.75));

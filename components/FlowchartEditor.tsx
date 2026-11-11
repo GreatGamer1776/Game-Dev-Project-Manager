@@ -100,7 +100,7 @@ const ProcessNode = ({ id, data, selected }: NodeProps) => (
 // Handles pushed out further to prevent diagonal clipping
 const DecisionNode = ({ id, data, selected }: NodeProps) => (
   <div className="w-28 h-28 relative flex items-center justify-center">
-    <div className={`absolute inset-0 transform rotate-45 bg-surface border-2 transition-all shadow-sm ${selected ? 'border-purple-500 shadow-purple-500/20' : 'border-purple-500/60'}`}></div>
+    <div className={`absolute inset-0 transform rotate-45 bg-surface border-2 transition-all shadow-sm ${selected ? 'border-amber-500 shadow-amber-500/20' : 'border-amber-500/60'}`}></div>
     <div className="relative z-10 p-2 text-[10px] text-content font-bold text-center leading-tight max-w-[70%]">
       <NodeLabel id={id} label={data.label} />
     </div>
@@ -408,7 +408,7 @@ const FlowchartEditorContent: React.FC<EditorProps> = ({ initialContent, onSave,
             <ToolButton type="terminal" defaultLabel="Start" icon={PlayCircle} label="Start" colorClass="text-emerald-400" />
             <ToolButton type="terminal" defaultLabel="End" icon={StopCircle} label="End" colorClass="text-red-400" />
             <ToolButton type="process" defaultLabel="Action" icon={Square} label="Process" colorClass="text-blue-400" />
-            <ToolButton type="decision" defaultLabel="Condition?" icon={Diamond} label="Decision" colorClass="text-purple-400" />
+            <ToolButton type="decision" defaultLabel="Condition?" icon={Diamond} label="Decision" colorClass="text-amber-400" />
 
             <div className="w-10 h-px bg-surface-raised my-2"></div>
             <div className="text-[10px] font-bold text-faint uppercase mb-2">Data</div>

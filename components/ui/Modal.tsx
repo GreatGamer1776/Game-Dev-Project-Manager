@@ -17,7 +17,7 @@ export interface ModalProps {
 }
 
 const sizeClass = {
-  sm: 'max-w-sm',
+  sm: 'max-w-[26rem]',
   md: 'max-w-md',
   lg: 'max-w-2xl',
   xl: 'max-w-4xl',
@@ -58,14 +58,14 @@ export const Modal: React.FC<ModalProps> = ({
 
   return (
     <div
-      className="fixed inset-0 z-50 flex items-center justify-center p-4 bg-overlay/50 animate-fade-in"
+      className="fixed inset-0 z-50 flex items-center justify-center p-4 bg-overlay/55 backdrop-blur-[2px] animate-fade-in"
       onMouseDown={onClose}
     >
       <div
         role="dialog"
         aria-modal="true"
         className={cn(
-          'relative w-full rounded-xl border border-border-strong bg-bg shadow-pop animate-scale-in',
+          'relative w-full rounded-2xl border border-border bg-bg shadow-pop animate-scale-in',
           bare ? 'flex overflow-hidden' : 'max-h-[90vh] flex flex-col',
           sizeClass[size],
           className
@@ -75,7 +75,7 @@ export const Modal: React.FC<ModalProps> = ({
         <button
           onClick={onClose}
           aria-label="Close"
-          className="icon-btn absolute right-2.5 top-2.5 z-10"
+          className="icon-btn absolute right-3 top-3 z-10"
         >
           <X className="h-4 w-4" />
         </button>
@@ -84,14 +84,14 @@ export const Modal: React.FC<ModalProps> = ({
         ) : (
           <>
             {(title || description) && (
-              <div className="shrink-0 px-5 pt-4 pb-2 pr-12">
-                {title && <h2 className="text-base font-semibold text-content">{title}</h2>}
-                {description && <p className="mt-1 text-[0.8125rem] text-muted">{description}</p>}
+              <div className="shrink-0 px-6 pt-5 pb-2 pr-12">
+                {title && <h2 className="font-display text-[1.0625rem] font-semibold tracking-tight text-content">{title}</h2>}
+                {description && <p className="mt-1 text-[0.8125rem] leading-relaxed text-muted">{description}</p>}
               </div>
             )}
-            <div className={cn('min-h-0 overflow-y-auto px-5 pb-4', title || description ? 'pt-2' : 'pt-5')}>{children}</div>
+            <div className={cn('min-h-0 overflow-y-auto px-6 pb-5', title || description ? 'pt-3' : 'pt-6')}>{children}</div>
             {footer && (
-              <div className="shrink-0 flex justify-end gap-2 px-5 pb-4 pt-1">
+              <div className="flex shrink-0 justify-end gap-2 rounded-b-2xl border-t border-border bg-chrome/50 px-6 py-3.5">
                 {footer}
               </div>
             )}

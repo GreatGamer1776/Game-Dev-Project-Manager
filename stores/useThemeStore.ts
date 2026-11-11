@@ -2,13 +2,11 @@ import { create } from 'zustand';
 
 export type ThemePreference = 'light' | 'dark' | 'system';
 export type ColorScheme =
-  | 'amethyst'
+  | 'ember'
   | 'blue'
   | 'cyan'
   | 'teal'
   | 'emerald'
-  | 'violet'
-  | 'indigo'
   | 'rose'
   | 'amber';
 export type SurfaceTint = 'neutral' | 'warm' | 'cool';
@@ -22,13 +20,11 @@ export type EditorText = 'small' | 'default' | 'large';
 
 /** Accent schemes offered in Settings. `swatch` is a solid color for the chip. */
 export const COLOR_SCHEMES: { id: ColorScheme; label: string; swatch: string }[] = [
-  { id: 'amethyst', label: 'Amethyst', swatch: '#8a6cef' },
+  { id: 'ember', label: 'Ember', swatch: '#f0682f' },
   { id: 'blue', label: 'Azure', swatch: '#3b82f6' },
   { id: 'cyan', label: 'Cyan', swatch: '#06b6d4' },
   { id: 'teal', label: 'Teal', swatch: '#14b8a6' },
   { id: 'emerald', label: 'Emerald', swatch: '#10b981' },
-  { id: 'violet', label: 'Violet', swatch: '#8b5cf6' },
-  { id: 'indigo', label: 'Indigo', swatch: '#6366f1' },
   { id: 'rose', label: 'Rose', swatch: '#f43f5e' },
   { id: 'amber', label: 'Amber', swatch: '#f59e0b' },
 ];
@@ -51,7 +47,7 @@ export const DENSITIES: { id: Density; label: string; hint: string }[] = [
 ];
 
 export const TYPEFACES: { id: Typeface; label: string; hint: string }[] = [
-  { id: 'interface', label: 'Interface', hint: 'Inter' },
+  { id: 'interface', label: 'Interface', hint: 'Geist' },
   { id: 'technical', label: 'Technical', hint: 'Archivo' },
   { id: 'editorial', label: 'Editorial', hint: 'Fraunces' },
   { id: 'mono', label: 'Mono', hint: 'JetBrains' },
@@ -93,7 +89,7 @@ const KEYS = {
 } as const;
 
 const DEFAULTS = {
-  scheme: 'amethyst' as ColorScheme,
+  scheme: 'ember' as ColorScheme,
   tint: 'neutral' as SurfaceTint,
   corners: 'precise' as CornerStyle,
   density: 'comfortable' as Density,

@@ -1,7 +1,7 @@
 import React, { useEffect, useRef, useState } from 'react';
 import {
   X, Pin, Plus, PanelRight, ChevronDown, Link2, Crosshair, File, Bookmark, BookmarkMinus, Columns2, Rows2,
-  PanelRightOpen, PanelBottomOpen,
+  PanelRightOpen, PanelBottomOpen, PanelLeftOpen,
 } from 'lucide-react';
 import { GRAPH_VIEW_ID, getFileTypeMeta } from '../fileTypes';
 import { ProjectFile } from '../../types';
@@ -48,9 +48,12 @@ interface TabBarProps {
   showSidebarToggle: boolean;
   rightOpen: boolean;
   onToggleRight: () => void;
+  /** Shown on the top-left pane while the left sidebar is hidden. */
+  showLeftToggle?: boolean;
+  onToggleLeft?: () => void;
 }
 
-/** Obsidian-style tab header: rounded tabs on the chrome strip, active tab joins the pane. */
+/** Tab strip at the top of a pane: pill tabs, then split / sidebar controls. */
 const TabBar: React.FC<TabBarProps> = ({
   paneId,
   isActivePane,
@@ -76,6 +79,8 @@ const TabBar: React.FC<TabBarProps> = ({
   showSidebarToggle,
   rightOpen,
   onToggleRight,
+  showLeftToggle,
+  onToggleLeft,
 }) => {
   const [draggingId, setDraggingId] = useState<string | null>(null);
   const [dropTarget, setDropTarget] = useState<string | 'end' | null>(null);
@@ -146,13 +151,18 @@ const TabBar: React.FC<TabBarProps> = ({
   };
 
   return (
-    <div className={cn('flex h-[var(--header-h)] shrink-0 items-end border-b border-border bg-chrome pl-1.5 pr-1', multiPane && !isActivePane && 'opacity-75')}>
+    <div className={cn('flex h-[var(--header-h)] shrink-0 items-center gap-1 border-b border-border bg-bg pl-1.5 pr-1.5', multiPane && !isActivePane && 'bg-chrome/40')}>
+      {showLeftToggle && onToggleLeft && (
+        <button type="button" className="icon-btn" onClick={onToggleLeft} aria-label="Show sidebar" data-tip="Show sidebar" data-tip-kbd="Ctrl \">
+          <PanelLeftOpen className="h-4 w-4" />
+        </button>
+      )}
       <div
         ref={scrollRef}
         role="tablist"
         aria-label="Open files"
         className={cn(
-          'flex h-full min-w-0 flex-1 items-end gap-0.5 overflow-x-auto [scrollbar-width:none] [&::-webkit-scrollbar]:hidden',
+          'flex h-full min-w-0 flex-1 items-center gap-0.5 overflow-x-auto [scrollbar-width:none] [&::-webkit-scrollbar]:hidden',
           dropTarget === 'end' && 'bg-accent/10',
         )}
         onDoubleClick={e => { if (e.target === e.currentTarget) onNewTab(); }}
@@ -199,25 +209,23 @@ const TabBar: React.FC<TabBarProps> = ({
               onContextMenu={e => tabMenu(e, tab)}
               title={name}
               className={cn(
-                'group/tab relative -mb-px flex h-[calc(var(--header-h)-6px)] min-w-[2.5rem] max-w-[200px] shrink-0 cursor-pointer select-none items-center gap-1.5 rounded-t-md border border-b-0 pl-2.5 pr-1 text-[0.8125rem] transition-colors',
+                'group/tab relative flex h-[calc(var(--header-h)-12px)] min-w-[2.5rem] max-w-[200px] shrink-0 cursor-pointer select-none items-center gap-1.5 rounded-md pl-2.5 pr-1 text-[0.8125rem] transition-colors',
                 active
-                  ? 'border-border bg-bg text-content'
-                  : 'border-transparent text-muted hover:bg-surface-hover/60 hover:text-content',
+                  ? 'bg-surface-hover text-content'
+                  : 'text-muted hover:bg-surface-hover/50 hover:text-content',
                 draggingId === tab.id && 'opacity-50',
               )}
             >
               {/* Drop indicator: the dragged tab lands before this one. */}
               {dropTarget === tab.id && draggingId !== tab.id && <span className="absolute -left-[2px] bottom-1 top-1 w-0.5 rounded bg-accent" />}
-              {/* Hides the strip's bottom border under the active tab. */}
-              {active && <span className="absolute inset-x-0 -bottom-px h-px bg-bg" />}
-              {active && isActivePane && multiPane && <span className="absolute inset-x-2 top-0 h-0.5 rounded-b bg-accent" />}
+              {active && isActivePane && multiPane && <span className="absolute inset-x-2.5 -bottom-[5px] h-0.5 rounded-full bg-accent" />}
               <Icon className={cn('h-3.5 w-3.5 shrink-0', active && isActivePane ? 'text-accent' : 'text-faint')} />
               <span className="min-w-0 flex-1 truncate">{name}</span>
               {pinned ? (
                 <button
                   type="button"
                   aria-label={`Unpin ${name}`}
-                  title="Unpin"
+                  data-tip="Unpin"
                   onClick={e => { e.stopPropagation(); onTogglePin(tab.id); }}
                   className="shrink-0 rounded p-0.5 text-faint hover:bg-surface-hover hover:text-content"
                 >
@@ -227,7 +235,7 @@ const TabBar: React.FC<TabBarProps> = ({
                 <button
                   type="button"
                   aria-label={`Close ${name}`}
-                  title="Close (middle-click)"
+                  data-tip="Close"
                   onClick={e => { e.stopPropagation(); onClose(tab.id); }}
                   className={cn(
                     'shrink-0 rounded p-0.5 text-faint hover:bg-surface-hover hover:text-content',
@@ -243,22 +251,22 @@ const TabBar: React.FC<TabBarProps> = ({
         <button
           type="button"
           onClick={onNewTab}
-          title="New tab (or double-click the tab bar)"
+          data-tip="New tab"
           aria-label="New tab"
-          className="icon-btn mb-1 ml-0.5 h-6 w-6"
+          className="icon-btn ml-0.5 h-6 w-6"
         >
           <Plus className="h-4 w-4" />
         </button>
       </div>
-      <div className="flex shrink-0 items-center gap-0.5 self-center pl-1">
-        <button type="button" className="icon-btn" title="Open tabs and split options" aria-label="Tab list and split options" onClick={tabListMenu}>
+      <div className="flex shrink-0 items-center gap-0.5 pl-1">
+        <button type="button" className="icon-btn" data-tip="All tabs" aria-label="Tab list and split options" onClick={tabListMenu}>
           <ChevronDown className="h-4 w-4" />
         </button>
-        <button type="button" className="icon-btn hidden md:inline-flex" title="Split right" aria-label="Split right" onClick={() => onSplit('right')}>
+        <button type="button" className="icon-btn hidden md:inline-flex" data-tip="Split right" data-tip-kbd="Ctrl Alt \" aria-label="Split right" onClick={() => onSplit('right')}>
           <Columns2 className="h-4 w-4" />
         </button>
         {multiPane && (
-          <button type="button" className="icon-btn hidden md:inline-flex" title="Close this pane" aria-label="Close this pane" onClick={onClosePane}>
+          <button type="button" className="icon-btn hidden md:inline-flex" data-tip="Close this pane" aria-label="Close this pane" onClick={onClosePane}>
             <X className="h-4 w-4" />
           </button>
         )}
@@ -266,7 +274,8 @@ const TabBar: React.FC<TabBarProps> = ({
           <button
             type="button"
             className="icon-btn"
-            title={rightOpen ? 'Collapse right sidebar (Ctrl+Shift+\\)' : 'Expand right sidebar (Ctrl+Shift+\\)'}
+            data-tip={rightOpen ? 'Hide outline and links' : 'Show outline and links'}
+            data-tip-kbd="Ctrl Shift \"
             aria-label="Toggle right sidebar"
             aria-pressed={rightOpen}
             onClick={onToggleRight}

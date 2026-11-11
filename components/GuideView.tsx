@@ -111,8 +111,8 @@ const tools = [
   },
   {
     icon: Network,
-    color: 'text-purple-400',
-    bg: 'bg-purple-500/10',
+    color: 'text-amber-400',
+    bg: 'bg-amber-500/10',
     title: 'Flowchart',
     type: 'flowchart',
     summary: 'Node-based visual diagram editor built on ReactFlow.',
@@ -248,8 +248,8 @@ const tools = [
   },
   {
     icon: ImageIcon,
-    color: 'text-indigo-400',
-    bg: 'bg-indigo-500/10',
+    color: 'text-sky-400',
+    bg: 'bg-sky-500/10',
     title: 'Asset Library',
     type: 'asset-gallery',
     summary: 'Central image repository used by Documents and Whiteboards.',
@@ -330,7 +330,7 @@ const GuideView: React.FC<GuideViewProps> = ({ initialSection = 'overview' }) =>
           <p className="text-sm text-faint">Your projects live in a database you control. Sign in with just a username and password — no email or personal info required.</p>
         </div>
         <div className="bg-surface border border-border rounded-xl p-5">
-          <Workflow className="w-8 h-8 text-purple-400 mb-3" />
+          <Workflow className="w-8 h-8 text-amber-400 mb-3" />
           <h4 className="font-semibold text-content mb-1">Integrated Tools</h4>
           <p className="text-sm text-faint">Eight specialized editors work together. Link tasks from documents, embed asset images, and cross-reference files without leaving the app.</p>
         </div>
@@ -502,10 +502,10 @@ const GuideView: React.FC<GuideViewProps> = ({ initialSection = 'overview' }) =>
         <div className="space-y-3 text-sm text-muted">
           <p>Accounts are just a username and password — no email or personal information is collected or stored.</p>
           <ul className="space-y-1.5 ml-1">
-            <li className="flex gap-2"><span className="text-accent">•</span>Sign-up is invite-only — an admin creates accounts from Manage users (account menu at the bottom of the ribbon)</li>
+            <li className="flex gap-2"><span className="text-accent">•</span>Sign-up is invite-only — an admin creates accounts from Manage users (account menu at the bottom of the sidebar, or the avatar on the projects page)</li>
             <li className="flex gap-2"><span className="text-accent">•</span>Sessions last 30 days; sign back in anytime with the same credentials</li>
             <li className="flex gap-2"><span className="text-accent">•</span>Forgot your password? An admin can set a new one from Manage Users</li>
-            <li className="flex gap-2"><span className="text-accent">•</span>Sign out from the account menu at the bottom of the ribbon, or Settings → Account</li>
+            <li className="flex gap-2"><span className="text-accent">•</span>Sign out from the account menu at the bottom of the sidebar, or the avatar on the projects page, or Settings → Account</li>
           </ul>
         </div>
       </CollapsibleSection>

@@ -13,14 +13,15 @@ export interface ButtonProps extends React.ButtonHTMLAttributes<HTMLButtonElemen
 
 const base =
   'inline-flex items-center justify-center gap-1.5 font-medium rounded-md select-none whitespace-nowrap ' +
-  'transition-colors duration-100 outline-none focus-visible:ring-2 focus-visible:ring-accent/60 ' +
+  'transition-[background-color,border-color,color,box-shadow,transform] duration-100 active:translate-y-px ' +
+  'outline-none focus-visible:ring-2 focus-visible:ring-accent/60 focus-visible:ring-offset-1 focus-visible:ring-offset-bg ' +
   'disabled:opacity-50 disabled:pointer-events-none';
 
 const variants: Record<ButtonVariant, string> = {
   primary:
-    'bg-accent text-accent-content shadow-soft hover:bg-accent-hover',
+    'bg-accent text-accent-content shadow-soft hover:bg-accent-hover hover:shadow-raised',
   secondary:
-    'bg-surface-raised text-content border border-border shadow-soft hover:bg-surface-hover hover:border-border-strong',
+    'bg-bg text-content border border-border-strong/80 shadow-soft hover:bg-surface-hover hover:border-border-strong',
   subtle:
     'bg-surface-hover text-muted hover:text-content',
   ghost:
@@ -32,7 +33,7 @@ const variants: Record<ButtonVariant, string> = {
 const sizes: Record<ButtonSize, string> = {
   sm: 'h-[var(--ctl-h-sm)] px-2.5 text-xs',
   md: 'h-[var(--ctl-h)] px-3.5 text-[0.8125rem]',
-  lg: 'h-10 px-5 text-sm',
+  lg: 'h-10 px-4 text-sm',
   icon: 'h-[var(--ctl-h)] w-[var(--ctl-h)]',
 };
 

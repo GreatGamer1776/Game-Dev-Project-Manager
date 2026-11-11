@@ -1,11 +1,11 @@
 import React, { useEffect, useMemo, useRef, useState } from 'react';
 import {
-  ChevronRight, Folder, FolderOpen, FilePlus2, FolderPlus, ArrowUpDown, ChevronsDownUp, ChevronsUpDown,
-  Pencil, Trash2, Link2, Hash, ExternalLink, CornerLeftUp, Layers, Bookmark, BookmarkMinus, PanelRightOpen,
+  ChevronRight, Folder, FolderOpen, FolderPlus, ArrowUpDown, ChevronsDownUp, ChevronsUpDown,
+  Pencil, Trash2, Link2, Hash, ExternalLink, CornerLeftUp, Bookmark, BookmarkMinus, PanelRightOpen,
   MoreHorizontal, Plus, Columns2, Crosshair,
 } from 'lucide-react';
 import { Project, ProjectFile, ProjectFolder, FileType } from '../../types';
-import { FILE_TYPES, getFileTypeMeta, SINGLE_INSTANCE_FILE_TYPES, MANDATORY_SINGLETON_FILES } from '../fileTypes';
+import { FILE_TYPES, getFileTypeMeta, SINGLE_INSTANCE_FILE_TYPES } from '../fileTypes';
 import { showMenu, MenuEntry } from '../../stores/useMenuStore';
 import InlineRename from './InlineRename';
 import { cn } from '../ui';
@@ -13,7 +13,6 @@ import { cn } from '../ui';
 export const FILE_LINK_DRAG_MIME = 'application/x-gdpm-file-id';
 const FOLDER_DRAG_MIME = 'application/x-gdpm-folder-id';
 const SORT_KEY = 'devarchitect-explorer-sort';
-const SYSTEMS_KEY = 'devarchitect-explorer-systems';
 
 export type RenameTarget = { kind: 'file' | 'folder'; id: string };
 type SortOrder = 'type' | 'name-asc' | 'name-desc';
@@ -29,14 +28,6 @@ const readSort = (): SortOrder => {
     return v === 'name-asc' || v === 'name-desc' ? v : 'type';
   } catch {
     return 'type';
-  }
-};
-
-const readSystemsOpen = (): boolean => {
-  try {
-    return window.localStorage.getItem(SYSTEMS_KEY) !== 'false';
-  } catch {
-    return true;
   }
 };
 
@@ -126,7 +117,6 @@ const FileExplorer: React.FC<FileExplorerProps> = ({
   onRevealActive,
 }) => {
   const [sortOrder, setSortOrder] = useState<SortOrder>(readSort);
-  const [systemsOpen, setSystemsOpen] = useState(readSystemsOpen);
   const [dropTarget, setDropTarget] = useState<string | 'root' | null>(null);
   const [draggingId, setDraggingId] = useState<string | null>(null);
 
@@ -134,8 +124,6 @@ const FileExplorer: React.FC<FileExplorerProps> = ({
 
   useEffect(() => {
     if (!revealRequest) return;
-    const file = project.files.find(f => f.id === revealRequest.fileId);
-    if (file && SINGLE_INSTANCE_FILE_TYPES.has(file.type)) setSystemsOpen(true);
     // Wait a frame so freshly expanded folders have rendered their rows.
     const handle = requestAnimationFrame(() => {
       const row = treeRef.current?.querySelector<HTMLElement>(`[data-file-id="${CSS.escape(revealRequest.fileId)}"]`);
@@ -151,13 +139,6 @@ const FileExplorer: React.FC<FileExplorerProps> = ({
   const changeSort = (order: SortOrder) => {
     setSortOrder(order);
     try { window.localStorage.setItem(SORT_KEY, order); } catch { /* in-memory only */ }
-  };
-
-  const toggleSystems = () => {
-    setSystemsOpen(prev => {
-      try { window.localStorage.setItem(SYSTEMS_KEY, String(!prev)); } catch { /* in-memory only */ }
-      return !prev;
-    });
   };
 
   const typeRank = useMemo(() => new Map(FILE_TYPES.map((meta, i) => [meta.type, i])), []);
@@ -176,11 +157,8 @@ const FileExplorer: React.FC<FileExplorerProps> = ({
   const sortFolders = (folders: ProjectFolder[]) => [...folders].sort((a, b) =>
     sortOrder === 'name-desc' ? compareNames(b.name, a.name) : compareNames(a.name, b.name));
 
-  const systemOrder = new Map(MANDATORY_SINGLETON_FILES.map((def, i) => [def.type, i]));
-  const systemFiles = project.files
-    .filter(f => SINGLE_INSTANCE_FILE_TYPES.has(f.type))
-    .sort((a, b) => (systemOrder.get(a.type) ?? 99) - (systemOrder.get(b.type) ?? 99));
-  const regularCount = project.files.length - systemFiles.length;
+  // Project systems (task list, bug tracker, ...) live in the sidebar's Workspace list.
+  const regularCount = project.files.filter(f => !SINGLE_INSTANCE_FILE_TYPES.has(f.type)).length;
 
   // --- Drag and drop -------------------------------------------------------
 
@@ -431,28 +409,26 @@ const FileExplorer: React.FC<FileExplorerProps> = ({
 
   return (
     <div className="flex h-full min-h-0 flex-col">
-      {/* Nav buttons — Obsidian's "new note / new folder / sort / collapse" row */}
-      <div className="flex shrink-0 items-center justify-center gap-0.5 px-2 py-1.5">
-        <button className="icon-btn" title="New file" aria-label="New file" onClick={e => showMenu(e, newFileEntries(null), 'below')}>
-          <FilePlus2 className="h-4 w-4" />
+      {/* Tree tools: new folder, reveal, sort, expand/collapse */}
+      <div className="flex shrink-0 items-center gap-0.5 px-3.5 pb-1 pt-1.5">
+        <span className="eyebrow flex-1">{regularCount} {regularCount === 1 ? 'file' : 'files'}</span>
+        <button className="icon-btn h-6 w-6" data-tip="New folder" aria-label="New folder" onClick={() => onCreateFolder(null)}>
+          <FolderPlus className="h-3.5 w-3.5" />
         </button>
-        <button className="icon-btn" title="New folder" aria-label="New folder" onClick={() => onCreateFolder(null)}>
-          <FolderPlus className="h-4 w-4" />
+        <button className="icon-btn h-6 w-6" data-tip="Show the open file" aria-label="Reveal active file" onClick={() => onRevealActive?.()} disabled={!onRevealActive}>
+          <Crosshair className="h-3.5 w-3.5" />
         </button>
-        <button className="icon-btn" title="Reveal active file" aria-label="Reveal active file" onClick={() => onRevealActive?.()} disabled={!onRevealActive}>
-          <Crosshair className="h-4 w-4" />
-        </button>
-        <button className="icon-btn" title="Change sort order" aria-label="Change sort order" onClick={sortMenu}>
-          <ArrowUpDown className="h-4 w-4" />
+        <button className="icon-btn h-6 w-6" data-tip="Sort" aria-label="Change sort order" onClick={sortMenu}>
+          <ArrowUpDown className="h-3.5 w-3.5" />
         </button>
         <button
-          className="icon-btn"
-          title={allExpanded ? 'Collapse all' : 'Expand all'}
+          className="icon-btn h-6 w-6"
+          data-tip={allExpanded ? 'Collapse all' : 'Expand all'}
           aria-label={allExpanded ? 'Collapse all' : 'Expand all'}
           onClick={allExpanded ? onCollapseAll : onExpandAll}
           disabled={project.folders.length === 0}
         >
-          {allExpanded ? <ChevronsDownUp className="h-4 w-4" /> : <ChevronsUpDown className="h-4 w-4" />}
+          {allExpanded ? <ChevronsDownUp className="h-3.5 w-3.5" /> : <ChevronsUpDown className="h-3.5 w-3.5" />}
         </button>
       </div>
 
@@ -473,33 +449,14 @@ const FileExplorer: React.FC<FileExplorerProps> = ({
           if (e.target === e.currentTarget) rootMenu(e);
         }}
       >
-        {systemFiles.length > 0 && (
-          <div className="mb-1">
-            <button
-              type="button"
-              onClick={toggleSystems}
-              aria-expanded={systemsOpen}
-              className="nav-row pl-1 pr-2 font-medium"
-            >
-              <ChevronRight className={cn('h-3.5 w-3.5 shrink-0 text-faint transition-transform', systemsOpen && 'rotate-90')} />
-              <Layers className="h-3.5 w-3.5 shrink-0 text-faint" />
-              <span className="truncate">Project systems</span>
-            </button>
-            {systemsOpen && (
-              <div className="ml-[13px] border-l border-border pl-0.5">
-                {systemFiles.map(file => renderFileRow(file, false))}
-              </div>
-            )}
-          </div>
-        )}
-
         {renderTree(null)}
 
         {regularCount === 0 && project.folders.length === 0 && (
-          <div className="px-3 py-6 text-center text-xs text-faint">
-            No files yet.
-            <button type="button" onClick={() => onCreateFile('doc', null)} className="mt-1 block w-full text-accent hover:underline">
-              Create a document
+          <div className="mx-1 mt-2 rounded-lg border border-dashed border-border-strong px-3 py-5 text-center">
+            <p className="text-[0.8125rem] font-medium text-content">No files yet</p>
+            <p className="mt-0.5 text-xs text-faint">Start with a design doc or a spec.</p>
+            <button type="button" onClick={() => onCreateFile('doc', null)} className="mt-3 rounded-md bg-accent/10 px-2.5 py-1 text-xs font-medium text-accent transition-colors hover:bg-accent/20">
+              New document
             </button>
           </div>
         )}

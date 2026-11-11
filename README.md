@@ -6,7 +6,8 @@ The app keeps project documents, task planning, bug tracking, roadmaps, flowchar
 
 ## Current Feature Set
 
-- Obsidian-style workspace: icon ribbon, resizable file/search sidebar, right sidebar (outline, backlinks, file info), status bar, and right-click context menus everywhere
+- Workspace layout: a labeled sidebar (project switcher, "Go to file", task list / bug tracker / roadmap / assets with open counts, file tree, search, bookmarks, tags), the editor in an inset panel, a right sidebar (outline, backlinks, local graph, file info), hover tooltips with shortcuts, and right-click context menus everywhere
+- Projects home with a "continue where you left off" card, project cards with open task and bug counts, and a new-project dialog
 - Split panes (side by side and stacked): drag a tab or sidebar file onto a pane edge, use the split button, or `Ctrl+Alt+\`; resizable dividers, and the layout is restored on next sign-in
 - Tabs with per-tab back/forward history and pinning, draggable between panes
 - Hover actions on every sidebar row, one-click file creation from empty panes, and Undo for deletes

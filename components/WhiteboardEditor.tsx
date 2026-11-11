@@ -1009,7 +1009,7 @@ const WhiteboardEditor: React.FC<EditorProps> = ({ initialContent, onSave, fileN
             </button>
             <button
               onClick={() => setActiveTool('text')}
-              className={`p-2 rounded transition-all ${activeTool === 'text' ? 'bg-indigo-600 text-content shadow-sm' : 'text-muted hover:text-content'}`}
+              className={`p-2 rounded transition-all ${activeTool === 'text' ? 'bg-accent text-accent-content shadow-sm' : 'text-muted hover:text-content'}`}
               title="Text (T) — click the board to type"
               aria-label="Text"
               aria-pressed={activeTool === 'text'}
@@ -1019,7 +1019,7 @@ const WhiteboardEditor: React.FC<EditorProps> = ({ initialContent, onSave, fileN
             <div className="w-px h-full bg-surface-raised mx-1"></div>
             <button
               onClick={() => setIsAssetMenuOpen(!isAssetMenuOpen)}
-              className={`p-2 rounded transition-all ${isAssetMenuOpen ? 'bg-purple-600 text-content' : 'text-muted hover:text-content'}`}
+              className={`p-2 rounded transition-all ${isAssetMenuOpen ? 'bg-accent text-accent-content' : 'text-muted hover:text-content'}`}
               title="Insert from the asset library"
               aria-label="Insert from the asset library"
             >
@@ -1193,7 +1193,7 @@ const WhiteboardEditor: React.FC<EditorProps> = ({ initialContent, onSave, fileN
               <button
                 key={id}
                 onClick={() => handleInitImport(base64)}
-                className="aspect-square bg-bg border border-border rounded-md overflow-hidden hover:border-purple-500 transition-colors relative"
+                className="aspect-square bg-bg border border-border rounded-md overflow-hidden hover:border-accent transition-colors relative"
               >
                 <img src={base64} alt="asset" className="w-full h-full object-contain pointer-events-none" />
               </button>

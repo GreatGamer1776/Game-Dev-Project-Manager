@@ -3,7 +3,7 @@ import { FileText, Network, CheckSquare, Bug, Map as MapIcon, Table, PenTool, Im
 import type { FileType } from '../types';
 
 // Display metadata for every file type, shared by the shell (explorer, tabs,
-// switcher, ribbon) so icons and labels never drift between surfaces.
+// switcher, sidebar) so icons and labels never drift between surfaces.
 
 export interface FileTypeMeta {
   type: FileType;

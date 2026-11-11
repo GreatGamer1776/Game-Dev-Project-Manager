@@ -46,14 +46,14 @@ const ResizeHandle: React.FC<ResizeHandleProps> = ({ side, width, min, max, onRe
       aria-valuenow={width}
       aria-valuemin={min}
       aria-valuemax={max}
-      title="Drag to resize · double-click to reset"
+      aria-label="Resize sidebar (double-click to reset)"
       onPointerDown={onPointerDown}
       onPointerMove={onPointerMove}
       onPointerUp={end}
       onPointerCancel={end}
       onDoubleClick={onReset}
       className={cn(
-        'absolute top-0 z-20 h-full w-1.5 cursor-col-resize transition-colors hover:bg-accent/40 active:bg-accent/60',
+        'absolute top-0 z-20 h-full w-1.5 cursor-col-resize rounded-full transition-colors hover:bg-accent/40 active:bg-accent/60',
         side === 'right' ? '-right-[3px]' : '-left-[3px]',
       )}
     />

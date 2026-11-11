@@ -2,8 +2,8 @@ import React from 'react';
 import { cn } from './cn';
 
 const fieldBase =
-  'rounded-md bg-surface-raised text-content placeholder:text-faint ' +
-  'border border-border px-2.5 py-[var(--field-py)] text-[0.8125rem] outline-none ' +
+  'rounded-md bg-bg text-content placeholder:text-faint ' +
+  'border border-border-strong/80 px-2.5 py-[var(--field-py)] text-[0.8125rem] outline-none ' +
   'transition-colors duration-100 hover:border-border-strong focus:border-accent focus:ring-2 focus:ring-accent/25 ' +
   'disabled:opacity-50';
 
@@ -55,7 +55,7 @@ export interface FieldProps {
 export const Field: React.FC<FieldProps> = ({ label, hint, htmlFor, children, className }) => (
   <div className={cn('flex flex-col gap-1.5', className)}>
     {label && (
-      <label htmlFor={htmlFor} className="text-xs font-medium text-muted">
+      <label htmlFor={htmlFor} className="text-[0.8125rem] font-medium text-content">
         {label}
       </label>
     )}

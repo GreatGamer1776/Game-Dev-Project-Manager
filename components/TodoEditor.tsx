@@ -777,7 +777,7 @@ const TodoEditor: React.FC<EditorProps> = ({ initialContent, onSave, fileName, p
 
   const getStatusColor = (s: TodoStatus) => {
       switch(s) {
-          case 'Backlog': return 'border-t-violet-500';
+          case 'Backlog': return 'border-t-faint';
           case 'To Do': return 'border-t-border-strong';
           case 'In Progress': return 'border-t-blue-500';
           case 'Review': return 'border-t-amber-500';

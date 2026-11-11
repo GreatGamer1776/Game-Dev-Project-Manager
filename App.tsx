@@ -1,6 +1,6 @@
 import React, { useCallback, useEffect, useMemo, useRef, useState } from 'react';
 import {
-  Files, Search, ChevronsUpDown, X, BookOpen, FilePlus2, FolderPlus, PanelLeft, PanelRight, ArrowLeft, ArrowRight,
+  Search, X, BookOpen, FilePlus2, FolderPlus, PanelLeft, PanelRight, ArrowLeft, ArrowRight,
   Pencil, Trash2, Link2, Crosshair, Pin, Settings as SettingsIcon, HelpCircle, LayoutGrid, Download, LogOut, Users,
   SunMoon, ListTree, FileSearch, Waypoints, CalendarDays, Bookmark, Hash, FileInput, Columns2, Rows2, Plus,
 } from 'lucide-react';
@@ -18,7 +18,7 @@ import { showMenu, MenuEntry } from './stores/useMenuStore';
 import { useThemeStore } from './stores/useThemeStore';
 import AuthView from './components/AuthView';
 import AdminUsersModal from './components/AdminUsersModal';
-import { UiFeedback, cn } from './components/ui';
+import { UiFeedback, Logo, cn } from './components/ui';
 import { SettingsModal } from './components/SettingsModal';
 import { useSettingsStore } from './stores/useSettingsStore';
 import { getFileTypeMeta, SINGLE_INSTANCE_FILE_TYPES, MANDATORY_SINGLETON_FILES, GRAPH_VIEW_ID } from './components/fileTypes';
@@ -30,7 +30,8 @@ import {
 import { uid } from './utils/id';
 import { useWorkspace, PersistedLeaf, PersistedWorkspace, Edge, OpenMode, currentFileOf } from './hooks/useWorkspace';
 import WorkspaceLayout, { TabDragPayload } from './components/shell/WorkspaceLayout';
-import Ribbon from './components/shell/Ribbon';
+import Sidebar, { LeftTab } from './components/shell/Sidebar';
+import { PROJECT_TYPE_META } from './components/shell/ProjectIcon';
 import FileExplorer, { RenameTarget, CREATABLE_TYPES } from './components/shell/FileExplorer';
 import SearchPanel from './components/shell/SearchPanel';
 import RightSidebar, { RightTab } from './components/shell/RightSidebar';
@@ -72,7 +73,6 @@ const EDITORS: Record<string, React.LazyExoticComponent<React.FC<EditorProps>>> 
   vector: VectorEditor,
 };
 
-type LeftTab = 'files' | 'search' | 'bookmarks' | 'tags';
 
 /** The graph view opens in a tab like a file, but isn't stored in the project. */
 const GRAPH_FILE: ProjectFile = { id: GRAPH_VIEW_ID, name: 'Graph view', type: 'graph', content: null, folderId: null };
@@ -1213,10 +1213,8 @@ const App: React.FC = () => {
 
   if (!authReady) {
     return (
-      <div className="flex h-full items-center justify-center bg-bg">
-        <div className="flex h-12 w-12 items-center justify-center rounded-xl bg-accent/15 ring-1 ring-accent/30 animate-pulse" title="DevArchitect">
-          <span className="text-sm font-extrabold tracking-tight text-accent">DA</span>
-        </div>
+      <div className="flex h-full items-center justify-center bg-chrome" role="status" aria-label="Loading DevArchitect">
+        <Logo size={44} className="animate-pulse" />
       </div>
     );
   }
@@ -1235,10 +1233,10 @@ const App: React.FC = () => {
     const entries: MenuEntry[] = [
       ...(others.length ? [
         { kind: 'heading' as const, label: 'Switch project' },
-        ...others.map(p => ({ label: p.name, icon: LayoutGrid, onSelect: () => handleSelectProject(p.id) })),
+        ...others.map(p => ({ label: p.name, icon: (PROJECT_TYPE_META[p.type] || PROJECT_TYPE_META.Software).icon, hint: p.type, onSelect: () => handleSelectProject(p.id) })),
         { kind: 'separator' as const },
       ] : []),
-      { label: 'Manage projects…', icon: LayoutGrid, onSelect: goToDashboard },
+      { label: 'All projects', icon: LayoutGrid, onSelect: goToDashboard },
       { label: 'Rename project…', icon: Pencil, onSelect: () => void handleRenameProject() },
       ...(activeProject ? [{ label: 'Export as ZIP', icon: Download, onSelect: () => void handleExportProject(activeProject) }] : []),
     ];
@@ -1249,31 +1247,33 @@ const App: React.FC = () => {
 
   const renderLeftDock = () => activeProject && leftOpen && (
     <aside
-      aria-label="Left sidebar"
+      aria-label="Sidebar"
       style={{ width: isMobile ? `min(${leftWidth}px, 85vw)` : leftWidth }}
-      className={cn('flex shrink-0 flex-col border-r border-border bg-chrome animate-slide-in', dockOverlay, isMobile && 'left-[var(--ribbon-w)]')}
+      className={cn('flex shrink-0 flex-col bg-chrome animate-slide-in', dockOverlay, isMobile && 'left-0 border-r border-border')}
     >
-      <div className="flex h-[var(--header-h)] shrink-0 items-center gap-0.5 border-b border-border px-2">
-        {([
-          { id: 'files', label: 'Files', icon: Files },
-          { id: 'search', label: 'Search (Ctrl+Shift+F)', icon: Search },
-          { id: 'bookmarks', label: 'Bookmarks', icon: Bookmark },
-          { id: 'tags', label: 'Tags', icon: Hash },
-        ] as const).map(({ id, label, icon: Icon }) => (
-          <button
-            key={id}
-            type="button"
-            title={label}
-            aria-label={label}
-            aria-pressed={leftTab === id}
-            onClick={() => (id === 'search' ? openSearch() : setLeftTab(id))}
-            className="icon-btn"
-          >
-            <Icon className="h-4 w-4" />
-          </button>
-        ))}
-      </div>
-      <div className="min-h-0 flex-1">
+      <Sidebar
+        project={activeProject}
+        user={authUser}
+        systemFiles={systemFiles}
+        activeFileId={activeFileId}
+        graphActive={activeFileId === GRAPH_VIEW_ID}
+        tab={leftTab}
+        onTabChange={id => (id === 'search' ? openSearch() : setLeftTab(id))}
+        onProjectMenu={projectMenu}
+        onCollapse={toggleLeft}
+        onQuickSwitch={() => setPaletteMode('files')}
+        onCommandPalette={() => setPaletteMode('commands')}
+        onNewFile={type => createFile(type)}
+        onOpenFile={id => openFile(id)}
+        onOpenGraph={() => openFile(GRAPH_VIEW_ID)}
+        onOpenDailyNote={openDailyNote}
+        onHome={goToDashboard}
+        onOpenGuide={() => openGuide()}
+        onOpenHelp={() => setIsHelpOpen(true)}
+        onOpenSettings={openSettings}
+        onOpenAdmin={() => setShowAdminUsers(true)}
+        onLogout={() => void handleLogout()}
+      >
         {leftTab === 'files' ? (
           <FileExplorer
             project={activeProject}
@@ -1319,19 +1319,7 @@ const App: React.FC = () => {
         ) : (
           <TagsPanel files={activeProject.files} onSelect={tag => searchFor(`#${tag}`)} />
         )}
-      </div>
-      {/* Project switcher — Obsidian's vault profile */}
-      <div className="flex shrink-0 items-center gap-1 border-t border-border px-1.5 py-1.5">
-        <button
-          type="button"
-          onClick={projectMenu}
-          title="Switch project"
-          className="flex min-w-0 flex-1 items-center gap-1.5 rounded-md px-2 py-1 text-left text-[0.8125rem] font-medium text-content hover:bg-surface-hover"
-        >
-          <ChevronsUpDown className="h-3.5 w-3.5 shrink-0 text-faint" />
-          <span className="truncate">{activeProject.name}</span>
-        </button>
-      </div>
+      </Sidebar>
       {!isMobile && (
         <ResizeHandle side="right" width={leftWidth} min={DOCK.min} max={DOCK.max} onResize={resizeLeft} onReset={() => resizeLeft(DOCK.left.fallback)} />
       )}
@@ -1342,7 +1330,7 @@ const App: React.FC = () => {
     <aside
       aria-label="Right sidebar"
       style={{ width: isMobile ? `min(${rightWidth}px, 85vw)` : rightWidth }}
-      className={cn('flex shrink-0 flex-col border-l border-border bg-chrome animate-slide-in-right', dockOverlay, isMobile && 'right-0')}
+      className={cn('flex shrink-0 flex-col bg-chrome animate-slide-in-right', dockOverlay, isMobile && 'right-0 border-l border-border')}
     >
       {!isMobile && (
         <ResizeHandle side="left" width={rightWidth} min={DOCK.min} max={DOCK.max} onResize={resizeRight} onReset={() => resizeRight(DOCK.right.fallback)} />
@@ -1377,6 +1365,12 @@ const App: React.FC = () => {
       while (node.kind === 'split') node = node.dir === 'row' ? node.children[node.children.length - 1] : node.children[0];
       return node.id;
     })();
+    // ...and the top-left one shows the left sidebar again once it's hidden.
+    const topLeftPane = (() => {
+      let node = ws.layout;
+      while (node.kind === 'split') node = node.children[0];
+      return node.id;
+    })();
     return (
       <>
         <TabBar
@@ -1407,6 +1401,8 @@ const App: React.FC = () => {
           showSidebarToggle={paneId === topRightPane}
           rightOpen={rightOpen}
           onToggleRight={toggleRight}
+          showLeftToggle={!leftOpen && (isMobile || paneId === topLeftPane)}
+          onToggleLeft={toggleLeft}
         />
         {file && leaf && (component || file.id === GRAPH_VIEW_ID) ? (
           <>
@@ -1476,7 +1472,8 @@ const App: React.FC = () => {
   const renderWorkspace = () => activeProject && (
     <div className="relative flex min-w-0 flex-1">
       {renderLeftDock()}
-      <div className="flex min-w-0 flex-1 flex-col">
+      <div className={cn('flex min-w-0 flex-1 flex-col', !isMobile && 'pb-1.5 pt-1.5', !isMobile && (leftOpen ? 'pl-0' : 'pl-1.5'), !isMobile && (rightOpen ? 'pr-0' : 'pr-1.5'))}>
+        <div className={cn('flex min-h-0 min-w-0 flex-1 flex-col overflow-hidden bg-bg', !isMobile && 'rounded-xl border border-border shadow-soft')}>
         {isMobile ? (
           // Phones show one pane at a time; the rest stay in the layout.
           <div className="flex min-h-0 flex-1 flex-col">{renderPane(ws.activePaneId)}</div>
@@ -1492,6 +1489,7 @@ const App: React.FC = () => {
             onDropFile={dropFileOnPane}
           />
         )}
+        </div>
       </div>
       {renderRightDock()}
       {isMobile && (leftOpen || rightOpen) && (
@@ -1501,7 +1499,7 @@ const App: React.FC = () => {
   );
 
   return (
-    <div className="flex h-full flex-col overflow-hidden bg-bg text-content">
+    <div className="flex h-full flex-col overflow-hidden bg-chrome text-content">
       {loadError && (
         <div role="alert" className="flex shrink-0 items-center gap-3 border-b border-danger/40 bg-danger/10 px-4 py-2 text-[0.8125rem] text-content">
           <span className="min-w-0 flex-1 truncate">{loadError}</span>
@@ -1509,45 +1507,34 @@ const App: React.FC = () => {
         </div>
       )}
       <div className="flex min-h-0 flex-1">
-        <Ribbon
-          inProject={inProject && !guide.open}
-          leftOpen={leftOpen}
-          onToggleLeft={toggleLeft}
-          onHome={goToDashboard}
-          homeActive={!inProject && !guide.open}
-          onQuickSwitch={() => setPaletteMode('files')}
-          onCommandPalette={() => setPaletteMode('commands')}
-          onNewDocument={() => createFile('doc')}
-          onOpenGraph={() => openFile(GRAPH_VIEW_ID)}
-          onOpenDailyNote={openDailyNote}
-          graphActive={activeFileId === GRAPH_VIEW_ID}
-          systemFiles={inProject ? systemFiles : []}
-          activeFileId={activeFileId}
-          onOpenFile={id => openFile(id)}
-          onOpenGuide={() => openGuide()}
-          onOpenHelp={() => setIsHelpOpen(true)}
-          onOpenSettings={openSettings}
-          onOpenAdmin={() => setShowAdminUsers(true)}
-          onLogout={() => void handleLogout()}
-          user={authUser}
-        />
         {guide.open ? (
-          <div className="flex min-w-0 flex-1 flex-col">
-            <div className="flex h-[var(--header-h)] shrink-0 items-center gap-2 border-b border-border bg-chrome px-3">
-              <BookOpen className="h-4 w-4 text-faint" />
-              <span className="text-[0.8125rem] font-medium text-content">Guide</span>
-              <button
-                type="button"
-                className="icon-btn ml-auto"
-                title="Close guide"
-                aria-label="Close guide"
-                onClick={() => setGuide(g => ({ ...g, open: false }))}
-              >
-                <X className="h-4 w-4" />
-              </button>
-            </div>
-            <div className="min-h-0 flex-1">
-              <GuideView initialSection={guide.section} />
+          <div className={cn('flex min-w-0 flex-1 flex-col', !isMobile && 'p-1.5 pb-0')}>
+            <div className={cn('flex min-h-0 flex-1 flex-col overflow-hidden bg-bg', !isMobile && 'rounded-xl border border-border shadow-soft')}>
+              <div className="flex h-[var(--header-h)] shrink-0 items-center gap-2 border-b border-border px-2">
+                <button
+                  type="button"
+                  className="icon-btn"
+                  data-tip={inProject ? 'Back to the project' : 'Back to projects'}
+                  aria-label="Close guide"
+                  onClick={() => setGuide(g => ({ ...g, open: false }))}
+                >
+                  <ArrowLeft className="h-4 w-4" />
+                </button>
+                <BookOpen className="h-4 w-4 text-faint" />
+                <span className="text-[0.8125rem] font-medium text-content">Guide</span>
+                <button
+                  type="button"
+                  className="icon-btn ml-auto"
+                  data-tip="Close guide"
+                  aria-label="Close guide"
+                  onClick={() => setGuide(g => ({ ...g, open: false }))}
+                >
+                  <X className="h-4 w-4" />
+                </button>
+              </div>
+              <div className="min-h-0 flex-1">
+                <GuideView initialSection={guide.section} />
+              </div>
             </div>
           </div>
         ) : inProject ? (
@@ -1557,13 +1544,17 @@ const App: React.FC = () => {
             <Dashboard
               projects={projects}
               isLoaded={isLoaded}
-              username={authUser.username}
+              user={authUser}
               onSelectProject={handleSelectProject}
               onCreateProject={handleCreateProject}
               onUpdateProject={handleUpdateProject}
               onExportProject={p => void handleExportProject(p)}
               onDeleteProject={id => void handleDeleteProject(id)}
               onOpenGuide={() => openGuide()}
+              onOpenHelp={() => setIsHelpOpen(true)}
+              onOpenSettings={openSettings}
+              onOpenAdmin={() => setShowAdminUsers(true)}
+              onLogout={() => void handleLogout()}
             />
           </div>
         )}

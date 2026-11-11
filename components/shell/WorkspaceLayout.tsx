@@ -56,7 +56,7 @@ const SplitResizer: React.FC<{ dir: 'row' | 'column'; onDrag: (deltaPercent: num
     <div
       role="separator"
       aria-orientation={dir === 'row' ? 'vertical' : 'horizontal'}
-      title="Drag to resize"
+      aria-label="Resize panes"
       className={cn(
         'group relative z-10 shrink-0 bg-border',
         dir === 'row' ? 'w-px cursor-col-resize' : 'h-px cursor-row-resize',

@@ -113,7 +113,7 @@ const loadMermaid = () => {
   mermaidLoader ??= import('mermaid').then(mod => {
     const mermaid = mod.default;
     const dark = document.documentElement.classList.contains('dark');
-    mermaid.initialize({ startOnLoad: false, securityLevel: 'strict', theme: dark ? 'dark' : 'default', fontFamily: 'Inter, sans-serif' });
+    mermaid.initialize({ startOnLoad: false, securityLevel: 'strict', theme: dark ? 'dark' : 'default', fontFamily: 'Geist, Inter, sans-serif' });
     return mermaid;
   });
   return mermaidLoader;

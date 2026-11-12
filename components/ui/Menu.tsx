@@ -104,7 +104,7 @@ export const MenuHost: React.FC = () => {
         }
         if (entry.kind === 'heading') {
           return (
-            <div key={`h-${i}`} className="px-2 pb-1 pt-1.5 text-[11px] font-semibold uppercase tracking-wide text-faint">
+            <div key={`h-${i}`} className="eyebrow px-2 pb-1 pt-2">
               {entry.label}
             </div>
           );
@@ -135,7 +135,7 @@ export const MenuHost: React.FC = () => {
               ) : null}
             </span>
             <span className="min-w-0 flex-1 truncate">{entry.label}</span>
-            {entry.hint && <span className="shrink-0 pl-3 text-[11px] text-faint">{entry.hint}</span>}
+            {entry.hint && <span className="count shrink-0 pl-4">{entry.hint}</span>}
           </button>
         );
       })}

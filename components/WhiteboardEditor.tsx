@@ -982,7 +982,7 @@ const WhiteboardEditor: React.FC<EditorProps> = ({ initialContent, onSave, fileN
           <div className="flex bg-surface-raised p-1 rounded-lg border border-border-strong">
             <button
               onClick={() => setActiveTool('pen')}
-              className={`p-2 rounded transition-all ${activeTool === 'pen' ? 'bg-accent text-accent-content shadow-sm' : 'text-muted hover:text-content'}`}
+              className={`p-2 rounded transition-colors ${activeTool === 'pen' ? 'bg-accent text-accent-content' : 'text-muted hover:text-content'}`}
               title="Pen (P)"
               aria-label="Pen"
               aria-pressed={activeTool === 'pen'}
@@ -991,7 +991,7 @@ const WhiteboardEditor: React.FC<EditorProps> = ({ initialContent, onSave, fileN
             </button>
             <button
               onClick={() => setActiveTool('highlighter')}
-              className={`p-2 rounded transition-all ${activeTool === 'highlighter' ? 'bg-yellow-500 text-black shadow-sm' : 'text-muted hover:text-content'}`}
+              className={`p-2 rounded transition-colors ${activeTool === 'highlighter' ? 'bg-accent text-accent-content' : 'text-muted hover:text-content'}`}
               title="Highlighter (H)"
               aria-label="Highlighter"
               aria-pressed={activeTool === 'highlighter'}
@@ -1000,7 +1000,7 @@ const WhiteboardEditor: React.FC<EditorProps> = ({ initialContent, onSave, fileN
             </button>
             <button
               onClick={() => setActiveTool('eraser')}
-              className={`p-2 rounded transition-all ${activeTool === 'eraser' ? 'bg-accent text-accent-content shadow-sm' : 'text-muted hover:text-content'}`}
+              className={`p-2 rounded transition-colors ${activeTool === 'eraser' ? 'bg-accent text-accent-content' : 'text-muted hover:text-content'}`}
               title="Eraser (E)"
               aria-label="Eraser"
               aria-pressed={activeTool === 'eraser'}
@@ -1009,7 +1009,7 @@ const WhiteboardEditor: React.FC<EditorProps> = ({ initialContent, onSave, fileN
             </button>
             <button
               onClick={() => setActiveTool('text')}
-              className={`p-2 rounded transition-all ${activeTool === 'text' ? 'bg-accent text-accent-content shadow-sm' : 'text-muted hover:text-content'}`}
+              className={`p-2 rounded transition-colors ${activeTool === 'text' ? 'bg-accent text-accent-content' : 'text-muted hover:text-content'}`}
               title="Text (T) — click the board to type"
               aria-label="Text"
               aria-pressed={activeTool === 'text'}
@@ -1019,7 +1019,7 @@ const WhiteboardEditor: React.FC<EditorProps> = ({ initialContent, onSave, fileN
             <div className="w-px h-full bg-surface-raised mx-1"></div>
             <button
               onClick={() => setIsAssetMenuOpen(!isAssetMenuOpen)}
-              className={`p-2 rounded transition-all ${isAssetMenuOpen ? 'bg-accent text-accent-content' : 'text-muted hover:text-content'}`}
+              className={`p-2 rounded transition-colors ${isAssetMenuOpen ? 'bg-accent text-accent-content' : 'text-muted hover:text-content'}`}
               title="Insert from the asset library"
               aria-label="Insert from the asset library"
             >
@@ -1027,7 +1027,7 @@ const WhiteboardEditor: React.FC<EditorProps> = ({ initialContent, onSave, fileN
             </button>
             <button
               onClick={launchMediaUploadPicker}
-              className="p-2 rounded transition-all text-muted hover:text-content"
+              className="p-2 rounded transition-colors text-muted hover:text-content"
               title="Upload an image, video, or audio file"
               aria-label="Upload media"
             >
@@ -1078,13 +1078,13 @@ const WhiteboardEditor: React.FC<EditorProps> = ({ initialContent, onSave, fileN
                     updateSetting('width', next);
                   }
                 }}
-                className="w-24 h-1.5 bg-surface-raised rounded-lg appearance-none cursor-pointer accent-blue-500"
+                className="w-24 h-1.5 bg-surface-raised rounded-lg appearance-none cursor-pointer accent-accent"
               />
             </div>
 
             {activeTool === 'highlighter' && (
               <div className="flex items-center gap-2">
-                <span className="text-[11px] uppercase tracking-wide text-faint">Opacity</span>
+                <span className="field-label">Opacity</span>
                 <input
                   type="range"
                   min="0.05"
@@ -1092,7 +1092,7 @@ const WhiteboardEditor: React.FC<EditorProps> = ({ initialContent, onSave, fileN
                   step="0.05"
                   value={highlighterOpacity}
                   onChange={(e) => setHighlighterOpacity(parseFloat(e.target.value))}
-                  className="w-24 h-1.5 bg-surface-raised rounded-lg appearance-none cursor-pointer accent-yellow-400"
+                  className="w-24 h-1.5 bg-surface-raised rounded-lg appearance-none cursor-pointer accent-accent"
                 />
                 <span className="text-[11px] text-muted w-8 text-right">{Math.round(highlighterOpacity * 100)}</span>
               </div>
@@ -1133,7 +1133,7 @@ const WhiteboardEditor: React.FC<EditorProps> = ({ initialContent, onSave, fileN
                   value={selectedMedia.width}
                   onChange={(e) => updateMediaElements(prev => prev.map(element => element.id === selectedMedia.id ? { ...element, width: parseInt(e.target.value, 10) } : element))}
                   onMouseUp={() => commitCanvasSnapshot(true)}
-                  className="w-16 h-1.5 bg-surface-raised rounded-lg appearance-none cursor-pointer accent-emerald-500"
+                  className="w-16 h-1.5 bg-surface-raised rounded-lg appearance-none cursor-pointer accent-accent"
                 />
                 <span className="text-[11px] text-faint">H</span>
                 <input
@@ -1143,7 +1143,7 @@ const WhiteboardEditor: React.FC<EditorProps> = ({ initialContent, onSave, fileN
                   value={selectedMedia.height}
                   onChange={(e) => updateMediaElements(prev => prev.map(element => element.id === selectedMedia.id ? { ...element, height: parseInt(e.target.value, 10) } : element))}
                   onMouseUp={() => commitCanvasSnapshot(true)}
-                  className="w-16 h-1.5 bg-surface-raised rounded-lg appearance-none cursor-pointer accent-emerald-500"
+                  className="w-16 h-1.5 bg-surface-raised rounded-lg appearance-none cursor-pointer accent-accent"
                 />
               </div>
             )}
@@ -1185,7 +1185,7 @@ const WhiteboardEditor: React.FC<EditorProps> = ({ initialContent, onSave, fileN
       {isAssetMenuOpen && (
         <div className="absolute top-16 left-1/2 -translate-x-1/2 z-30 bg-surface border border-border-strong rounded-xl shadow-2xl p-4 w-80 max-h-[400px] flex flex-col">
           <div className="flex justify-between items-center mb-3">
-            <h4 className="text-sm font-semibold text-content">Select Asset</h4>
+            <h4 className="text-sm font-medium text-content">Select asset</h4>
             <button onClick={() => setIsAssetMenuOpen(false)} className="text-faint hover:text-content"><X className="w-4 h-4" /></button>
           </div>
           <div className="grid grid-cols-3 gap-2 overflow-y-auto custom-scrollbar flex-1">
@@ -1250,7 +1250,7 @@ const WhiteboardEditor: React.FC<EditorProps> = ({ initialContent, onSave, fileN
                         finishTextEditing(text.id, true);
                       }
                     }}
-                    className="absolute z-20 min-w-[220px] max-w-[500px] min-h-[90px] bg-surface/95 border border-blue-500 rounded-md p-2 text-content resize-y focus:outline-none"
+                    className="absolute z-20 min-w-[220px] max-w-[500px] min-h-[90px] bg-surface/95 border border-accent rounded-md p-2 text-content resize-y focus:outline-none"
                     style={{ left: text.x, top: text.y, color: text.color, fontSize: `${text.fontSize}px`, fontWeight: text.fontWeight, fontStyle: text.fontStyle, lineHeight: `${lineHeight}px` }}
                   />
                 );
@@ -1259,7 +1259,7 @@ const WhiteboardEditor: React.FC<EditorProps> = ({ initialContent, onSave, fileN
               return (
                 <div
                   key={text.id}
-                  className={`absolute z-20 px-1 py-0.5 rounded cursor-move whitespace-pre-wrap ${isSelected ? 'ring-1 ring-blue-500 bg-blue-500/10' : ''}`}
+                  className={`absolute z-20 px-1 py-0.5 rounded cursor-move whitespace-pre-wrap ${isSelected ? 'ring-1 ring-accent bg-accent/10' : ''}`}
                   style={{ left: text.x, top: text.y, color: text.color, fontSize: `${text.fontSize}px`, fontWeight: text.fontWeight, fontStyle: text.fontStyle, lineHeight: `${lineHeight}px`, userSelect: 'none' }}
                   onMouseDown={(e) => handleTextDragStart(e, text.id)}
                   onClick={(e) => {
@@ -1284,7 +1284,7 @@ const WhiteboardEditor: React.FC<EditorProps> = ({ initialContent, onSave, fileN
               return (
                 <div
                   key={media.id}
-                  className={`absolute z-20 overflow-hidden rounded-md border ${isSelected ? 'border-blue-500 shadow-[0_0_0_1px_rgba(59,130,246,.4)]' : 'border-border-strong'}`}
+                  className={`absolute z-20 overflow-hidden rounded-md border ${isSelected ? 'border-accent' : 'border-border-strong'}`}
                   style={{ left: media.x, top: media.y, width: media.width, height: media.height, background: '#0a0a0a' }}
                   onMouseDown={(e) => {
                     e.stopPropagation();
@@ -1294,7 +1294,7 @@ const WhiteboardEditor: React.FC<EditorProps> = ({ initialContent, onSave, fileN
                   <div className="h-6 px-2 flex items-center justify-between text-[11px] text-content bg-surface/90 border-b border-border-strong cursor-move" onMouseDown={(e) => handleMediaDragStart(e, media.id)}>
                     <span className="truncate">{media.name}</span>
                     <button
-                      className="text-muted hover:text-red-400"
+                      className="text-muted hover:text-danger"
                       onClick={(e) => {
                         e.stopPropagation();
                         updateMediaElements(prev => prev.filter(element => element.id !== media.id));
@@ -1320,7 +1320,7 @@ const WhiteboardEditor: React.FC<EditorProps> = ({ initialContent, onSave, fileN
                       </div>
                     )}
                   </div>
-                  <div className="absolute right-0 bottom-0 w-4 h-4 bg-blue-500 cursor-nwse-resize" onMouseDown={(e) => handleMediaResizeStart(e, media.id)} title="Resize">
+                  <div className="absolute right-0 bottom-0 w-4 h-4 bg-accent cursor-nwse-resize" onMouseDown={(e) => handleMediaResizeStart(e, media.id)} title="Resize">
                     <Maximize2 className="w-3 h-3 text-content" />
                   </div>
                 </div>

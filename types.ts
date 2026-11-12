@@ -131,7 +131,10 @@ export interface ProjectFolder {
 export interface Project {
   id: string;
   name: string;
-  type: 'Software' | 'Game' | 'Web';
+  /** Key from PROJECT_ICON_GROUPS (components/shell/ProjectIcon.tsx). */
+  icon?: string;
+  /** Legacy: projects made before icons had a type; only used for their fallback icon. */
+  type?: 'Software' | 'Game' | 'Web';
   description: string;
   lastModified: number;
   files: ProjectFile[];

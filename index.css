@@ -56,27 +56,33 @@
     --font-body: 'Geist', 'Inter', system-ui, -apple-system, 'Segoe UI', sans-serif;
     --font-mono: 'JetBrains Mono', ui-monospace, 'SFMono-Regular', Consolas, monospace;
 
-    /* Radius scale — "precise" default */
+    /* Radius scale — "precise" default. Controls 8, cards 12, panels 16. */
     --r-sm: 4px;
-    --r: 5px;
+    --r: 6px;
     --r-md: 6px;
     --r-lg: 8px;
-    --r-xl: 10px;
-    --r-2xl: 12px;
-    --r-3xl: 16px;
+    --r-xl: 12px;
+    --r-2xl: 16px;
+    --r-3xl: 20px;
 
-    /* Spacing/height scale — "comfortable" default */
+    /* Spacing/height scale — "comfortable" default (4px grid) */
     --ctl-h: 2.25rem;
-    --ctl-h-sm: 1.875rem;
-    --field-py: 0.4375rem;
+    --ctl-h-sm: 2rem;
+    --field-py: 0.4375rem; /* centers 20px text in a 36px field */
     --row-py: 0.25rem;
+    --row-h: 2rem;
     --tab-py: 0.5rem;
     --card-pad: 1.25rem;
     --grid-gap: 1.25rem;
 
     /* Shell geometry */
     --header-h: 40px;
-    --statusbar-h: 26px;
+    --statusbar-h: 28px;
+
+    /* Depth — light: small neutral shadows */
+    --shadow-soft: 0 1px 2px rgb(0 0 0 / 0.05);
+    --shadow-raised: 0 4px 12px rgb(0 0 0 / 0.06), 0 1px 2px rgb(0 0 0 / 0.04);
+    --shadow-pop: 0 8px 24px rgb(0 0 0 / 0.10), 0 2px 6px rgb(0 0 0 / 0.06);
 
     color-scheme: light;
   }
@@ -96,7 +102,7 @@
     /* Text */
     --color-content: 233 234 237;
     --color-muted: 164 167 176;
-    --color-faint: 120 124 134;
+    --color-faint: 128 132 142;
     /* Accent — default (Ember, brighter on dark). Overridden per scheme below. */
     --color-accent: 255 125 71;
     --color-accent-grad: 251 146 60;
@@ -108,6 +114,12 @@
     --color-warning: 232 182 72;
     --color-danger: 240 108 100;
     --color-info: 96 165 250;
+
+    /* Depth — dark: surface steps and hairlines, a faint top highlight on
+       controls, and a soft neutral shadow only for things that float. */
+    --shadow-soft: inset 0 1px 0 rgb(255 255 255 / 0.04);
+    --shadow-raised: inset 0 1px 0 rgb(255 255 255 / 0.05);
+    --shadow-pop: 0 12px 32px rgb(0 0 0 / 0.36), 0 2px 8px rgb(0 0 0 / 0.24);
 
     color-scheme: dark;
   }
@@ -175,18 +187,19 @@
     --r-sm: 0px; --r: 1px; --r-md: 2px; --r-lg: 2px; --r-xl: 3px; --r-2xl: 4px; --r-3xl: 6px;
   }
   [data-corners="rounded"] {
-    --r-sm: 6px; --r: 7px; --r-md: 9px; --r-lg: 11px; --r-xl: 14px; --r-2xl: 18px; --r-3xl: 24px;
+    --r-sm: 6px; --r: 8px; --r-md: 8px; --r-lg: 10px; --r-xl: 16px; --r-2xl: 20px; --r-3xl: 24px;
   }
 
   /* Density — global spacing/height scale. */
   [data-density="compact"] {
     --ctl-h: 2rem;
-    --ctl-h-sm: 1.625rem;
+    --ctl-h-sm: 1.75rem;
     --field-py: 0.3125rem;
     --row-py: 0.125rem;
+    --row-h: 1.75rem;
     --tab-py: 0.375rem;
     --card-pad: 1rem;
-    --grid-gap: 0.875rem;
+    --grid-gap: 0.75rem;
     --header-h: 36px;
     --statusbar-h: 24px;
   }
@@ -332,7 +345,12 @@
   body * {
     transition-property: background-color, border-color, color, fill, stroke;
     transition-duration: 120ms;
-    transition-timing-function: ease;
+    transition-timing-function: cubic-bezier(0.22, 1, 0.36, 1);
+  }
+
+  /* Figures line up in columns everywhere (counts, sizes, dates). */
+  .tabular-nums, .kbd, .count {
+    font-variant-numeric: tabular-nums;
   }
 
   :focus-visible {
@@ -342,14 +360,24 @@
 }
 
 @layer components {
-  /* Small section label (sidebar groups, settings groups). */
+  /* Small section label (sidebar groups, settings groups, field labels).
+     Sentence case, no tracking: hierarchy comes from size and color. */
   .eyebrow {
     font-family: var(--font-body);
-    font-size: 0.6875rem;
-    letter-spacing: 0.04em;
-    text-transform: uppercase;
+    font-size: 0.75rem;
+    line-height: 1rem;
     color: rgb(var(--color-faint));
-    font-weight: 600;
+    font-weight: 500;
+  }
+
+  /* The signature: counts and figures set in mono tabular digits, like a build log. */
+  .count {
+    font-family: var(--font-mono);
+    font-size: 0.6875rem;
+    line-height: 1rem;
+    font-weight: 400;
+    color: rgb(var(--color-faint));
+    font-variant-numeric: tabular-nums;
   }
 
   /* Icon-only button (sidebar, tab strip, view header, toolbars). */
@@ -357,13 +385,13 @@
     @apply inline-flex shrink-0 items-center justify-center rounded-md text-faint;
     width: 1.75rem;
     height: 1.75rem;
-    transition: background-color 120ms ease, color 120ms ease, transform 80ms ease;
+    transition: background-color 150ms cubic-bezier(0.22, 1, 0.36, 1), color 150ms cubic-bezier(0.22, 1, 0.36, 1), transform 120ms cubic-bezier(0.22, 1, 0.36, 1);
   }
   .icon-btn:hover:not(:disabled) {
     @apply bg-surface-hover text-content;
   }
   .icon-btn:active:not(:disabled) {
-    transform: scale(0.92);
+    transform: scale(0.96);
   }
   .icon-btn:disabled {
     opacity: 0.35;
@@ -379,7 +407,7 @@
     @apply flex w-full min-w-0 items-center gap-2 rounded-md text-left text-[0.8125rem] text-muted;
     padding-top: var(--row-py);
     padding-bottom: var(--row-py);
-    min-height: 1.875rem;
+    min-height: var(--row-h);
   }
   .nav-row:hover {
     @apply bg-surface-hover/70 text-content;
@@ -393,8 +421,8 @@
     @apply flex items-center gap-0.5 rounded-lg bg-surface-hover/60 p-0.5;
   }
   .seg-item {
-    @apply flex min-w-0 flex-auto items-center justify-center gap-1.5 truncate rounded-md px-1.5 py-1 text-xs font-medium text-muted;
-    transition: background-color 120ms ease, color 120ms ease, box-shadow 120ms ease;
+    @apply flex h-7 min-w-0 flex-auto items-center justify-center gap-1.5 truncate rounded-md px-2 text-xs font-medium text-muted;
+    transition: background-color 150ms cubic-bezier(0.22, 1, 0.36, 1), color 150ms cubic-bezier(0.22, 1, 0.36, 1);
   }
   .seg-item:hover {
     @apply text-content;
@@ -404,22 +432,28 @@
     @apply bg-bg text-content shadow-soft;
   }
 
-  /* A card that opens something: lifts 2px and firms its border on hover. */
+  /* A card that opens something: firms its border and steps its surface on
+     hover. It does not move. */
   .card-link {
     @apply rounded-xl border border-border bg-bg;
-    transition: transform 160ms cubic-bezier(0.2, 0.8, 0.2, 1), box-shadow 160ms ease, border-color 160ms ease;
+    transition: background-color 150ms cubic-bezier(0.22, 1, 0.36, 1), border-color 150ms cubic-bezier(0.22, 1, 0.36, 1), transform 120ms cubic-bezier(0.22, 1, 0.36, 1);
   }
   .card-link:hover {
-    transform: translateY(-2px);
-    @apply border-border-strong shadow-raised;
+    @apply border-border-strong bg-surface;
   }
   .card-link:active {
-    transform: translateY(0);
+    transform: scale(0.995);
   }
 
-  /* Keyboard hint chip. */
+  /* Keyboard hint keycap. */
   .kbd {
-    @apply inline-flex items-center rounded border border-border bg-surface-raised px-1 font-mono text-[10px] leading-4 text-faint;
+    @apply inline-flex h-4 items-center rounded-sm border border-border bg-surface-raised px-1 font-mono text-[11px] leading-none text-faint;
+    box-shadow: inset 0 -1px 0 rgb(var(--color-border));
+  }
+
+  /* Small field label inside panels and popovers (Status, Priority, Due date). */
+  .field-label {
+    @apply text-xs font-medium text-faint;
   }
 
   /* Hover tooltip (rendered by TooltipHost for any [data-tip] element). */
@@ -437,27 +471,27 @@
 
 /* Slide-over panels */
 @keyframes slide-in {
-  from { transform: translateX(-12px); opacity: 0; }
+  from { transform: translateX(-8px); opacity: 0; }
   to { transform: translateX(0); opacity: 1; }
 }
 .animate-slide-in {
-  animation: slide-in 0.16s ease-out;
+  animation: slide-in 200ms cubic-bezier(0.22, 1, 0.36, 1);
 }
 @keyframes slide-in-right {
-  from { transform: translateX(12px); opacity: 0; }
+  from { transform: translateX(8px); opacity: 0; }
   to { transform: translateX(0); opacity: 1; }
 }
 .animate-slide-in-right {
-  animation: slide-in-right 0.16s ease-out;
+  animation: slide-in-right 200ms cubic-bezier(0.22, 1, 0.36, 1);
 }
 
-/* Staggered card / view entrances */
+/* The one entrance on load: a short fade and rise for the main content. */
 @keyframes fade-in-up {
-  from { opacity: 0; transform: translateY(6px); }
+  from { opacity: 0; transform: translateY(8px); }
   to { opacity: 1; transform: translateY(0); }
 }
 .animate-fade-in-up {
-  animation: fade-in-up 0.24s ease-out both;
+  animation: fade-in-up 320ms cubic-bezier(0.22, 1, 0.36, 1) both;
 }
 
 @keyframes pulse-dot {
@@ -483,12 +517,12 @@
 .doc-md .md-h6, .cm-md-h6 { font-size: 1em; color: rgb(var(--color-muted)); }
 .doc-md .md-h1, .doc-md .md-h2, .doc-md .md-h3, .doc-md .md-h4, .doc-md .md-h5, .doc-md .md-h6 {
   font-family: var(--font-display);
-  font-weight: 700;
+  font-weight: 600;
   line-height: 1.25;
   margin: 1.4em 0 0.5em;
   scroll-margin-top: 1rem;
 }
-.cm-md-h { font-family: var(--font-display); font-weight: 700; line-height: 1.35; }
+.cm-md-h { font-family: var(--font-display); font-weight: 600; line-height: 1.35; }
 .cm-md-h1 { padding-top: 0.5em !important; }
 .cm-md-h2, .cm-md-h3 { padding-top: 0.35em !important; }
 
@@ -499,7 +533,7 @@
 .doc-md li::marker { color: rgb(var(--color-faint)); }
 .doc-md li.md-task-item { list-style: none; margin-left: -1.4em; }
 .doc-md hr { border: 0; border-top: 1px solid rgb(var(--color-border-strong)); margin: 2em 0; }
-.doc-md strong { font-weight: 700; }
+.doc-md strong { font-weight: 600; }
 .doc-md del { color: rgb(var(--color-faint)); }
 .doc-md u { text-decoration-color: rgb(var(--color-accent)); text-underline-offset: 3px; }
 .doc-md .md-quote, .cm-md-quote {
@@ -532,7 +566,7 @@
 }
 .doc-md .md-internal-link:hover, .cm-md-wikilink:hover, .cm-md-link:hover { text-decoration: underline; }
 .doc-md .md-internal-link.is-unresolved, .cm-md-wikilink.is-unresolved { opacity: 0.6; text-decoration: underline dashed; text-underline-offset: 3px; }
-.cm-md-wikilink.is-embed { font-style: italic; }
+.cm-md-wikilink.is-embed { color: rgb(var(--color-muted)); }
 .doc-md .md-external-link { color: rgb(var(--color-accent)); text-decoration: underline; text-decoration-color: rgb(var(--color-accent) / 0.4); text-underline-offset: 3px; }
 .doc-md .md-task-link { color: rgb(var(--color-success)); cursor: pointer; }
 .doc-md .md-task-link.is-unresolved { color: rgb(var(--color-faint)); text-decoration: line-through; }
@@ -583,7 +617,7 @@
 
 /* Live preview (CodeMirror) */
 .md-editor .cm-md-em { font-style: italic; }
-.md-editor .cm-md-strong { font-weight: 700; }
+.md-editor .cm-md-strong { font-weight: 600; }
 .md-editor .cm-md-strike { text-decoration: line-through; color: rgb(var(--color-faint)); }
 .md-editor .cm-md-bullet { color: rgb(var(--color-faint)); display: inline-block; width: 0.9em; }
 .md-editor .cm-md-list-mark { color: rgb(var(--color-faint)); }

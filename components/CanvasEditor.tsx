@@ -185,7 +185,7 @@ const FileNode: React.FC<NodeProps<CanvasNodeData>> = props => {
       <div className="flex shrink-0 items-center gap-1.5 border-b border-border px-3 py-1.5 text-[12px]" onDoubleClick={() => file && ctx.openFile(file.id)}>
         <Icon className="h-3.5 w-3.5 text-faint" />
         <span className={cn('truncate font-medium', file ? 'text-content' : 'text-faint line-through')}>{file?.name || 'Missing file'}</span>
-        <span className="ml-auto text-[10px] text-faint">{meta?.label}</span>
+        <span className="ml-auto text-[11px] text-faint">{meta?.label}</span>
       </div>
       <div className="nowheel min-h-0 flex-1 overflow-y-auto px-4 py-3 text-[13px]" onDoubleClick={() => file && ctx.openFile(file.id)}>
         {file?.type === 'doc' && typeof file.content === 'string'
@@ -232,7 +232,7 @@ const GroupNode: React.FC<NodeProps<CanvasNodeData>> = props => {
         style={{ backgroundColor: rgb ? `rgb(${rgb} / 0.08)` : 'rgb(var(--color-surface-hover) / 0.35)', borderColor: rgb && !props.selected ? `rgb(${rgb})` : undefined }}
       >
         {props.data.label && (
-          <span className="absolute -top-7 left-0 rounded-md bg-surface-raised px-2 py-0.5 text-[13px] font-semibold text-content" style={rgb ? { color: `rgb(${rgb})` } : undefined}>
+          <span className="absolute -top-7 left-0 rounded-md bg-surface-raised px-2 py-0.5 text-[13px] font-medium text-content" style={rgb ? { color: `rgb(${rgb})` } : undefined}>
             {props.data.label}
           </span>
         )}

@@ -7,7 +7,7 @@ The app keeps project documents, task planning, bug tracking, roadmaps, flowchar
 ## Current Feature Set
 
 - Workspace layout: a labeled sidebar (project switcher, "Go to file", task list / bug tracker / roadmap / assets with open counts, file tree, search, bookmarks, tags), the editor in an inset panel, a right sidebar (outline, backlinks, local graph, file info), hover tooltips with shortcuts, and right-click context menus everywhere
-- Projects home with a "continue where you left off" card, project cards with open task and bug counts, and a new-project dialog
+- Projects home with a "Last opened" card, project cards with open task and bug counts, and a new-project dialog where each project picks its icon from a library of about 80
 - Split panes (side by side and stacked): drag a tab or sidebar file onto a pane edge, use the split button, or `Ctrl+Alt+\`; resizable dividers, and the layout is restored on next sign-in
 - Tabs with per-tab back/forward history and pinning, draggable between panes
 - Hover actions on every sidebar row, one-click file creation from empty panes, and Undo for deletes
@@ -66,7 +66,7 @@ The schema is created automatically on API startup:
 
 - `users` — `id`, `username` (unique), `password_hash`, `is_admin`, `created_at`
 - `sessions` — `token_hash`, `user_id`, `created_at`, `expires_at`
-- `projects` — one row per project, owned by a user (`user_id`). Metadata (`name`, `type`, `description`, `last_modified`) is stored in columns; `files`, `folders`, and `assets` are stored as JSONB payloads since the app always reads and writes a project as a single aggregate.
+- `projects` — one row per project, owned by a user (`user_id`). Metadata (`name`, `icon`, `description`, `last_modified`, plus a legacy `type` that only older projects set) is stored in columns; `files`, `folders`, and `assets` are stored as JSONB payloads since the app always reads and writes a project as a single aggregate.
 - `app_state` — per-user key-value table storing session state (active project, active file, sidebar state).
 
 No project data is stored in the browser — clearing browser data only signs you out. The browser only holds the session token (localStorage) and appearance preferences.

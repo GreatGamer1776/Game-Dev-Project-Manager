@@ -31,7 +31,7 @@ import { uid } from './utils/id';
 import { useWorkspace, PersistedLeaf, PersistedWorkspace, Edge, OpenMode, currentFileOf } from './hooks/useWorkspace';
 import WorkspaceLayout, { TabDragPayload } from './components/shell/WorkspaceLayout';
 import Sidebar, { LeftTab } from './components/shell/Sidebar';
-import { PROJECT_TYPE_META } from './components/shell/ProjectIcon';
+import { projectIconFor } from './components/shell/ProjectIcon';
 import FileExplorer, { RenameTarget, CREATABLE_TYPES } from './components/shell/FileExplorer';
 import SearchPanel from './components/shell/SearchPanel';
 import RightSidebar, { RightTab } from './components/shell/RightSidebar';
@@ -455,13 +455,13 @@ const App: React.FC = () => {
     ws.reset(null);
   };
 
-  const handleCreateProject = (name: string, type: Project['type'], description = '') => {
+  const handleCreateProject = (name: string, description: string, icon: string) => {
     const trimmedName = name.trim();
     const readme = `# ${trimmedName}\n\n${description.trim() || 'Project overview, goals, and links.'}\n`;
     const newProject = normalizeProject({
       id: uid(),
       name: trimmedName,
-      type,
+      icon,
       description: description.trim(),
       lastModified: Date.now(),
       files: [createProjectFile('doc', 'Readme', null, readme)],
@@ -476,7 +476,7 @@ const App: React.FC = () => {
     enterProject(newProject);
   };
 
-  const handleUpdateProject = (id: string, updates: { name: string; description: string }) => {
+  const handleUpdateProject = (id: string, updates: { name: string; description: string; icon?: string }) => {
     const project = projectsRef.current.find(p => p.id === id);
     if (!project) return;
     const trimmedName = updates.name.trim();
@@ -484,7 +484,13 @@ const App: React.FC = () => {
       toast.error('Project name is required.');
       return;
     }
-    updateProjectState({ ...project, name: trimmedName, description: updates.description.trim(), lastModified: Date.now() });
+    updateProjectState({
+      ...project,
+      name: trimmedName,
+      description: updates.description.trim(),
+      ...(updates.icon ? { icon: updates.icon } : {}),
+      lastModified: Date.now(),
+    });
   };
 
   const handleRenameProject = async () => {
@@ -1214,7 +1220,7 @@ const App: React.FC = () => {
   if (!authReady) {
     return (
       <div className="flex h-full items-center justify-center bg-chrome" role="status" aria-label="Loading DevArchitect">
-        <Logo size={44} className="animate-pulse" />
+        <Logo size={44} className="animate-fade-in" />
       </div>
     );
   }
@@ -1233,7 +1239,7 @@ const App: React.FC = () => {
     const entries: MenuEntry[] = [
       ...(others.length ? [
         { kind: 'heading' as const, label: 'Switch project' },
-        ...others.map(p => ({ label: p.name, icon: (PROJECT_TYPE_META[p.type] || PROJECT_TYPE_META.Software).icon, hint: p.type, onSelect: () => handleSelectProject(p.id) })),
+        ...others.map(p => ({ label: p.name, icon: projectIconFor(p), onSelect: () => handleSelectProject(p.id) })),
         { kind: 'separator' as const },
       ] : []),
       { label: 'All projects', icon: LayoutGrid, onSelect: goToDashboard },
@@ -1559,13 +1565,17 @@ const App: React.FC = () => {
           </div>
         )}
       </div>
-      <StatusBar
-        saveState={saveState}
-        file={inProject && !guide.open ? activeFile : undefined}
-        files={activeProject?.files || []}
-        projectName={inProject ? activeProject?.name : undefined}
-        onOpenLinks={() => { setRightOpen(true); setRightTab('links'); }}
-      />
+      {/* The status bar belongs to the workspace; on the projects home it only
+          appears if a save fails, so the failure is never silent. */}
+      {(inProject || saveState === 'error') && (
+        <StatusBar
+          saveState={saveState}
+          file={inProject && !guide.open ? activeFile : undefined}
+          files={activeProject?.files || []}
+          projectName={inProject ? activeProject?.name : undefined}
+          onOpenLinks={() => { setRightOpen(true); setRightTab('links'); }}
+        />
+      )}
 
       <CommandPalette
         mode={paletteMode}

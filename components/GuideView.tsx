@@ -1,23 +1,23 @@
 import React, { useEffect, useState } from 'react';
 import { SHORTCUTS } from './HelpModal';
-import { FileText, Network, CheckSquare, Bug, Map, Table, PenTool, Image as ImageIcon, Box, Keyboard, Lightbulb, FolderOpen, Workflow, HardDrive, ChevronDown, ChevronRight, Database, LayoutDashboard, Spline, Waypoints } from 'lucide-react';
+import { FileText, Network, CheckSquare, Bug, Map, Table, PenTool, Image as ImageIcon, Box, Keyboard, Lightbulb, FolderOpen, Workflow, HardDrive, ChevronDown, ChevronRight, Database, Folder, LayoutDashboard, Spline, Waypoints } from 'lucide-react';
 
 export type GuideSectionId = 'overview' | 'tools' | 'shortcuts' | 'workflows' | 'storage' | 'tips';
 
 const sections: { id: GuideSectionId; label: string }[] = [
   { id: 'overview', label: 'Overview' },
-  { id: 'tools', label: 'File Types & Tools' },
-  { id: 'shortcuts', label: 'Keyboard Shortcuts' },
+  { id: 'tools', label: 'File types and tools' },
+  { id: 'shortcuts', label: 'Keyboard shortcuts' },
   { id: 'workflows', label: 'Workflows' },
-  { id: 'storage', label: 'Storage & Export' },
-  { id: 'tips', label: 'Tips & Best Practices' },
+  { id: 'storage', label: 'Storage and export' },
+  { id: 'tips', label: 'Tips and best practices' },
 ];
 
 const tools = [
   {
     icon: FileText,
-    color: 'text-blue-400',
-    bg: 'bg-blue-500/10',
+    color: 'text-muted',
+    bg: 'bg-surface-raised',
     title: 'Document',
     type: 'doc',
     summary: 'Obsidian-style markdown notes with live preview.',
@@ -111,8 +111,8 @@ const tools = [
   },
   {
     icon: Network,
-    color: 'text-amber-400',
-    bg: 'bg-amber-500/10',
+    color: 'text-muted',
+    bg: 'bg-surface-raised',
     title: 'Flowchart',
     type: 'flowchart',
     summary: 'Node-based visual diagram editor built on ReactFlow.',
@@ -135,8 +135,8 @@ const tools = [
   },
   {
     icon: CheckSquare,
-    color: 'text-emerald-400',
-    bg: 'bg-emerald-500/10',
+    color: 'text-muted',
+    bg: 'bg-surface-raised',
     title: 'Task List',
     type: 'todo',
     summary: 'Prioritized task manager with statuses and sub-tasks.',
@@ -159,8 +159,8 @@ const tools = [
   },
   {
     icon: Bug,
-    color: 'text-red-400',
-    bg: 'bg-red-500/10',
+    color: 'text-muted',
+    bg: 'bg-surface-raised',
     title: 'Bug Tracker',
     type: 'kanban',
     summary: 'Kanban board for tracking bugs and issues by status column.',
@@ -181,8 +181,8 @@ const tools = [
   },
   {
     icon: Map,
-    color: 'text-amber-400',
-    bg: 'bg-amber-500/10',
+    color: 'text-muted',
+    bg: 'bg-surface-raised',
     title: 'Roadmap',
     type: 'roadmap',
     summary: 'Timeline planner for milestones and long-term project phases.',
@@ -202,8 +202,8 @@ const tools = [
   },
   {
     icon: Table,
-    color: 'text-cyan-400',
-    bg: 'bg-cyan-500/10',
+    color: 'text-muted',
+    bg: 'bg-surface-raised',
     title: 'Data Grid',
     type: 'grid',
     summary: 'Spreadsheet-style editor for structured data and game stats.',
@@ -225,8 +225,8 @@ const tools = [
   },
   {
     icon: PenTool,
-    color: 'text-pink-400',
-    bg: 'bg-pink-500/10',
+    color: 'text-muted',
+    bg: 'bg-surface-raised',
     title: 'Whiteboard',
     type: 'whiteboard',
     summary: 'Infinite canvas for freehand drawing and sketching.',
@@ -248,8 +248,8 @@ const tools = [
   },
   {
     icon: ImageIcon,
-    color: 'text-sky-400',
-    bg: 'bg-sky-500/10',
+    color: 'text-muted',
+    bg: 'bg-surface-raised',
     title: 'Asset Library',
     type: 'asset-gallery',
     summary: 'Central image repository used by Documents and Whiteboards.',
@@ -284,7 +284,7 @@ const CollapsibleSection: React.FC<{ title: string; defaultOpen?: boolean; child
     <div className="border border-border rounded-xl overflow-hidden">
       <button onClick={() => setOpen(!open)} className="w-full flex items-center gap-2 px-5 py-3.5 bg-surface/60 hover:bg-surface-hover text-left transition-colors">
         {open ? <ChevronDown className="w-4 h-4 text-faint" /> : <ChevronRight className="w-4 h-4 text-faint" />}
-        <span className="font-semibold text-content text-sm">{title}</span>
+        <span className="font-medium text-content text-sm">{title}</span>
       </button>
       {open && <div className="px-5 py-4 border-t border-border/50">{children}</div>}
     </div>
@@ -305,45 +305,45 @@ const GuideView: React.FC<GuideViewProps> = ({ initialSection = 'overview' }) =>
   const renderOverview = () => (
     <div className="space-y-6">
       <div className="bg-surface-raised/40 border border-border rounded-xl p-6">
-        <h3 className="text-xl font-semibold text-content mb-3">What is DevArchitect?</h3>
+        <h3 className="text-lg font-medium text-content mb-3">What is DevArchitect?</h3>
         <p className="text-muted leading-relaxed mb-4">
-          DevArchitect is an <strong className="text-content">offline-capable project management workspace</strong> built specifically for game developers. 
-          Instead of scattering your Game Design Documents in Word, tasks in Trello, bugs in Jira, and stat tables in Excel, 
-          DevArchitect keeps everything in a single, portable project file.
+          DevArchitect is a <strong className="text-content">self-hosted planning workspace</strong> for game, web and software projects.
+          Instead of scattering design documents in Word, tasks in Trello, bugs in Jira and stat tables in Excel,
+          each project keeps them together on a server you run.
         </p>
         <p className="text-muted leading-relaxed">
-          Each project is a self-contained workspace with typed files (Documents, Flowcharts, Task Lists, Bug Trackers, Roadmaps, Data Grids, Whiteboards, and Asset Libraries) 
-          organized in folders. Projects are stored in your account's workspace database, so they follow you to any browser or device, 
+          Each project holds its files (documents, flowcharts, a task list, a bug tracker, a roadmap, data grids, whiteboards and an asset library)
+          in folders. Projects are stored in that server's database under your account, so they follow you to any browser or device,
           and can be exported as <code className="text-content bg-surface-raised px-1.5 py-0.5 rounded text-xs">.zip</code> archives for backup.
         </p>
       </div>
 
       <div className="grid grid-cols-1 md:grid-cols-3 gap-4">
         <div className="bg-surface border border-border rounded-xl p-5">
-          <FolderOpen className="w-8 h-8 text-blue-400 mb-3" />
-          <h4 className="font-semibold text-content mb-1">Project-Based</h4>
+          <FolderOpen className="w-8 h-8 text-muted mb-3" />
+          <h4 className="font-medium text-content mb-1">Project based</h4>
           <p className="text-sm text-faint">Each project is a self-contained workspace with its own files, folders, and assets. Work on multiple projects and switch between them from the dashboard.</p>
         </div>
         <div className="bg-surface border border-border rounded-xl p-5">
-          <HardDrive className="w-8 h-8 text-emerald-400 mb-3" />
-          <h4 className="font-semibold text-content mb-1">Private by Design</h4>
+          <HardDrive className="w-8 h-8 text-muted mb-3" />
+          <h4 className="font-medium text-content mb-1">Private by design</h4>
           <p className="text-sm text-faint">Your projects live in a database you control. Sign in with just a username and password — no email or personal info required.</p>
         </div>
         <div className="bg-surface border border-border rounded-xl p-5">
-          <Workflow className="w-8 h-8 text-amber-400 mb-3" />
-          <h4 className="font-semibold text-content mb-1">Integrated Tools</h4>
-          <p className="text-sm text-faint">Eight specialized editors work together. Link tasks from documents, embed asset images, and cross-reference files without leaving the app.</p>
+          <Workflow className="w-8 h-8 text-muted mb-3" />
+          <h4 className="font-medium text-content mb-1">Integrated tools</h4>
+          <p className="text-sm text-faint">The editors work together. Link tasks from documents, embed asset images, and cross-reference files without leaving the app.</p>
         </div>
       </div>
 
       <div className="bg-surface border border-border rounded-xl p-5">
-        <h4 className="font-semibold text-content mb-3">Quick Start</h4>
+        <h4 className="font-medium text-content mb-3">Quick start</h4>
         <ol className="space-y-2 text-sm text-muted">
-          <li className="flex gap-3"><span className="shrink-0 w-6 h-6 rounded-full bg-accent/15 text-accent flex items-center justify-center text-xs font-bold">1</span><span><strong className="text-content">Create a project</strong> from the dashboard — give it a name, type, and description.</span></li>
-          <li className="flex gap-3"><span className="shrink-0 w-6 h-6 rounded-full bg-accent/15 text-accent flex items-center justify-center text-xs font-bold">2</span><span><strong className="text-content">Add files</strong> with the new-file button at the top of the file sidebar, or right-click a folder. Choose the editor type that fits your content.</span></li>
-          <li className="flex gap-3"><span className="shrink-0 w-6 h-6 rounded-full bg-accent/15 text-accent flex items-center justify-center text-xs font-bold">3</span><span><strong className="text-content">Organize with folders</strong> — create folders to group related files (e.g., "Design", "Art", "Code").</span></li>
-          <li className="flex gap-3"><span className="shrink-0 w-6 h-6 rounded-full bg-accent/15 text-accent flex items-center justify-center text-xs font-bold">4</span><span><strong className="text-content">Save your work</strong> — everything auto-saves; the status bar shows when changes reach the server. Export the project as a .zip for backup.</span></li>
-          <li className="flex gap-3"><span className="shrink-0 w-6 h-6 rounded-full bg-accent/15 text-accent flex items-center justify-center text-xs font-bold">5</span><span><strong className="text-content">Pick up anywhere</strong> — sign in from another browser or device and your projects are right where you left them.</span></li>
+          <li className="flex gap-3"><span className="shrink-0 w-6 h-6 rounded-full border border-border bg-surface-raised text-muted flex items-center justify-center font-mono text-xs">1</span><span><strong className="text-content">Create a project</strong> from the projects home — give it a name, an icon and a description.</span></li>
+          <li className="flex gap-3"><span className="shrink-0 w-6 h-6 rounded-full border border-border bg-surface-raised text-muted flex items-center justify-center font-mono text-xs">2</span><span><strong className="text-content">Add files</strong> with the new-file button at the top of the file sidebar, or right-click a folder. Choose the editor type that fits your content.</span></li>
+          <li className="flex gap-3"><span className="shrink-0 w-6 h-6 rounded-full border border-border bg-surface-raised text-muted flex items-center justify-center font-mono text-xs">3</span><span><strong className="text-content">Organize with folders</strong> — create folders to group related files (e.g., "Design", "Art", "Code").</span></li>
+          <li className="flex gap-3"><span className="shrink-0 w-6 h-6 rounded-full border border-border bg-surface-raised text-muted flex items-center justify-center font-mono text-xs">4</span><span><strong className="text-content">Save your work</strong> — everything auto-saves; the status bar shows when changes reach the server. Export the project as a .zip for backup.</span></li>
+          <li className="flex gap-3"><span className="shrink-0 w-6 h-6 rounded-full border border-border bg-surface-raised text-muted flex items-center justify-center font-mono text-xs">5</span><span><strong className="text-content">Pick up anywhere</strong> — sign in from another browser or device and your projects are right where you left them.</span></li>
         </ol>
       </div>
     </div>
@@ -368,22 +368,22 @@ const GuideView: React.FC<GuideViewProps> = ({ initialSection = 'overview' }) =>
             </div>
             <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
               <div>
-                <h5 className="text-xs font-bold uppercase tracking-wider text-faint mb-2">Use Cases</h5>
+                <h5 className="eyebrow mb-2">Use cases</h5>
                 <ul className="space-y-1.5">
                   {tool.useCases.map((uc, i) => (
                     <li key={i} className="text-sm text-muted flex gap-2">
-                      <span className="text-accent shrink-0 mt-1">•</span>
+                      <span className="shrink-0 text-faint">•</span>
                       <span>{uc}</span>
                     </li>
                   ))}
                 </ul>
               </div>
               <div>
-                <h5 className="text-xs font-bold uppercase tracking-wider text-faint mb-2">Features</h5>
+                <h5 className="eyebrow mb-2">Features</h5>
                 <ul className="space-y-1.5">
                   {tool.features.map((f, i) => (
                     <li key={i} className="text-sm text-muted flex gap-2">
-                      <span className="text-accent shrink-0 mt-1">✓</span>
+                      <span className="shrink-0 text-faint">•</span>
                       <span>{f}</span>
                     </li>
                   ))}
@@ -403,7 +403,7 @@ const GuideView: React.FC<GuideViewProps> = ({ initialSection = 'overview' }) =>
       </p>
       {shortcuts.map((group) => (
         <div key={group.category}>
-          <h4 className="text-xs font-bold uppercase tracking-wider text-faint mb-3">{group.category}</h4>
+          <h4 className="eyebrow mb-3">{group.category}</h4>
           <div className="bg-surface border border-border rounded-xl overflow-hidden">
             {group.items.map((item, i) => (
               <div key={i} className={`flex items-center gap-4 px-5 py-3 ${i > 0 ? 'border-t border-border/50' : ''}`}>
@@ -419,7 +419,7 @@ const GuideView: React.FC<GuideViewProps> = ({ initialSection = 'overview' }) =>
 
   const renderWorkflows = () => (
     <div className="space-y-4">
-      <CollapsibleSection title="Cross-File Linking" defaultOpen>
+      <CollapsibleSection title="Cross-file linking" defaultOpen>
         <div className="space-y-3 text-sm text-muted">
           <p>DevArchitect files can reference each other using a special link syntax in Documents:</p>
           <div className="bg-bg border border-border rounded-lg p-4 font-mono text-xs space-y-2">
@@ -431,52 +431,52 @@ const GuideView: React.FC<GuideViewProps> = ({ initialSection = 'overview' }) =>
         </div>
       </CollapsibleSection>
 
-      <CollapsibleSection title="Suggested Project Structure">
+      <CollapsibleSection title="Suggested project structure">
         <div className="space-y-3 text-sm text-muted">
           <p>A well-organized project might look like:</p>
           <div className="bg-bg border border-border rounded-lg p-4 font-mono text-xs leading-loose text-content">
-            <p>📁 Design</p>
-            <p className="ml-4">📄 Game Design Document <span className="text-faint">(doc)</span></p>
-            <p className="ml-4">📄 Core Game Loop <span className="text-faint">(flowchart)</span></p>
-            <p className="ml-4">📄 Dialogue Trees <span className="text-faint">(flowchart)</span></p>
-            <p>📁 Production</p>
-            <p className="ml-4">📄 Sprint Tasks <span className="text-faint">(todo)</span></p>
-            <p className="ml-4">📄 Bug List <span className="text-faint">(kanban)</span></p>
-            <p className="ml-4">📄 Release Roadmap <span className="text-faint">(roadmap)</span></p>
-            <p>📁 Data</p>
-            <p className="ml-4">📄 Weapon Stats <span className="text-faint">(grid)</span></p>
-            <p className="ml-4">📄 Enemy Database <span className="text-faint">(grid)</span></p>
-            <p>📁 Art</p>
-            <p className="ml-4">📄 Reference Images <span className="text-faint">(asset-gallery)</span></p>
-            <p className="ml-4">📄 Level Sketches <span className="text-faint">(whiteboard)</span></p>
+            <p className="flex items-center gap-2"><Folder className="h-3.5 w-3.5 text-faint" />Design</p>
+            <p className="ml-6 flex items-center gap-2"><FileText className="h-3.5 w-3.5 shrink-0 text-faint" />Game Design Document <span className="text-faint">(doc)</span></p>
+            <p className="ml-6 flex items-center gap-2"><FileText className="h-3.5 w-3.5 shrink-0 text-faint" />Core Game Loop <span className="text-faint">(flowchart)</span></p>
+            <p className="ml-6 flex items-center gap-2"><FileText className="h-3.5 w-3.5 shrink-0 text-faint" />Dialogue Trees <span className="text-faint">(flowchart)</span></p>
+            <p className="flex items-center gap-2"><Folder className="h-3.5 w-3.5 text-faint" />Production</p>
+            <p className="ml-6 flex items-center gap-2"><FileText className="h-3.5 w-3.5 shrink-0 text-faint" />Sprint Tasks <span className="text-faint">(todo)</span></p>
+            <p className="ml-6 flex items-center gap-2"><FileText className="h-3.5 w-3.5 shrink-0 text-faint" />Bug List <span className="text-faint">(kanban)</span></p>
+            <p className="ml-6 flex items-center gap-2"><FileText className="h-3.5 w-3.5 shrink-0 text-faint" />Release Roadmap <span className="text-faint">(roadmap)</span></p>
+            <p className="flex items-center gap-2"><Folder className="h-3.5 w-3.5 text-faint" />Data</p>
+            <p className="ml-6 flex items-center gap-2"><FileText className="h-3.5 w-3.5 shrink-0 text-faint" />Weapon Stats <span className="text-faint">(grid)</span></p>
+            <p className="ml-6 flex items-center gap-2"><FileText className="h-3.5 w-3.5 shrink-0 text-faint" />Enemy Database <span className="text-faint">(grid)</span></p>
+            <p className="flex items-center gap-2"><Folder className="h-3.5 w-3.5 text-faint" />Art</p>
+            <p className="ml-6 flex items-center gap-2"><FileText className="h-3.5 w-3.5 shrink-0 text-faint" />Reference Images <span className="text-faint">(asset-gallery)</span></p>
+            <p className="ml-6 flex items-center gap-2"><FileText className="h-3.5 w-3.5 shrink-0 text-faint" />Level Sketches <span className="text-faint">(whiteboard)</span></p>
           </div>
         </div>
       </CollapsibleSection>
 
-      <CollapsibleSection title="Command Palette">
+      <CollapsibleSection title="Command palette">
         <div className="space-y-3 text-sm text-muted">
           <p>Press <kbd className="kbd">Ctrl + O</kbd> anywhere to open the quick switcher, or <kbd className="kbd">Ctrl + P</kbd> for the command palette. They let you:</p>
           <ul className="space-y-1.5 ml-1">
-            <li className="flex gap-2"><span className="text-accent">•</span>Fuzzy-search and open any file in the current project, or switch projects</li>
-            <li className="flex gap-2"><span className="text-accent">•</span>Create a new document by typing a name and pressing Shift + Enter</li>
-            <li className="flex gap-2"><span className="text-accent">•</span>Run any command — type "&gt;" in the switcher to jump to commands</li>
+            <li className="flex gap-2"><span className="shrink-0 text-faint">•</span>Fuzzy-search and open any file in the current project, or switch projects</li>
+            <li className="flex gap-2"><span className="shrink-0 text-faint">•</span>Create a new document by typing a name and pressing Shift + Enter</li>
+            <li className="flex gap-2"><span className="shrink-0 text-faint">•</span>Run any command — type "&gt;" in the switcher to jump to commands</li>
           </ul>
         </div>
       </CollapsibleSection>
 
-      <CollapsibleSection title="Undo & Redo">
+      <CollapsibleSection title="Undo and redo">
         <div className="space-y-3 text-sm text-muted">
           <p>Every editor supports undo and redo with up to 50 history levels (200 for Whiteboard):</p>
           <ul className="space-y-1.5 ml-1">
-            <li className="flex gap-2"><span className="text-accent">✓</span><strong className="text-content">Ctrl+Z</strong> to undo, <strong className="text-content">Ctrl+Y</strong> to redo</li>
-            <li className="flex gap-2"><span className="text-accent">✓</span>Toolbar buttons are also available at the top of each editor</li>
-            <li className="flex gap-2"><span className="text-accent">✓</span>History is per-file and resets when you switch files</li>
-            <li className="flex gap-2"><span className="text-accent">✓</span>Document editor uses smart debouncing — rapid typing is grouped into single undo steps</li>
+            <li className="flex gap-2"><span className="shrink-0 text-faint">•</span><strong className="text-content">Ctrl+Z</strong> to undo, <strong className="text-content">Ctrl+Y</strong> to redo</li>
+            <li className="flex gap-2"><span className="shrink-0 text-faint">•</span>Toolbar buttons are also available at the top of each editor</li>
+            <li className="flex gap-2"><span className="shrink-0 text-faint">•</span>History is per-file and resets when you switch files</li>
+            <li className="flex gap-2"><span className="shrink-0 text-faint">•</span>Document editor uses smart debouncing — rapid typing is grouped into single undo steps</li>
           </ul>
         </div>
       </CollapsibleSection>
 
-      <CollapsibleSection title="Auto-Save & Manual Save">
+      <CollapsibleSection title="Autosave and manual save">
         <div className="space-y-3 text-sm text-muted">
           <p>All editors auto-save your changes after a short delay (typically 1-2 seconds of inactivity). You'll see a save indicator when changes are persisted.</p>
           <p>Use <kbd className="px-2 py-0.5 bg-surface-raised border border-border-strong rounded text-xs font-mono text-content">Ctrl + S</kbd> to force an immediate save if you want to be sure your latest changes are written before exporting or switching files.</p>
@@ -487,25 +487,25 @@ const GuideView: React.FC<GuideViewProps> = ({ initialSection = 'overview' }) =>
 
   const renderStorage = () => (
     <div className="space-y-4">
-      <CollapsibleSection title="Workspace Database" defaultOpen>
+      <CollapsibleSection title="Workspace database" defaultOpen>
         <div className="space-y-3 text-sm text-muted">
           <p>All projects are stored in the workspace database behind your account. This means:</p>
           <ul className="space-y-1.5 ml-1">
-            <li className="flex gap-2"><span className="text-accent">•</span>Data persists across browsers, devices, and sessions — sign in anywhere to pick up where you left off</li>
-            <li className="flex gap-2"><span className="text-accent">•</span>Each account sees only its own projects</li>
-            <li className="flex gap-2"><span className="text-accent">•</span>Clearing browser data only signs you out — your projects stay safe on the server</li>
+            <li className="flex gap-2"><span className="shrink-0 text-faint">•</span>Data persists across browsers, devices, and sessions — sign in anywhere to pick up where you left off</li>
+            <li className="flex gap-2"><span className="shrink-0 text-faint">•</span>Each account sees only its own projects</li>
+            <li className="flex gap-2"><span className="shrink-0 text-faint">•</span>Clearing browser data only signs you out — your projects stay safe on the server</li>
           </ul>
         </div>
       </CollapsibleSection>
 
-      <CollapsibleSection title="Your Account">
+      <CollapsibleSection title="Your account">
         <div className="space-y-3 text-sm text-muted">
           <p>Accounts are just a username and password — no email or personal information is collected or stored.</p>
           <ul className="space-y-1.5 ml-1">
-            <li className="flex gap-2"><span className="text-accent">•</span>Sign-up is invite-only — an admin creates accounts from Manage users (account menu at the bottom of the sidebar, or the avatar on the projects page)</li>
-            <li className="flex gap-2"><span className="text-accent">•</span>Sessions last 30 days; sign back in anytime with the same credentials</li>
-            <li className="flex gap-2"><span className="text-accent">•</span>Forgot your password? An admin can set a new one from Manage Users</li>
-            <li className="flex gap-2"><span className="text-accent">•</span>Sign out from the account menu at the bottom of the sidebar, or the avatar on the projects page, or Settings → Account</li>
+            <li className="flex gap-2"><span className="shrink-0 text-faint">•</span>Sign-up is invite-only — an admin creates accounts from Manage users (account menu at the bottom of the sidebar, or the avatar on the projects page)</li>
+            <li className="flex gap-2"><span className="shrink-0 text-faint">•</span>Sessions last 30 days; sign back in anytime with the same credentials</li>
+            <li className="flex gap-2"><span className="shrink-0 text-faint">•</span>Forgot your password? An admin can set a new one from Manage Users</li>
+            <li className="flex gap-2"><span className="shrink-0 text-faint">•</span>Sign out from the account menu at the bottom of the sidebar, or the avatar on the projects page, or Settings → Account</li>
           </ul>
         </div>
       </CollapsibleSection>
@@ -521,45 +521,45 @@ const GuideView: React.FC<GuideViewProps> = ({ initialSection = 'overview' }) =>
 
   const renderTips = () => (
     <div className="space-y-4">
-      <CollapsibleSection title="Game Design Documents" defaultOpen>
+      <CollapsibleSection title="Game design documents" defaultOpen>
         <div className="space-y-2 text-sm text-muted">
           <p>Structure your GDD as a Document file with clear sections:</p>
           <ul className="space-y-1.5 ml-1">
-            <li className="flex gap-2"><span className="text-accent">★</span>Start with a one-paragraph "elevator pitch" for the game concept</li>
-            <li className="flex gap-2"><span className="text-accent">★</span>Use headings for each major section: Core Mechanics, Art Style, Audio, UI, Monetization</li>
-            <li className="flex gap-2"><span className="text-accent">★</span>Embed flowcharts for game loops and system diagrams using file links</li>
-            <li className="flex gap-2"><span className="text-accent">★</span>Reference data grids for any numerical values — keeps the GDD readable while stats stay editable</li>
+            <li className="flex gap-2"><span className="shrink-0 text-faint">•</span>Start with a one-paragraph "elevator pitch" for the game concept</li>
+            <li className="flex gap-2"><span className="shrink-0 text-faint">•</span>Use headings for each major section: Core Mechanics, Art Style, Audio, UI, Monetization</li>
+            <li className="flex gap-2"><span className="shrink-0 text-faint">•</span>Embed flowcharts for game loops and system diagrams using file links</li>
+            <li className="flex gap-2"><span className="shrink-0 text-faint">•</span>Reference data grids for any numerical values — keeps the GDD readable while stats stay editable</li>
           </ul>
         </div>
       </CollapsibleSection>
 
-      <CollapsibleSection title="Balancing Game Data">
+      <CollapsibleSection title="Balancing game data">
         <div className="space-y-2 text-sm text-muted">
           <p>Use Data Grids as your single source of truth for game stats:</p>
           <ul className="space-y-1.5 ml-1">
-            <li className="flex gap-2"><span className="text-accent">★</span>Create one grid per data category (Weapons, Enemies, Items, Levels)</li>
-            <li className="flex gap-2"><span className="text-accent">★</span>Keep columns consistent — use the same naming conventions across grids</li>
-            <li className="flex gap-2"><span className="text-accent">★</span>Include a "Notes" column for explaining balance rationale</li>
+            <li className="flex gap-2"><span className="shrink-0 text-faint">•</span>Create one grid per data category (Weapons, Enemies, Items, Levels)</li>
+            <li className="flex gap-2"><span className="shrink-0 text-faint">•</span>Keep columns consistent — use the same naming conventions across grids</li>
+            <li className="flex gap-2"><span className="shrink-0 text-faint">•</span>Include a "Notes" column for explaining balance rationale</li>
           </ul>
         </div>
       </CollapsibleSection>
 
-      <CollapsibleSection title="Production Planning">
+      <CollapsibleSection title="Production planning">
         <div className="space-y-2 text-sm text-muted">
           <ul className="space-y-1.5 ml-1">
-            <li className="flex gap-2"><span className="text-accent">★</span>Use the Roadmap for high-level milestones (monthly/quarterly goals)</li>
-            <li className="flex gap-2"><span className="text-accent">★</span>Use Task Lists for weekly sprint tasks — break milestones into actionable items</li>
-            <li className="flex gap-2"><span className="text-accent">★</span>Use the Bug Tracker during and after playtests — triage bugs by severity immediately</li>
-            <li className="flex gap-2"><span className="text-accent">★</span>Link tasks in documents so stakeholders can click through to the actual work items</li>
+            <li className="flex gap-2"><span className="shrink-0 text-faint">•</span>Use the Roadmap for high-level milestones (monthly/quarterly goals)</li>
+            <li className="flex gap-2"><span className="shrink-0 text-faint">•</span>Use Task Lists for weekly sprint tasks — break milestones into actionable items</li>
+            <li className="flex gap-2"><span className="shrink-0 text-faint">•</span>Use the Bug Tracker during and after playtests — triage bugs by severity immediately</li>
+            <li className="flex gap-2"><span className="shrink-0 text-faint">•</span>Link tasks in documents so stakeholders can click through to the actual work items</li>
           </ul>
         </div>
       </CollapsibleSection>
 
-      <CollapsibleSection title="Keeping Projects Portable">
+      <CollapsibleSection title="Keeping projects portable">
         <div className="space-y-2 text-sm text-muted">
           <ul className="space-y-1.5 ml-1">
-            <li className="flex gap-2"><span className="text-accent">★</span>Export a .zip backup regularly — it is the portable, self-contained copy of a project</li>
-            <li className="flex gap-2"><span className="text-accent">★</span>Keep asset images reasonably sized — very large images increase project file size significantly</li>
+            <li className="flex gap-2"><span className="shrink-0 text-faint">•</span>Export a .zip backup regularly — it is the portable, self-contained copy of a project</li>
+            <li className="flex gap-2"><span className="shrink-0 text-faint">•</span>Keep asset images reasonably sized — very large images increase project file size significantly</li>
           </ul>
         </div>
       </CollapsibleSection>
@@ -588,7 +588,7 @@ const GuideView: React.FC<GuideViewProps> = ({ initialSection = 'overview' }) =>
     <div className="h-full flex flex-col bg-bg">
       {/* Header */}
       <div className="shrink-0 px-8 pt-6 pb-4 bg-bg">
-        <h1 className="text-2xl font-semibold text-content">DevArchitect Guide</h1>
+        <h1 className="text-2xl font-medium text-content">DevArchitect Guide</h1>
         <p className="text-[0.8125rem] text-muted mt-1">Everything you need to know about this project management workspace.</p>
       </div>
 

@@ -28,7 +28,7 @@ class EditorErrorBoundary extends React.Component<Props, State> {
       <div className="flex h-full items-center justify-center bg-bg p-6">
         <div className="max-w-sm text-center">
           <AlertTriangle className="mx-auto mb-3 h-8 w-8 text-warning" />
-          <h2 className="text-base font-semibold text-content">"{this.props.fileName}" couldn't be displayed</h2>
+          <h2 className="text-base font-medium text-content">"{this.props.fileName}" couldn't be displayed</h2>
           <p className="mt-1 text-[0.8125rem] text-muted">The editor hit an unexpected error. Your saved content is unchanged.</p>
           <button
             type="button"

@@ -34,7 +34,7 @@ const StatusBar: React.FC<StatusBarProps> = ({ saveState, file, files, projectNa
   }, [file, files]);
 
   return (
-    <footer className="flex h-[var(--statusbar-h)] shrink-0 items-center gap-4 bg-chrome px-3.5 text-[11px] text-faint">
+    <footer className="flex h-[var(--statusbar-h)] shrink-0 items-center gap-4 bg-chrome px-4 text-[11px] text-faint">
       <span className="flex min-w-0 items-center gap-1.5" role="status" aria-live="polite">
         <span
           className={cn(

@@ -41,9 +41,9 @@ interface CalendarWeekSegment {
 
 const STATUS_META: Record<RoadmapStatus, { label: string; badge: string }> = {
   planned: { label: 'Planned', badge: 'bg-surface-raised text-content border-border-strong' },
-  'in-progress': { label: 'In Progress', badge: 'bg-blue-500/15 text-blue-300 border-blue-500/40' },
-  completed: { label: 'Completed', badge: 'bg-emerald-500/15 text-emerald-300 border-emerald-500/40' },
-  delayed: { label: 'Delayed', badge: 'bg-red-500/15 text-red-300 border-red-500/40' },
+  'in-progress': { label: 'In Progress', badge: 'bg-accent/15 text-accent border-accent/40' },
+  completed: { label: 'Completed', badge: 'bg-success/15 text-success border-success/40' },
+  delayed: { label: 'Delayed', badge: 'bg-warning/15 text-warning border-warning/40' },
   dropped: { label: 'Dropped', badge: 'bg-surface-raised/80 text-content border-border-strong' }
 };
 
@@ -115,25 +115,26 @@ const normalizeItems = (content: any): RoadmapItem[] => {
     });
 };
 
-const getItemHue = (id: string) => {
-  let hash = 0;
-  for (let i = 0; i < id.length; i++) {
-    hash = (hash * 31 + id.charCodeAt(i)) | 0;
-  }
-  return Math.abs(hash) % 360;
+/** Bar colors follow the item's status, so the color means something. */
+const STATUS_TOKEN: Record<RoadmapStatus, string> = {
+  planned: '--color-faint',
+  'in-progress': '--color-accent',
+  completed: '--color-success',
+  delayed: '--color-warning',
+  dropped: '--color-border-strong',
 };
 
-const getItemColors = (id: string) => {
-  const hue = getItemHue(id);
+const getItemColors = (status: RoadmapStatus) => {
+  const token = STATUS_TOKEN[status] || STATUS_TOKEN.planned;
   return {
-    solid: `hsl(${hue} 72% 52%)`,
-    soft: `hsla(${hue}, 72%, 52%, 0.22)`,
-    border: `hsla(${hue}, 72%, 52%, 0.58)`
+    solid: `rgb(var(${token}))`,
+    soft: `rgb(var(${token}) / 0.18)`,
+    border: `rgb(var(${token}) / 0.5)`,
   };
 };
 
 const trimOverview = (text: string) => {
-  const safe = (text || 'No description provided.').trim();
+  const safe = (text || 'No description').trim();
   return safe.length > 180 ? `${safe.slice(0, 180)}...` : safe;
 };
 
@@ -519,7 +520,7 @@ const RoadmapEditor: React.FC<EditorProps> = ({ initialContent, onSave, fileName
         <div className="h-full min-h-0 min-w-[640px] border border-border rounded-xl overflow-hidden bg-bg grid grid-cols-[minmax(240px,34%)_1fr]">
           <section className="min-h-0 border-r border-border flex flex-col">
             <div className="h-10 px-3 flex items-center justify-between gap-2 text-[11px] text-faint border-b border-border bg-surface">
-              <span className="uppercase tracking-wide">Items</span>
+              <span>Items</span>
               <span className="truncate tabular-nums" title={`${stats.total} total · ${stats.active} in progress · ${stats.delayed} delayed · ${stats.done} done`}>
                 {visibleItems.length === stats.total ? stats.total : `${visibleItems.length} of ${stats.total}`}
                 {stats.active > 0 && ` · ${stats.active} active`}
@@ -548,7 +549,7 @@ const RoadmapEditor: React.FC<EditorProps> = ({ initialContent, onSave, fileName
 
               {visibleItems.map((item, index) => {
                 const meta = STATUS_META[item.status];
-                const colors = getItemColors(item.id);
+                const colors = getItemColors(item.status);
                 const isSelected = selectedId === item.id;
                 const endDateText = item.type === 'milestone' ? item.startDate : item.endDate;
                 const duration = getDurationDays(item);
@@ -569,15 +570,15 @@ const RoadmapEditor: React.FC<EditorProps> = ({ initialContent, onSave, fileName
                       className={`w-full px-3 py-2.5 text-left hover:bg-surface-hover/60 rounded-lg transition-colors ${isSelected ? 'pr-16' : ''}`}
                     >
                       <div className="flex items-center gap-1.5 min-w-0">
-                        {item.type === 'milestone' ? <Flag className="w-3.5 h-3.5 text-amber-400 shrink-0" /> : <Calendar className="w-3.5 h-3.5 text-cyan-400 shrink-0" />}
+                        {item.type === 'milestone' ? <Flag className="w-3.5 h-3.5 text-warning shrink-0" /> : <Calendar className="w-3.5 h-3.5 text-accent shrink-0" />}
                         <span className="truncate text-sm text-content">{item.title}</span>
-                        <span className={`text-[10px] px-1.5 py-0.5 rounded border shrink-0 ${meta.badge}`}>{meta.label}</span>
+                        <span className={`text-[11px] px-1.5 py-0.5 rounded border shrink-0 ${meta.badge}`}>{meta.label}</span>
                       </div>
                       <div className="mt-1.5 flex items-center gap-2 text-[11px] text-faint">
                         <span className="inline-block w-2 h-2 rounded-full" style={{ backgroundColor: colors.solid }} />
                         <span className="truncate">{formatDisplayDate(item.startDate)} - {formatDisplayDate(endDateText)} • {duration} day{duration === 1 ? '' : 's'} • {item.progress}%</span>
                       </div>
-                      <p className="mt-1 text-[11px] text-faint truncate">{shortDescription || 'No description provided.'}</p>
+                      <p className="mt-1 text-[11px] text-faint truncate">{shortDescription || 'No description'}</p>
                     </button>
 
                     {isSelected && (
@@ -610,13 +611,13 @@ const RoadmapEditor: React.FC<EditorProps> = ({ initialContent, onSave, fileName
                     <ChevronRight className="w-4 h-4" />
                   </button>
                 </div>
-                <div className="text-sm font-semibold text-content">{calendarMonthLabel}</div>
+                <div className="text-sm font-medium text-content">{calendarMonthLabel}</div>
                 <div className="w-[88px]" />
               </div>
 
               <div className="grid grid-cols-7">
                 {DAY_LABELS.map(label => (
-                  <div key={label} className="h-8 border-r border-border last:border-r-0 flex items-center justify-center text-[11px] uppercase tracking-wide text-faint">
+                  <div key={label} className="h-8 border-r border-border last:border-r-0 flex items-center justify-center field-label">
                     {label}
                   </div>
                 ))}
@@ -636,9 +637,9 @@ const RoadmapEditor: React.FC<EditorProps> = ({ initialContent, onSave, fileName
                         {week.days.map((day, dayIndex) => (
                           <div
                             key={day.iso}
-                            className={`relative p-1.5 ${dayIndex < 6 ? 'border-r border-border' : ''} ${day.isCurrentMonth ? 'bg-bg' : 'bg-surface/55'} ${day.isToday ? 'ring-1 ring-inset ring-cyan-500/50' : ''}`}
+                            className={`relative p-1.5 ${dayIndex < 6 ? 'border-r border-border' : ''} ${day.isCurrentMonth ? 'bg-bg' : 'bg-surface/55'} ${day.isToday ? 'ring-1 ring-inset ring-accent/50' : ''}`}
                           >
-                            <div className={`text-[11px] font-medium ${day.isToday ? 'text-cyan-300' : day.isCurrentMonth ? 'text-content' : 'text-faint'}`}>
+                            <div className={`text-[11px] font-medium ${day.isToday ? 'text-accent' : day.isCurrentMonth ? 'text-content' : 'text-faint'}`}>
                               {day.dayNumber}
                             </div>
                           </div>
@@ -648,7 +649,7 @@ const RoadmapEditor: React.FC<EditorProps> = ({ initialContent, onSave, fileName
                       <div className="absolute left-0 right-0 top-6 bottom-1">
                         {week.segments.map(segment => {
                           const { item } = segment;
-                          const colors = getItemColors(item.id);
+                          const colors = getItemColors(item.status);
                           const meta = STATUS_META[item.status];
                           const overview = trimOverview(item.description || '');
                           const left = ((segment.startCol - 1) / 7) * 100;
@@ -664,17 +665,17 @@ const RoadmapEditor: React.FC<EditorProps> = ({ initialContent, onSave, fileName
                                     setSelectedId(item.id);
                                     openEdit(item);
                                   }}
-                                  className={`h-5 w-full border text-left text-[10px] text-content px-1 flex items-center gap-1 hover:brightness-110 ${segment.isStart ? 'rounded-l-md' : 'rounded-l-sm'} ${segment.isEnd ? 'rounded-r-md' : 'rounded-r-sm'} ${isSelected ? 'ring-1 ring-cyan-400/60' : ''}`}
+                                  className={`h-5 w-full border text-left text-[11px] text-content px-1 flex items-center gap-1 hover:brightness-110 ${segment.isStart ? 'rounded-l-md' : 'rounded-l-sm'} ${segment.isEnd ? 'rounded-r-md' : 'rounded-r-sm'} ${isSelected ? 'ring-1 ring-accent/60' : ''}`}
                                   style={{ backgroundColor: colors.soft, borderColor: colors.border }}
                                   title={item.title}
                                 >
-                                  {!segment.isStart && <span className="text-[9px] text-content/80">...</span>}
+                                  {!segment.isStart && <span className="text-[11px] text-content/80">...</span>}
                                   <span className="truncate flex-1">{item.title}</span>
-                                  {item.type === 'milestone' && <span className="text-[9px] text-amber-300">M</span>}
-                                  {!segment.isEnd && <span className="text-[9px] text-content/80">...</span>}
+                                  {item.type === 'milestone' && <span className="text-[11px] text-warning">M</span>}
+                                  {!segment.isEnd && <span className="text-[11px] text-content/80">...</span>}
                                 </button>
                                 <div className="absolute left-0 top-full mt-1 w-64 rounded-md border border-border-strong bg-surface-raised shadow-pop px-2.5 py-2 text-left opacity-0 group-hover:opacity-100 transition-opacity pointer-events-none z-30">
-                                  <p className="text-xs font-semibold text-content mb-1">{item.title}</p>
+                                  <p className="text-xs font-medium text-content mb-1">{item.title}</p>
                                   <p className="text-[11px] text-muted mb-1">{meta.label} • {item.type === 'milestone' ? 'Milestone' : 'Phase'}</p>
                                   <p className="text-[11px] text-muted mb-1">
                                     {formatDisplayDate(item.startDate)} - {formatDisplayDate(item.type === 'milestone' ? item.startDate : item.endDate)}
@@ -698,7 +699,7 @@ const RoadmapEditor: React.FC<EditorProps> = ({ initialContent, onSave, fileName
       {isModalOpen && (
         <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/60 p-4" onMouseDown={(event) => { if (event.target === event.currentTarget) closeModal(); }}>
           <div className="bg-surface border border-border rounded-xl w-full max-w-2xl p-6 shadow-2xl">
-            <h2 className="text-lg font-semibold text-content mb-5">{editingId ? `Edit ${formData.type}` : formData.type === 'milestone' ? 'New milestone' : 'New phase'}</h2>
+            <h2 className="text-lg font-medium text-content mb-5">{editingId ? `Edit ${formData.type}` : formData.type === 'milestone' ? 'New milestone' : 'New phase'}</h2>
             <form onSubmit={handleSubmit} className="space-y-4">
               <div>
                 <label className="block text-sm text-muted mb-1">Title</label>
@@ -707,7 +708,7 @@ const RoadmapEditor: React.FC<EditorProps> = ({ initialContent, onSave, fileName
                   type="text"
                   value={formData.title}
                   onChange={(event) => setFormData(prev => ({ ...prev, title: event.target.value }))}
-                  className="w-full bg-bg border border-border rounded p-2.5 text-content focus:border-accent outline-none"
+                  className="w-full bg-bg border border-border-strong/80 rounded-lg px-3 py-2 text-[0.8125rem] text-content placeholder:text-faint hover:border-border-strong focus:border-accent focus:ring-2 focus:ring-accent/25 outline-none transition-[border-color,box-shadow]"
                   required
                 />
               </div>
@@ -725,7 +726,7 @@ const RoadmapEditor: React.FC<EditorProps> = ({ initialContent, onSave, fileName
                         endDate: nextType === 'milestone' ? prev.startDate : prev.endDate
                       }));
                     }}
-                    className="w-full bg-bg border border-border rounded p-2.5 text-content focus:border-accent outline-none"
+                    className="w-full bg-bg border border-border-strong/80 rounded-lg px-3 py-2 text-[0.8125rem] text-content placeholder:text-faint hover:border-border-strong focus:border-accent focus:ring-2 focus:ring-accent/25 outline-none transition-[border-color,box-shadow]"
                   >
                     {ROADMAP_TYPE_OPTIONS.map(type => (
                       <option key={type} value={type}>
@@ -739,7 +740,7 @@ const RoadmapEditor: React.FC<EditorProps> = ({ initialContent, onSave, fileName
                   <select
                     value={formData.status}
                     onChange={(event) => setFormData(prev => ({ ...prev, status: event.target.value as RoadmapStatus }))}
-                    className="w-full bg-bg border border-border rounded p-2.5 text-content focus:border-accent outline-none"
+                    className="w-full bg-bg border border-border-strong/80 rounded-lg px-3 py-2 text-[0.8125rem] text-content placeholder:text-faint hover:border-border-strong focus:border-accent focus:ring-2 focus:ring-accent/25 outline-none transition-[border-color,box-shadow]"
                   >
                     {ROADMAP_STATUS_OPTIONS.map(status => (
                       <option key={status} value={status}>
@@ -758,7 +759,7 @@ const RoadmapEditor: React.FC<EditorProps> = ({ initialContent, onSave, fileName
                     value={formData.type === 'milestone' ? (formData.status === 'completed' ? 100 : 0) : formData.progress}
                     onChange={(event) => setFormData(prev => ({ ...prev, progress: clampProgress(Number(event.target.value)) }))}
                     disabled={formData.type === 'milestone'}
-                    className="w-full accent-cyan-500 disabled:opacity-40"
+                    className="w-full accent-accent disabled:opacity-40"
                   />
                 </div>
               </div>
@@ -776,7 +777,7 @@ const RoadmapEditor: React.FC<EditorProps> = ({ initialContent, onSave, fileName
                         endDate: prev.type === 'milestone' ? event.target.value : prev.endDate
                       }))
                     }
-                    className="w-full bg-bg border border-border rounded p-2.5 text-content focus:border-accent outline-none [color-scheme:light] dark:[color-scheme:dark]"
+                    className="w-full bg-bg border border-border-strong/80 rounded-lg px-3 py-2 text-[0.8125rem] text-content placeholder:text-faint hover:border-border-strong focus:border-accent focus:ring-2 focus:ring-accent/25 outline-none transition-[border-color,box-shadow] [color-scheme:light] dark:[color-scheme:dark]"
                     required
                   />
                 </div>
@@ -787,7 +788,7 @@ const RoadmapEditor: React.FC<EditorProps> = ({ initialContent, onSave, fileName
                       type="date"
                       value={formData.endDate}
                       onChange={(event) => setFormData(prev => ({ ...prev, endDate: event.target.value }))}
-                      className="w-full bg-bg border border-border rounded p-2.5 text-content focus:border-accent outline-none [color-scheme:light] dark:[color-scheme:dark]"
+                      className="w-full bg-bg border border-border-strong/80 rounded-lg px-3 py-2 text-[0.8125rem] text-content placeholder:text-faint hover:border-border-strong focus:border-accent focus:ring-2 focus:ring-accent/25 outline-none transition-[border-color,box-shadow] [color-scheme:light] dark:[color-scheme:dark]"
                       required
                     />
                   </div>
@@ -799,7 +800,7 @@ const RoadmapEditor: React.FC<EditorProps> = ({ initialContent, onSave, fileName
                 <textarea
                   value={formData.description}
                   onChange={(event) => setFormData(prev => ({ ...prev, description: event.target.value }))}
-                  className="w-full bg-bg border border-border rounded p-2.5 text-content focus:border-accent outline-none min-h-[110px]"
+                  className="w-full bg-bg border border-border-strong/80 rounded-lg px-3 py-2 text-[0.8125rem] text-content placeholder:text-faint hover:border-border-strong focus:border-accent focus:ring-2 focus:ring-accent/25 outline-none transition-[border-color,box-shadow] min-h-[110px]"
                   placeholder="Context, risks, dependencies..."
                 />
               </div>

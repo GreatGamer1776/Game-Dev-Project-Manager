@@ -597,9 +597,9 @@ const DataGridEditor: React.FC<EditorProps> = ({ initialContent, onSave, fileNam
                       role="checkbox"
                       aria-checked={allVisibleSelected}
                       onClick={toggleSelectAllVisible}
-                      className={`inline-flex h-5 w-5 items-center justify-center rounded border transition-all focus:outline-none focus:ring-2 focus:ring-accent/70 focus:ring-offset-1 focus:ring-offset-surface ${
+                      className={`inline-flex h-5 w-5 items-center justify-center rounded border transition-colors focus:outline-none focus:ring-2 focus:ring-accent/70 focus:ring-offset-1 focus:ring-offset-surface ${
                         allVisibleSelected
-                          ? 'border-blue-500 bg-blue-500 text-content shadow-[0_0_0_1px_rgba(59,130,246,0.25)]'
+                          ? 'border-accent bg-accent text-accent-content'
                           : 'border-border-strong bg-surface text-transparent hover:border-content hover:bg-surface-hover'
                       }`}
                       aria-label="Select all visible rows"
@@ -607,7 +607,7 @@ const DataGridEditor: React.FC<EditorProps> = ({ initialContent, onSave, fileNam
                       <Check className="h-3.5 w-3.5" />
                     </button>
                   </th>
-                  <th className="w-12 px-2 py-2 text-left text-xs font-semibold uppercase tracking-wide text-faint">#</th>
+                  <th className="w-12 px-2 py-2 text-left eyebrow">#</th>
                   {columns.map((column) => (
                     <th key={column.id} className="min-w-[220px] px-2 py-2 text-left align-top border-l border-border">
                       <div className="flex items-center gap-1">
@@ -628,7 +628,7 @@ const DataGridEditor: React.FC<EditorProps> = ({ initialContent, onSave, fileNam
                           aria-label="Column name"
                           ref={el => { if (el && focusColumnId === column.id) { el.focus(); el.select(); setFocusColumnId(null); } }}
                           onChange={(e) => updateColumnName(column.id, e.target.value)}
-                          className="w-full bg-transparent text-sm font-semibold text-content focus:outline-none"
+                          className="w-full bg-transparent text-sm font-medium text-content focus:outline-none"
                         />
                         <button
                           onClick={() => toggleSort(column.id)}
@@ -663,16 +663,16 @@ const DataGridEditor: React.FC<EditorProps> = ({ initialContent, onSave, fileNam
                 {visibleRows.map((row, idx) => {
                   const isSelected = selectedRowIds.has(row.id);
                   return (
-                    <tr key={row.id} data-row={row.id} className={`border-b border-border hover:bg-surface-hover/60 ${isSelected ? 'bg-blue-500/10' : 'bg-bg'}`}>
+                    <tr key={row.id} data-row={row.id} className={`border-b border-border hover:bg-surface-hover/60 ${isSelected ? 'bg-accent/10' : 'bg-bg'}`}>
                       <td className="px-2 py-2 align-middle" style={{ height: ROW_HEIGHT }}>
                         <button
                           type="button"
                           role="checkbox"
                           aria-checked={isSelected}
                           onClick={() => toggleRowSelection(row.id)}
-                          className={`inline-flex h-5 w-5 items-center justify-center rounded border transition-all focus:outline-none focus:ring-2 focus:ring-accent/70 focus:ring-offset-1 focus:ring-offset-surface ${
+                          className={`inline-flex h-5 w-5 items-center justify-center rounded border transition-colors focus:outline-none focus:ring-2 focus:ring-accent/70 focus:ring-offset-1 focus:ring-offset-surface ${
                             isSelected
-                              ? 'border-blue-500 bg-blue-500 text-content shadow-[0_0_0_1px_rgba(59,130,246,0.25)]'
+                              ? 'border-accent bg-accent text-accent-content'
                               : 'border-border-strong bg-surface text-transparent hover:border-content hover:bg-surface-hover'
                           }`}
                           aria-label={`Select row ${startIndex + idx + 1}`}
@@ -690,7 +690,7 @@ const DataGridEditor: React.FC<EditorProps> = ({ initialContent, onSave, fileNam
                               onClick={() => updateCell(row.id, column, !toBoolean(row[column.id]))}
                               className={`w-full text-left px-2 py-1.5 rounded border text-xs transition-colors ${
                                 toBoolean(row[column.id])
-                                  ? 'bg-emerald-600/20 border-emerald-500/40 text-emerald-300'
+                                  ? 'bg-success/20 border-success/40 text-success'
                                   : 'bg-surface border-border-strong text-muted hover:text-content'
                               }`}
                             >
@@ -701,7 +701,7 @@ const DataGridEditor: React.FC<EditorProps> = ({ initialContent, onSave, fileNam
                               type={column.type === 'number' ? 'number' : 'text'}
                               value={column.type === 'number' ? toNumber(row[column.id]) : String(row[column.id] ?? '')}
                               onChange={(e) => updateCell(row.id, column, e.target.value)}
-                              className={`w-full bg-surface border border-border rounded px-2 py-1.5 text-sm text-content focus:outline-none focus:border-blue-500 ${
+                              className={`w-full bg-surface border border-border rounded px-2 py-1.5 text-sm text-content focus:outline-none focus:border-accent ${
                                 column.type === 'number' ? 'text-right' : ''
                               }`}
                             />
@@ -709,7 +709,7 @@ const DataGridEditor: React.FC<EditorProps> = ({ initialContent, onSave, fileNam
                         </td>
                       ))}
                       <td className="px-2 py-2 align-middle border-l border-border" style={{ height: ROW_HEIGHT }}>
-                        <button onClick={() => deleteRow(row.id)} className="p-1.5 text-faint hover:text-red-400 hover:bg-surface-hover rounded" title="Delete row">
+                        <button onClick={() => deleteRow(row.id)} className="p-1.5 text-faint hover:text-danger hover:bg-surface-hover rounded" title="Delete row">
                           <Trash2 className="w-4 h-4" />
                         </button>
                       </td>

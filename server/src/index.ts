@@ -308,11 +308,12 @@ app.put<{ Params: { id: string }; Body: Project }>(
     }
 
     const { rows } = await pool.query<ProjectRow>(
-      `INSERT INTO projects (id, user_id, name, type, description, last_modified, files, folders, assets)
-       VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9)
+      `INSERT INTO projects (id, user_id, name, type, description, last_modified, files, folders, assets, icon)
+       VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9, $10)
        ON CONFLICT (id) DO UPDATE SET
          name = EXCLUDED.name,
          type = EXCLUDED.type,
+         icon = EXCLUDED.icon,
          description = EXCLUDED.description,
          last_modified = EXCLUDED.last_modified,
          files = EXCLUDED.files,
@@ -324,12 +325,13 @@ app.put<{ Params: { id: string }; Body: Project }>(
         project.id,
         req.user!.id,
         project.name,
-        project.type ?? 'Software',
+        project.type ?? '',
         project.description ?? '',
         Math.trunc(project.lastModified ?? Date.now()),
         JSON.stringify(project.files ?? []),
         JSON.stringify(project.folders ?? []),
         JSON.stringify(project.assets ?? {}),
+        typeof project.icon === 'string' ? project.icon.slice(0, 40) : '',
       ]
     );
     if (rows.length === 0) {

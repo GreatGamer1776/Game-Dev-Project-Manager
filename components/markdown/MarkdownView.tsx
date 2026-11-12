@@ -285,8 +285,8 @@ const MarkdownView: React.FC<MarkdownViewProps> = ({
     img: ({ src, alt }) => {
       const raw = typeof src === 'string' ? src : '';
       const resolved = raw.startsWith('asset://') ? live.current.assets[raw.slice('asset://'.length)] || '' : raw;
-      if (!resolved) return <span className="italic text-faint">[{alt || 'Missing asset'}]</span>;
-      const caption = alt ? <span className="mt-1.5 block text-center text-xs italic text-faint">{alt}</span> : null;
+      if (!resolved) return <span className="text-faint">[{alt || 'Missing asset'}]</span>;
+      const caption = alt ? <span className="mt-2 block text-center text-xs text-faint">{alt}</span> : null;
       if (resolved.startsWith('data:video') || /\.(mp4|webm|mov)$/i.test(raw)) {
         return <span className="my-4 block"><video controls src={resolved} className="max-h-[500px] max-w-full rounded-lg border border-border bg-black" />{caption}</span>;
       }

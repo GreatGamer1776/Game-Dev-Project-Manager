@@ -131,7 +131,7 @@ export const ToastHost: React.FC = () => {
               <button
                 type="button"
                 onClick={() => { t.action!.run(); dismissToast(t.id); }}
-                className="shrink-0 rounded px-1.5 py-0.5 text-[0.8125rem] font-semibold text-accent hover:bg-accent/10"
+                className="shrink-0 rounded-md px-2 py-0.5 text-[0.8125rem] font-medium text-accent hover:bg-accent/10"
               >
                 {t.action.label}
               </button>

@@ -42,7 +42,7 @@ const SettingItem: React.FC<{ name: string; description?: React.ReactNode; child
 );
 
 const Heading: React.FC<{ children: React.ReactNode }> = ({ children }) => (
-  <h3 className="mb-1 mt-7 border-b border-border pb-2 text-[0.9375rem] font-semibold text-content first:mt-0">{children}</h3>
+  <h3 className="mb-1 mt-8 border-b border-border pb-2 text-[0.9375rem] font-medium text-content first:mt-0">{children}</h3>
 );
 
 /** Obsidian-style dropdown. */
@@ -198,12 +198,12 @@ export const SettingsModal: React.FC = () => {
                       title={label}
                       onClick={() => theme.setScheme(id)}
                       className={cn(
-                        'flex h-6 w-6 items-center justify-center rounded-full ring-offset-2 ring-offset-bg transition-transform hover:scale-110',
+                        'flex h-6 w-6 items-center justify-center rounded-full ring-offset-2 ring-offset-bg transition-shadow hover:ring-2 hover:ring-border-strong',
                         active && 'ring-2 ring-content/70',
                       )}
                       style={{ backgroundColor: swatch }}
                     >
-                      {active && <Check className="h-3.5 w-3.5 text-white drop-shadow" />}
+                      {active && <Check className="h-3.5 w-3.5 text-white" strokeWidth={2.5} />}
                     </button>
                   );
                 })}
@@ -244,7 +244,7 @@ export const SettingsModal: React.FC = () => {
             {SHORTCUTS.map(({ keys, desc }) => (
               <SettingItem key={keys} name={desc}>
                 <span className="flex gap-1">
-                  {keys.split(' + ').map(k => <kbd key={k} className="kbd px-1.5 py-0.5 text-[11px]">{k}</kbd>)}
+                  {keys.split(' + ').map(k => <kbd key={k} className="kbd h-5 px-1.5">{k}</kbd>)}
                 </span>
               </SettingItem>
             ))}
@@ -258,8 +258,8 @@ export const SettingsModal: React.FC = () => {
               <span className="flex items-center gap-1.5 text-[0.8125rem] font-medium text-content">
                 {user?.username}
                 {user?.isAdmin && (
-                  <span className="inline-flex items-center gap-1 rounded bg-accent/15 px-1.5 py-0.5 text-[10px] font-semibold text-accent">
-                    <ShieldCheck className="h-3 w-3" /> Admin
+                  <span className="inline-flex items-center gap-1 text-xs font-normal text-faint">
+                    <ShieldCheck className="h-3.5 w-3.5" /> Admin
                   </span>
                 )}
               </span>

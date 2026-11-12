@@ -76,8 +76,8 @@ const AnyHandle: React.FC<React.ComponentProps<typeof Handle>> = (props) => (
 
 // 1. Terminal Node (Start/End)
 const TerminalNode = ({ id, data, selected }: NodeProps) => (
-  <div className={`px-6 py-3 rounded-full flex items-center justify-center min-w-[120px] bg-surface border-2 shadow-sm transition-all ${selected ? 'border-emerald-500 shadow-emerald-500/20' : 'border-emerald-500/50'}`}>
-    <div className="text-center text-xs text-content font-semibold"><NodeLabel id={id} label={data.label} /></div>
+  <div className={`px-6 py-3 rounded-full flex items-center justify-center min-w-[120px] bg-surface border-2 transition-colors ${selected ? 'border-accent' : 'border-border-strong'}`}>
+    <div className="text-center text-xs text-content font-medium"><NodeLabel id={id} label={data.label} /></div>
     <AnyHandle type="source" position={Position.Top} id="top" className={`${HandleStyle} -mt-[2px]`} />
     <AnyHandle type="source" position={Position.Bottom} id="bottom" className={`${HandleStyle} -mb-[2px]`} />
     <AnyHandle type="source" position={Position.Right} id="right" className={`${HandleStyle} -mr-[2px]`} />
@@ -87,7 +87,7 @@ const TerminalNode = ({ id, data, selected }: NodeProps) => (
 
 // 2. Process Node (Action)
 const ProcessNode = ({ id, data, selected }: NodeProps) => (
-  <div className={`px-4 py-4 rounded-lg flex items-center justify-center min-w-[140px] bg-surface border-2 shadow-sm transition-all ${selected ? 'border-blue-500 shadow-blue-500/20' : 'border-border-strong'}`}>
+  <div className={`px-4 py-4 rounded-lg flex items-center justify-center min-w-[140px] bg-surface border-2 transition-colors ${selected ? 'border-accent' : 'border-border-strong'}`}>
     <div className="text-center text-xs text-content font-medium"><NodeLabel id={id} label={data.label} /></div>
     <AnyHandle type="source" position={Position.Top} id="top" className={`${HandleStyle} -mt-[2px]`} />
     <AnyHandle type="source" position={Position.Bottom} id="bottom" className={`${HandleStyle} -mb-[2px]`} />
@@ -100,8 +100,8 @@ const ProcessNode = ({ id, data, selected }: NodeProps) => (
 // Handles pushed out further to prevent diagonal clipping
 const DecisionNode = ({ id, data, selected }: NodeProps) => (
   <div className="w-28 h-28 relative flex items-center justify-center">
-    <div className={`absolute inset-0 transform rotate-45 bg-surface border-2 transition-all shadow-sm ${selected ? 'border-amber-500 shadow-amber-500/20' : 'border-amber-500/60'}`}></div>
-    <div className="relative z-10 p-2 text-[10px] text-content font-bold text-center leading-tight max-w-[70%]">
+    <div className={`absolute inset-0 transform rotate-45 bg-surface border-2 transition-colors ${selected ? 'border-accent' : 'border-border-strong'}`}></div>
+    <div className="relative z-10 p-2 text-[11px] text-content font-medium text-center leading-tight max-w-[70%]">
       <NodeLabel id={id} label={data.label} />
     </div>
     <AnyHandle type="source" position={Position.Top} id="top" className={`${HandleStyle} -mt-1`} />
@@ -115,7 +115,7 @@ const DecisionNode = ({ id, data, selected }: NodeProps) => (
 const InputOutputNode = ({ id, data, selected }: NodeProps) => (
   <div className="relative p-1">
     <div
-        className={`px-6 py-3 min-w-[140px] transform -skew-x-12 bg-surface border-2 transition-all shadow-sm flex items-center justify-center ${selected ? 'border-orange-500 shadow-orange-500/20' : 'border-orange-500/60'}`}
+        className={`px-6 py-3 min-w-[140px] transform -skew-x-12 bg-surface border-2 transition-colors flex items-center justify-center ${selected ? 'border-accent' : 'border-border-strong'}`}
     >
         <div className="transform skew-x-12 text-center text-xs text-content font-medium">
             <NodeLabel id={id} label={data.label} />
@@ -132,7 +132,7 @@ const InputOutputNode = ({ id, data, selected }: NodeProps) => (
 const DatabaseNode = ({ id, data, selected }: NodeProps) => (
   <div className={`w-24 h-24 relative flex flex-col items-center justify-center bg-surface border-x-2 border-border-strong ${selected ? 'ring-2 ring-accent border-accent' : ''}`}>
     <div className="absolute top-0 w-full h-6 bg-surface-raised border-2 border-border-strong rounded-[50%] -mt-3 z-10"></div>
-    <div className="text-[10px] text-content text-center px-1 z-0 mt-2 font-mono"><NodeLabel id={id} label={data.label} /></div>
+    <div className="text-[11px] text-content text-center px-1 z-0 mt-2 font-mono"><NodeLabel id={id} label={data.label} /></div>
     <div className="absolute bottom-0 w-full h-6 bg-surface border-b-2 border-x-2 border-border-strong rounded-[50%] -mb-3 z-0"></div>
     <AnyHandle type="source" position={Position.Top} id="top" className={`${HandleStyle} -mt-3`} />
     <AnyHandle type="source" position={Position.Bottom} id="bottom" className={`${HandleStyle} -mb-3`} />
@@ -145,10 +145,10 @@ const DatabaseNode = ({ id, data, selected }: NodeProps) => (
 const EventNode = ({ id, data, selected }: NodeProps) => (
   <div className={`w-32 h-16 relative flex items-center justify-center`}>
     <div
-        className={`absolute inset-0 bg-surface border-2 transition-all ${selected ? 'border-yellow-500 bg-yellow-500/10' : 'border-yellow-500/60'}`}
+        className={`absolute inset-0 bg-surface border-2 transition-colors ${selected ? 'border-accent' : 'border-border-strong'}`}
         style={{ clipPath: 'polygon(15% 0%, 85% 0%, 100% 50%, 85% 100%, 15% 100%, 0% 50%)' }}
     ></div>
-    <div className="relative z-10 text-[10px] uppercase tracking-wider font-bold text-yellow-500 text-center px-6">
+    <div className="relative z-10 text-[11px] font-medium text-content text-center px-6">
       <NodeLabel id={id} label={data.label} />
     </div>
     <AnyHandle type="source" position={Position.Top} id="top" className={`${HandleStyle} -mt-[2px]`} />
@@ -160,10 +160,10 @@ const EventNode = ({ id, data, selected }: NodeProps) => (
 
 // 7. Note Node
 const NoteNode = ({ id, data, selected }: NodeProps) => (
-  <div className={`w-40 min-h-[80px] bg-yellow-100/10 border-l-4 border-yellow-400 rounded p-2 flex flex-col relative ${selected ? 'ring-1 ring-yellow-400' : ''}`}>
-    <div className="text-[9px] text-yellow-500/80 font-bold uppercase mb-1">Note</div>
-    <div className="text-xs text-content italic text-left whitespace-pre-wrap"><NodeLabel id={id} label={data.label} /></div>
-    <AnyHandle type="source" position={Position.Left} id="left" className="w-2 h-2 !bg-yellow-400/50 opacity-0 hover:opacity-100" />
+  <div className={`w-40 min-h-[80px] bg-warning/10 border-l-2 border-warning/60 rounded-md p-2 flex flex-col relative ${selected ? 'ring-1 ring-accent' : ''}`}>
+    <div className="field-label mb-1">Note</div>
+    <div className="text-xs text-content text-left whitespace-pre-wrap"><NodeLabel id={id} label={data.label} /></div>
+    <AnyHandle type="source" position={Position.Left} id="left" className="w-2 h-2 !bg-faint opacity-0 hover:opacity-100" />
   </div>
 );
 
@@ -369,7 +369,7 @@ const FlowchartEditorContent: React.FC<EditorProps> = ({ initialContent, onSave,
       }
   };
 
-  const ToolButton = ({ type, defaultLabel, icon: Icon, label, colorClass }: any) => (
+  const ToolButton = ({ type, defaultLabel, icon: Icon, label }: any) => (
       <button
         onClick={() => addNode(type, defaultLabel)}
         draggable
@@ -377,8 +377,8 @@ const FlowchartEditorContent: React.FC<EditorProps> = ({ initialContent, onSave,
         className={`flex flex-col items-center justify-center p-2 rounded-lg hover:bg-surface-hover transition-colors gap-1 group w-16 h-16 border border-transparent hover:border-border-strong cursor-grab`}
         title={`Add ${label} — click, or drag onto the canvas`}
       >
-         <Icon className={`w-6 h-6 ${colorClass} group-hover:scale-110 transition-transform`} />
-         <span className="text-[9px] text-faint group-hover:text-content">{label}</span>
+         <Icon className="h-5 w-5 text-muted group-hover:text-content" strokeWidth={1.75} />
+         <span className="text-[11px] text-faint group-hover:text-content">{label}</span>
       </button>
   );
 
@@ -404,22 +404,22 @@ const FlowchartEditorContent: React.FC<EditorProps> = ({ initialContent, onSave,
 
       <div className="flex-1 flex overflow-hidden">
          <div className="w-20 bg-bg border-r border-border flex flex-col items-center py-4 gap-2 overflow-y-auto custom-scrollbar z-10">
-            <div className="text-[10px] font-bold text-faint uppercase mb-2">Flow</div>
-            <ToolButton type="terminal" defaultLabel="Start" icon={PlayCircle} label="Start" colorClass="text-emerald-400" />
-            <ToolButton type="terminal" defaultLabel="End" icon={StopCircle} label="End" colorClass="text-red-400" />
-            <ToolButton type="process" defaultLabel="Action" icon={Square} label="Process" colorClass="text-blue-400" />
-            <ToolButton type="decision" defaultLabel="Condition?" icon={Diamond} label="Decision" colorClass="text-amber-400" />
+            <div className="eyebrow mb-2">Flow</div>
+            <ToolButton type="terminal" defaultLabel="Start" icon={PlayCircle} label="Start" />
+            <ToolButton type="terminal" defaultLabel="End" icon={StopCircle} label="End" />
+            <ToolButton type="process" defaultLabel="Action" icon={Square} label="Process" />
+            <ToolButton type="decision" defaultLabel="Condition?" icon={Diamond} label="Decision" />
 
-            <div className="w-10 h-px bg-surface-raised my-2"></div>
-            <div className="text-[10px] font-bold text-faint uppercase mb-2">Data</div>
+            <div className="w-10 h-px bg-border my-2"></div>
+            <div className="eyebrow mb-2">Data</div>
 
-            <ToolButton type="io" defaultLabel="Input/Output" icon={ArrowRightLeft} label="I/O" colorClass="text-orange-400" />
-            <ToolButton type="database" defaultLabel="Database" icon={Database} label="Data" colorClass="text-content" />
-            <ToolButton type="event" defaultLabel="On Trigger" icon={Hexagon} label="Event" colorClass="text-yellow-400" />
+            <ToolButton type="io" defaultLabel="Input/Output" icon={ArrowRightLeft} label="I/O" />
+            <ToolButton type="database" defaultLabel="Database" icon={Database} label="Data" />
+            <ToolButton type="event" defaultLabel="On Trigger" icon={Hexagon} label="Event" />
 
-            <div className="w-10 h-px bg-surface-raised my-2"></div>
+            <div className="w-10 h-px bg-border my-2"></div>
 
-            <ToolButton type="note" defaultLabel="Add comment..." icon={StickyNote} label="Note" colorClass="text-yellow-200" />
+            <ToolButton type="note" defaultLabel="Add comment..." icon={StickyNote} label="Note" />
          </div>
 
          <div ref={wrapperRef} className="flex-1 h-full w-full relative" onDragOver={onDragOver} onDrop={onDrop}>

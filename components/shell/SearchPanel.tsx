@@ -94,7 +94,7 @@ const SearchPanel: React.FC<SearchPanelProps> = ({ files, onOpenFile, focusSigna
           )}
         </div>
         {deferredQuery && (
-          <p className="mt-1.5 px-0.5 text-[11px] text-faint">
+          <p className="mt-2 px-0.5 text-[11px] text-faint">
             {results.length === 0 ? 'No matches found.' : `${total} ${total === 1 ? 'result' : 'results'} in ${results.length} ${results.length === 1 ? 'file' : 'files'}`}
           </p>
         )}
@@ -117,10 +117,10 @@ const SearchPanel: React.FC<SearchPanelProps> = ({ files, onOpenFile, focusSigna
                 </button>
                 <Icon className="h-3.5 w-3.5 shrink-0 text-faint" />
                 <span className="min-w-0 flex-1 truncate font-medium text-content">{file.name}</span>
-                {count > 0 && <span className="shrink-0 rounded bg-surface-hover px-1.5 text-[10px] text-faint">{count}</span>}
+                {count > 0 && <span className="count shrink-0">{count}</span>}
               </div>
               {open && matches.length > 0 && (
-                <div className="ml-[13px] border-l border-border pl-1">
+                <div className="ml-3 border-l border-border pl-1">
                   {matches.map((m, i) => (
                     <button
                       key={i}

@@ -54,9 +54,7 @@ const NavItem: React.FC<{
   >
     <Icon className={cn('h-4 w-4 shrink-0', active ? 'text-accent' : 'text-faint group-hover:text-muted')} />
     <span className="min-w-0 flex-1 truncate">{label}</span>
-    {count ? (
-      <span className="shrink-0 rounded-full bg-surface-hover px-1.5 text-[11px] font-medium tabular-nums text-muted">{count}</span>
-    ) : null}
+    {count ? <span className="count shrink-0 pr-1">{count}</span> : null}
   </button>
 );
 
@@ -153,14 +151,11 @@ const Sidebar: React.FC<SidebarProps> = ({
           type="button"
           onClick={onProjectMenu}
           data-tip="Switch project"
-          className="group flex min-w-0 flex-1 items-center gap-2.5 rounded-lg p-1.5 text-left transition-colors hover:bg-surface-hover"
+          className="group flex min-w-0 flex-1 items-center gap-2 rounded-lg p-1 text-left transition-colors hover:bg-surface-hover"
         >
-          <ProjectIcon type={project.type} size="sm" />
-          <span className="min-w-0 flex-1">
-            <span className="block truncate text-[0.875rem] font-semibold leading-tight text-content">{project.name}</span>
-            <span className="block truncate text-[11px] leading-tight text-faint">{project.type} project</span>
-          </span>
-          <ChevronsUpDown className="h-3.5 w-3.5 shrink-0 text-faint group-hover:text-muted" />
+          <ProjectIcon project={project} size="sm" />
+          <span className="min-w-0 flex-1 truncate text-[0.875rem] font-medium leading-5 text-content">{project.name}</span>
+          <ChevronsUpDown className="h-4 w-4 shrink-0 text-faint group-hover:text-muted" />
         </button>
         <button type="button" className="icon-btn" onClick={onCollapse} aria-label="Hide sidebar" data-tip="Hide sidebar" data-tip-kbd="Ctrl \">
           <PanelLeftClose className="h-4 w-4" />
@@ -168,14 +163,14 @@ const Sidebar: React.FC<SidebarProps> = ({
       </div>
 
       {/* Go to file + new */}
-      <div className="flex shrink-0 items-center gap-1.5 px-2.5 pb-2 pt-2">
+      <div className="flex shrink-0 items-center gap-2 px-2 pb-2 pt-2">
         <button
           type="button"
           onClick={onQuickSwitch}
-          className="flex h-8 min-w-0 flex-1 items-center gap-2 rounded-md border border-border bg-bg px-2.5 text-[0.8125rem] text-faint shadow-soft transition-colors hover:border-border-strong hover:text-muted"
+          className="flex h-8 min-w-0 flex-1 items-center gap-2 rounded-lg border border-border bg-bg px-2 text-[0.8125rem] text-faint shadow-soft transition-colors hover:border-border-strong hover:text-muted"
         >
-          <Search className="h-3.5 w-3.5 shrink-0" />
-          <span className="flex-1 truncate text-left">Go to file…</span>
+          <Search className="h-4 w-4 shrink-0" />
+          <span className="flex-1 truncate text-left">Go to file</span>
           <span className="kbd hidden sm:inline-flex">Ctrl O</span>
         </button>
         <button
@@ -183,25 +178,25 @@ const Sidebar: React.FC<SidebarProps> = ({
           onClick={newFileMenu}
           aria-label="New file"
           data-tip="New file"
-          className="flex h-8 w-8 shrink-0 items-center justify-center rounded-md bg-accent text-accent-content shadow-soft transition-[background-color,transform] hover:bg-accent-hover active:scale-95"
+          className="flex h-8 w-8 shrink-0 items-center justify-center rounded-lg border border-border bg-bg text-muted shadow-soft transition-[background-color,border-color,color,transform] hover:border-border-strong hover:text-content active:scale-[0.96]"
         >
           <Plus className="h-4 w-4" />
         </button>
       </div>
 
       {/* Project systems */}
-      <div className="shrink-0 px-2 pb-1">
+      <div className="shrink-0 px-2 pb-1 pt-2">
         <button
           type="button"
           onClick={toggleWorkspace}
           aria-expanded={workspaceOpen}
-          className="group flex w-full items-center gap-1 rounded px-2 py-1 text-left"
+          className="group flex h-6 w-full items-center gap-1 rounded-md px-2 text-left"
         >
           <span className="eyebrow group-hover:text-muted">Workspace</span>
           <ChevronRight className={cn('h-3 w-3 text-faint transition-transform', workspaceOpen && 'rotate-90')} />
         </button>
         {workspaceOpen && (
-          <div className="mt-0.5 flex flex-col gap-px">
+          <div className="mt-1 flex flex-col gap-0.5">
             {systemFiles.map(file => (
               <NavItem
                 key={file.id}
@@ -219,7 +214,7 @@ const Sidebar: React.FC<SidebarProps> = ({
       </div>
 
       {/* Panel tabs */}
-      <div className="shrink-0 px-2.5 pb-1 pt-2">
+      <div className="shrink-0 px-2 pb-1 pt-4">
         <div className="seg" role="tablist" aria-label="Sidebar panels">
           {TABS.map(({ id, label, kbd }) => (
             <button
@@ -246,11 +241,11 @@ const Sidebar: React.FC<SidebarProps> = ({
           type="button"
           onClick={accountMenu}
           aria-label="Account menu"
-          className="flex min-w-0 flex-1 items-center gap-2 rounded-md p-1 text-left transition-colors hover:bg-surface-hover"
+          className="flex min-w-0 flex-1 items-center gap-2 rounded-lg p-1 text-left transition-colors hover:bg-surface-hover"
         >
-          <span className="relative flex h-7 w-7 shrink-0 items-center justify-center rounded-full bg-accent/15 text-[11px] font-bold uppercase text-accent">
-            {user?.username?.slice(0, 2) || '??'}
-            {user?.isAdmin && <ShieldCheck className="absolute -bottom-0.5 -right-0.5 h-3.5 w-3.5 rounded-full bg-chrome p-px text-accent" />}
+          <span className="relative flex h-7 w-7 shrink-0 items-center justify-center rounded-full border border-border bg-surface-raised text-xs font-medium text-content">
+            {(user?.username?.charAt(0) || '?').toUpperCase()}
+            {user?.isAdmin && <ShieldCheck className="absolute -bottom-1 -right-1 h-4 w-4 rounded-full bg-chrome p-0.5 text-muted" />}
           </span>
           <span className="min-w-0 flex-1 truncate text-[0.8125rem] font-medium text-content">{user?.username}</span>
         </button>

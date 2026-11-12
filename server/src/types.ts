@@ -18,7 +18,9 @@ export interface ProjectFolder {
 export interface Project {
   id: string;
   name: string;
-  type: 'Software' | 'Game' | 'Web';
+  icon?: string;
+  /** Legacy project type; new projects leave it unset. */
+  type?: 'Software' | 'Game' | 'Web';
   description: string;
   lastModified: number;
   files: ProjectFile[];
@@ -52,6 +54,7 @@ export interface ProjectRow {
   user_id: string | null;
   name: string;
   type: string;
+  icon: string | null;
   description: string;
   last_modified: string | number;
   files: ProjectFile[];
@@ -62,7 +65,8 @@ export interface ProjectRow {
 export const rowToProject = (row: ProjectRow): Project => ({
   id: row.id,
   name: row.name,
-  type: row.type as Project['type'],
+  ...(row.type ? { type: row.type as NonNullable<Project['type']> } : {}),
+  ...(row.icon ? { icon: row.icon } : {}),
   description: row.description ?? '',
   // pg returns BIGINT as a string; normalize back to a number.
   lastModified: Number(row.last_modified) || 0,

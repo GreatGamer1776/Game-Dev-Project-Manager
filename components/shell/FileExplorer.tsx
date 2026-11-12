@@ -37,16 +37,16 @@ const openModeFor = (e: React.MouseEvent | React.KeyboardEvent): 'current' | 'ne
 
 /** Hover buttons so row actions don't depend on discovering right-click. */
 const RowActions: React.FC<{ label: string; onAdd?: (e: React.MouseEvent) => void; onMore: (e: React.MouseEvent) => void }> = ({ label, onAdd, onMore }) => (
-  <span className="pointer-events-none absolute right-1 top-1/2 flex -translate-y-1/2 items-center gap-0.5 rounded bg-surface-hover pl-1 opacity-0 transition-opacity group-hover/row:pointer-events-auto group-hover/row:opacity-100 group-focus-within/row:pointer-events-auto group-focus-within/row:opacity-100">
+  <span className="pointer-events-none absolute right-1 top-1/2 flex -translate-y-1/2 items-center gap-0.5 rounded-md bg-surface-hover pl-1 opacity-0 transition-opacity group-hover/row:pointer-events-auto group-hover/row:opacity-100 group-focus-within/row:pointer-events-auto group-focus-within/row:opacity-100">
     {onAdd && (
       <button
         type="button"
         title={`New file in ${label}`}
         aria-label={`New file in ${label}`}
         onClick={e => { e.stopPropagation(); onAdd(e); }}
-        className="rounded p-0.5 text-faint hover:bg-surface-raised hover:text-content"
+        className="rounded-md p-1 text-faint hover:bg-surface-raised hover:text-content"
       >
-        <Plus className="h-3.5 w-3.5" />
+        <Plus className="h-4 w-4" />
       </button>
     )}
     <button
@@ -54,9 +54,9 @@ const RowActions: React.FC<{ label: string; onAdd?: (e: React.MouseEvent) => voi
       title="More actions"
       aria-label={`More actions for ${label}`}
       onClick={e => { e.stopPropagation(); onMore(e); }}
-      className="rounded p-0.5 text-faint hover:bg-surface-raised hover:text-content"
+      className="rounded-md p-1 text-faint hover:bg-surface-raised hover:text-content"
     >
-      <MoreHorizontal className="h-3.5 w-3.5" />
+      <MoreHorizontal className="h-4 w-4" />
     </button>
   </span>
 );
@@ -309,12 +309,12 @@ const FileExplorer: React.FC<FileExplorerProps> = ({
         onContextMenu={e => fileMenu(e, file)}
         title={file.name}
         className={cn(
-          'nav-row group/row relative cursor-pointer pl-[22px] pr-2',
+          'nav-row group/row relative cursor-pointer pl-7 pr-2',
           active && 'is-active',
           draggingId === file.id && 'opacity-40',
         )}
       >
-        <Icon className={cn('h-3.5 w-3.5 shrink-0', active ? 'text-accent' : 'text-faint')} />
+        <Icon className={cn('h-4 w-4 shrink-0', active ? 'text-accent' : 'text-faint')} />
         {bookmarkIds.includes(file.id) && !isRenaming && <Bookmark className="order-last ml-auto h-3 w-3 shrink-0 fill-current text-faint" aria-label="Bookmarked" />}
         {isRenaming ? (
           <InlineRename
@@ -373,8 +373,8 @@ const FileExplorer: React.FC<FileExplorerProps> = ({
                   draggingId === folder.id && 'opacity-40',
                 )}
               >
-                <ChevronRight className={cn('h-3.5 w-3.5 shrink-0 text-faint transition-transform', expanded && 'rotate-90')} />
-                <FolderIcon className="h-3.5 w-3.5 shrink-0 text-faint" />
+                <ChevronRight className={cn('h-4 w-4 shrink-0 text-faint transition-transform', expanded && 'rotate-90')} />
+                <FolderIcon className="h-4 w-4 shrink-0 text-faint" />
                 {isRenaming ? (
                   <InlineRename
                     initialValue={folder.name}
@@ -393,7 +393,7 @@ const FileExplorer: React.FC<FileExplorerProps> = ({
                 )}
               </div>
               {expanded && (
-                <div className="ml-[13px] border-l border-border pl-0.5">
+                <div className="ml-3 border-l border-border pl-1">
                   {renderTree(folder.id)}
                 </div>
               )}
@@ -410,25 +410,25 @@ const FileExplorer: React.FC<FileExplorerProps> = ({
   return (
     <div className="flex h-full min-h-0 flex-col">
       {/* Tree tools: new folder, reveal, sort, expand/collapse */}
-      <div className="flex shrink-0 items-center gap-0.5 px-3.5 pb-1 pt-1.5">
-        <span className="eyebrow flex-1">{regularCount} {regularCount === 1 ? 'file' : 'files'}</span>
-        <button className="icon-btn h-6 w-6" data-tip="New folder" aria-label="New folder" onClick={() => onCreateFolder(null)}>
-          <FolderPlus className="h-3.5 w-3.5" />
+      <div className="flex shrink-0 items-center gap-0.5 pb-1 pl-4 pr-2 pt-2">
+        <span className="eyebrow flex-1 tabular-nums">{regularCount} {regularCount === 1 ? 'file' : 'files'}</span>
+        <button className="icon-btn" data-tip="New folder" aria-label="New folder" onClick={() => onCreateFolder(null)}>
+          <FolderPlus className="h-4 w-4" />
         </button>
-        <button className="icon-btn h-6 w-6" data-tip="Show the open file" aria-label="Reveal active file" onClick={() => onRevealActive?.()} disabled={!onRevealActive}>
-          <Crosshair className="h-3.5 w-3.5" />
+        <button className="icon-btn" data-tip="Show the open file" aria-label="Reveal active file" onClick={() => onRevealActive?.()} disabled={!onRevealActive}>
+          <Crosshair className="h-4 w-4" />
         </button>
-        <button className="icon-btn h-6 w-6" data-tip="Sort" aria-label="Change sort order" onClick={sortMenu}>
-          <ArrowUpDown className="h-3.5 w-3.5" />
+        <button className="icon-btn" data-tip="Sort" aria-label="Change sort order" onClick={sortMenu}>
+          <ArrowUpDown className="h-4 w-4" />
         </button>
         <button
-          className="icon-btn h-6 w-6"
+          className="icon-btn"
           data-tip={allExpanded ? 'Collapse all' : 'Expand all'}
           aria-label={allExpanded ? 'Collapse all' : 'Expand all'}
           onClick={allExpanded ? onCollapseAll : onExpandAll}
           disabled={project.folders.length === 0}
         >
-          {allExpanded ? <ChevronsDownUp className="h-3.5 w-3.5" /> : <ChevronsUpDown className="h-3.5 w-3.5" />}
+          {allExpanded ? <ChevronsDownUp className="h-4 w-4" /> : <ChevronsUpDown className="h-4 w-4" />}
         </button>
       </div>
 
@@ -437,7 +437,7 @@ const FileExplorer: React.FC<FileExplorerProps> = ({
         role="tree"
         aria-label="Files"
         className={cn(
-          'min-h-0 flex-1 overflow-y-auto px-1.5 pb-6',
+          'min-h-0 flex-1 overflow-y-auto px-2 pb-6',
           dropTarget === 'root' && 'bg-accent/5',
         )}
         onDragOver={e => handleDragOver(e, 'root')}
@@ -452,10 +452,10 @@ const FileExplorer: React.FC<FileExplorerProps> = ({
         {renderTree(null)}
 
         {regularCount === 0 && project.folders.length === 0 && (
-          <div className="mx-1 mt-2 rounded-lg border border-dashed border-border-strong px-3 py-5 text-center">
+          <div className="mt-2 rounded-xl border border-dashed border-border-strong px-4 py-6 text-center">
             <p className="text-[0.8125rem] font-medium text-content">No files yet</p>
-            <p className="mt-0.5 text-xs text-faint">Start with a design doc or a spec.</p>
-            <button type="button" onClick={() => onCreateFile('doc', null)} className="mt-3 rounded-md bg-accent/10 px-2.5 py-1 text-xs font-medium text-accent transition-colors hover:bg-accent/20">
+            <p className="mt-1 text-xs text-faint">Start with a design doc or a spec</p>
+            <button type="button" onClick={() => onCreateFile('doc', null)} className="mt-3 h-7 rounded-md bg-accent/10 px-3 text-xs font-medium text-accent transition-colors hover:bg-accent/20">
               New document
             </button>
           </div>

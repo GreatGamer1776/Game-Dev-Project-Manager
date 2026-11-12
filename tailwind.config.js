@@ -67,11 +67,21 @@ export default {
         '3xl': 'var(--r-3xl)',
         full: '9999px',
       },
+      // Depth is theme-aware (see index.css): small neutral shadows on light,
+      // a hairline top highlight on dark, where depth comes from surface steps.
       boxShadow: {
-        soft: '0 1px 2px 0 rgb(0 0 0 / 0.05), 0 1px 3px 0 rgb(0 0 0 / 0.08)',
-        raised: '0 4px 12px -2px rgb(0 0 0 / 0.12), 0 2px 6px -2px rgb(0 0 0 / 0.08)',
-        pop: '0 12px 32px -8px rgb(0 0 0 / 0.30), 0 6px 12px -6px rgb(0 0 0 / 0.20)',
-        menu: '0 8px 24px rgb(0 0 0 / 0.28), 0 0 0 1px rgb(var(--color-border-strong) / 0.6)',
+        soft: 'var(--shadow-soft)',
+        raised: 'var(--shadow-raised)',
+        pop: 'var(--shadow-pop)',
+        menu: 'var(--shadow-pop), 0 0 0 1px rgb(var(--color-border-strong) / 0.6)',
+      },
+      // One easing curve for every transition and animation.
+      transitionTimingFunction: {
+        DEFAULT: 'cubic-bezier(0.22, 1, 0.36, 1)',
+        out: 'cubic-bezier(0.22, 1, 0.36, 1)',
+      },
+      transitionDuration: {
+        DEFAULT: '150ms',
       },
       keyframes: {
         'fade-in': {
@@ -83,14 +93,14 @@ export default {
           to: { opacity: '1', transform: 'translateY(0) scale(1)' },
         },
         'menu-in': {
-          from: { opacity: '0', transform: 'scale(0.98)' },
-          to: { opacity: '1', transform: 'scale(1)' },
+          from: { opacity: '0', transform: 'translateY(-4px)' },
+          to: { opacity: '1', transform: 'translateY(0)' },
         },
       },
       animation: {
-        'fade-in': 'fade-in 0.15s ease-out',
-        'scale-in': 'scale-in 0.18s cubic-bezier(0.16, 1, 0.3, 1)',
-        'menu-in': 'menu-in 0.1s ease-out',
+        'fade-in': 'fade-in 160ms cubic-bezier(0.22, 1, 0.36, 1)',
+        'scale-in': 'scale-in 220ms cubic-bezier(0.22, 1, 0.36, 1)',
+        'menu-in': 'menu-in 160ms cubic-bezier(0.22, 1, 0.36, 1)',
       },
     },
   },

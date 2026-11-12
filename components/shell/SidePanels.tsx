@@ -118,7 +118,7 @@ export const TagsPanel: React.FC<{ files: ProjectFile[]; onSelect: (tag: string)
                 <ChevronRight className={cn('h-3.5 w-3.5 transition-transform', open && 'rotate-90')} />
               </button>
               <span className="min-w-0 flex-1 truncate">#{child.name}</span>
-              <span className="shrink-0 rounded bg-surface-hover px-1.5 text-[10px] text-faint">{child.count}</span>
+              <span className="count shrink-0">{child.count}</span>
             </div>
             {open && child.children.size > 0 && render(child, depth + 1)}
           </div>

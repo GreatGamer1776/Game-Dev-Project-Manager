@@ -161,7 +161,7 @@ const PaneSlot: React.FC<{
       {zone && (
         <div
           className={cn(
-            'pointer-events-none absolute z-30 rounded-md border-2 border-accent bg-accent/15 transition-all duration-100',
+            'pointer-events-none absolute z-30 rounded-md border-2 border-accent bg-accent/15 transition-opacity duration-150',
             zone === 'center' && 'inset-2 top-12',
             zone === 'left' && 'bottom-2 left-2 top-12 w-[calc(50%-0.5rem)]',
             zone === 'right' && 'bottom-2 right-2 top-12 w-[calc(50%-0.5rem)]',

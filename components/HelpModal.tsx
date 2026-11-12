@@ -58,7 +58,7 @@ const HelpModal: React.FC<HelpModalProps> = ({ isOpen, onClose }) => (
           {SHORTCUTS.map(({ keys, desc }) => (
             <div key={keys} className="flex items-center gap-4 px-3 py-2">
               <span className="flex w-40 shrink-0 gap-1">
-                {keys.split(' + ').map(k => <kbd key={k} className="kbd px-1.5 py-0.5 text-[11px]">{k}</kbd>)}
+                {keys.split(' + ').map(k => <kbd key={k} className="kbd h-5 px-1.5">{k}</kbd>)}
               </span>
               <span className="text-[0.8125rem] text-muted">{desc}</span>
             </div>

@@ -1481,7 +1481,7 @@ const VectorEditor: React.FC<EditorProps> = ({ initialContent, onSave, fileName,
                                 cursor: tool === 'select' ? 'move' : undefined,
                               }}
                             >
-                              {t.content || (!viewMode && <span style={{ opacity: 0.45, fontStyle: 'italic', fontSize: 13, color: 'rgb(var(--color-muted))' }}>Double-click to type</span>)}
+                              {t.content || (!viewMode && <span style={{ opacity: 0.45, fontSize: 13, color: 'rgb(var(--color-muted))' }}>Double-click to type</span>)}
                             </div>
                           </foreignObject>
                         </g>
@@ -1796,7 +1796,7 @@ const SnapPopover: React.FC<{ anchor: HTMLElement | null; onClose: () => void; s
   );
   return (
     <Popover anchor={anchor} onClose={onClose} className="w-64">
-      <div className="px-2 pb-1 pt-0.5 text-[11px] font-semibold uppercase tracking-wide text-faint">Snap to</div>
+      <div className="px-2 pb-1 pt-0.5 eyebrow">Snap to</div>
       {SNAP_OPTIONS.map(o => row(o.key, o.label, o.hint))}
       <div className="my-1 border-t border-border" />
       {row('crossLayer', 'Snap across layers', 'When off, only the active layer’s points and lines attract')}

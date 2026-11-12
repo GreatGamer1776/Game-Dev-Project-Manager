@@ -58,7 +58,7 @@ export const Modal: React.FC<ModalProps> = ({
 
   return (
     <div
-      className="fixed inset-0 z-50 flex items-center justify-center p-4 bg-overlay/55 backdrop-blur-[2px] animate-fade-in"
+      className="fixed inset-0 z-50 flex items-center justify-center p-4 bg-overlay/60 animate-fade-in"
       onMouseDown={onClose}
     >
       <div
@@ -85,13 +85,13 @@ export const Modal: React.FC<ModalProps> = ({
           <>
             {(title || description) && (
               <div className="shrink-0 px-6 pt-5 pb-2 pr-12">
-                {title && <h2 className="font-display text-[1.0625rem] font-semibold tracking-tight text-content">{title}</h2>}
-                {description && <p className="mt-1 text-[0.8125rem] leading-relaxed text-muted">{description}</p>}
+                {title && <h2 className="font-display text-lg font-medium text-content">{title}</h2>}
+                {description && <p className="mt-1 text-[0.8125rem] leading-5 text-muted">{description}</p>}
               </div>
             )}
-            <div className={cn('min-h-0 overflow-y-auto px-6 pb-5', title || description ? 'pt-3' : 'pt-6')}>{children}</div>
+            <div className={cn('min-h-0 overflow-y-auto px-6 pb-6', title || description ? 'pt-4' : 'pt-6')}>{children}</div>
             {footer && (
-              <div className="flex shrink-0 justify-end gap-2 rounded-b-2xl border-t border-border bg-chrome/50 px-6 py-3.5">
+              <div className="flex shrink-0 justify-end gap-2 rounded-b-2xl border-t border-border bg-chrome/50 px-6 py-4">
                 {footer}
               </div>
             )}

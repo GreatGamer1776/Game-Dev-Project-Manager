@@ -2,9 +2,9 @@ import React from 'react';
 import { cn } from './cn';
 
 const fieldBase =
-  'rounded-md bg-bg text-content placeholder:text-faint ' +
-  'border border-border-strong/80 px-2.5 py-[var(--field-py)] text-[0.8125rem] outline-none ' +
-  'transition-colors duration-100 hover:border-border-strong focus:border-accent focus:ring-2 focus:ring-accent/25 ' +
+  'rounded-lg bg-bg text-content placeholder:text-faint ' +
+  'border border-border-strong/80 px-3 py-[var(--field-py)] text-[0.8125rem] outline-none ' +
+  'transition-[border-color,box-shadow] duration-150 hover:border-border-strong focus:border-accent focus:ring-2 focus:ring-accent/25 ' +
   'disabled:opacity-50';
 
 // Full width unless the caller sizes the field itself — `cn` only joins
@@ -53,7 +53,7 @@ export interface FieldProps {
 
 /** Label + control + optional hint, stacked. */
 export const Field: React.FC<FieldProps> = ({ label, hint, htmlFor, children, className }) => (
-  <div className={cn('flex flex-col gap-1.5', className)}>
+  <div className={cn('flex flex-col gap-2', className)}>
     {label && (
       <label htmlFor={htmlFor} className="text-[0.8125rem] font-medium text-content">
         {label}

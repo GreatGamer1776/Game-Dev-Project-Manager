@@ -215,7 +215,7 @@ const AssetBrowser: React.FC<EditorProps> = ({ initialContent, assets = {}, onAd
       <div key={folder.id}>
         <div
           style={{ marginLeft: depth * 10 }}
-          className={`group flex items-center justify-between rounded-md px-1 py-1 mb-0.5 transition-colors ${isDropActive ? 'bg-blue-500/10 ring-1 ring-blue-500/40' : 'hover:bg-surface-hover'}`}
+          className={`group flex items-center justify-between rounded-md px-1 py-1 mb-0.5 transition-colors ${isDropActive ? 'bg-accent/10 ring-1 ring-accent/40' : 'hover:bg-surface-hover'}`}
           onDragOver={(e) => handleFolderDragOver(e, folder.id)}
           onDrop={(e) => handleFolderDrop(e, folder.id)}
         >
@@ -234,7 +234,7 @@ const AssetBrowser: React.FC<EditorProps> = ({ initialContent, assets = {}, onAd
             className={`flex-1 flex items-center gap-2 px-1.5 py-1 text-sm text-left rounded ${isSelected ? 'text-content bg-surface-raised' : 'text-content'}`}
           >
             {hasChildren ? (isExpanded ? <ChevronDown className="w-3.5 h-3.5 text-faint" /> : <ChevronRight className="w-3.5 h-3.5 text-faint" />) : <span className="w-3.5 h-3.5" />}
-            <Folder className="w-4 h-4 text-blue-400/90" />
+            <Folder className="w-4 h-4 text-accent/90" />
             <span className="truncate">{folder.name}</span>
           </button>
           <button
@@ -484,7 +484,7 @@ const AssetBrowser: React.FC<EditorProps> = ({ initialContent, assets = {}, onAd
       <div className="flex-1 min-h-0 flex">
         <aside className="w-64 border-r border-border p-3 overflow-y-auto custom-scrollbar">
           <div className="flex items-center justify-between mb-2">
-            <span className="text-[11px] uppercase tracking-wide text-faint">Folders</span>
+            <span className="field-label">Folders</span>
             <button
               onClick={() => createFolder(selectedFolderId)}
               className="p-1.5 text-muted hover:text-content hover:bg-surface-hover rounded"
@@ -498,7 +498,7 @@ const AssetBrowser: React.FC<EditorProps> = ({ initialContent, assets = {}, onAd
             onClick={() => setSelectedFolderId(null)}
             onDragOver={handleRootDragOver}
             onDrop={handleRootDrop}
-            className={`w-full mb-2 flex items-center gap-2 px-2 py-2 rounded-md text-sm transition-colors ${selectedFolderId === null ? 'bg-surface-raised text-content' : 'text-content hover:bg-surface-hover'} ${activeDropFolderId === 'root' ? 'ring-1 ring-blue-500/40 bg-blue-500/10' : ''}`}
+            className={`w-full mb-2 flex items-center gap-2 px-2 py-2 rounded-md text-sm transition-colors ${selectedFolderId === null ? 'bg-surface-raised text-content' : 'text-content hover:bg-surface-hover'} ${activeDropFolderId === 'root' ? 'ring-1 ring-accent/40 bg-accent/10' : ''}`}
             title="Assets that aren't in a folder — drop one here to take it out of its folder"
           >
             <FolderOpen className="w-4 h-4 text-faint" />
@@ -575,13 +575,13 @@ const AssetBrowser: React.FC<EditorProps> = ({ initialContent, assets = {}, onAd
                       ) : (
                         <FileIcon className="h-10 w-10 text-faint" />
                       )}
-                      <div className="absolute left-1.5 top-1.5 rounded bg-bg/85 px-1.5 py-px text-[10px] uppercase tracking-wide text-muted">
-                        {kind}
+                      <div className="absolute left-1.5 top-1.5 rounded-md bg-bg/85 px-1.5 py-px text-[11px] text-muted">
+                        {kind.charAt(0).toUpperCase() + kind.slice(1)}
                       </div>
                     </div>
                     <div className="border-t border-border px-2 py-1.5">
                       <div className="truncate text-[12px] text-content">{name}</div>
-                      <div className="truncate text-[10px] text-faint">{(data.length / 1024).toFixed(1)} KB · {mime}</div>
+                      <div className="truncate text-[11px] text-faint">{(data.length / 1024).toFixed(1)} KB · {mime}</div>
                     </div>
                   </div>
                 );

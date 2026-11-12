@@ -9,6 +9,13 @@ import { uid } from '../utils/id';
 const FILE_LINK_DRAG_MIME = 'application/x-gdpm-file-id';
 type BugSort = 'Newest' | 'Oldest' | 'Severity' | 'Due Date';
 const BUG_COLUMNS: BugStatus[] = ['Open', 'In Progress', 'Resolved', 'Closed'];
+/** Column status dot: open bugs read as danger, work in flight as the accent. */
+const BUG_STATUS_DOT: Record<BugStatus, string> = {
+  Open: 'bg-danger',
+  'In Progress': 'bg-accent',
+  Resolved: 'bg-success',
+  Closed: 'bg-faint',
+};
 const COLUMN_CARD_ESTIMATE = 250;
 const COLUMN_OVERSCAN = 3;
 
@@ -325,15 +332,15 @@ const KanbanBoard: React.FC<EditorProps> = ({ initialContent, onSave, fileName, 
 
   const getSeverityColor = (s: BugSeverity) => {
     switch (s) {
-      case 'Critical': return 'bg-red-500 text-content border-red-600';
-      case 'High': return 'bg-orange-500 text-content border-orange-600';
-      case 'Medium': return 'bg-yellow-500/20 text-yellow-500 border-yellow-500/40';
-      case 'Low': return 'bg-blue-500/20 text-blue-500 border-blue-500/40';
+      case 'Critical': return 'bg-danger/15 text-danger border-danger/30';
+      case 'High': return 'bg-warning/15 text-warning border-warning/30';
+      case 'Medium': return 'bg-surface-raised text-muted border-border';
+      case 'Low': return 'bg-surface-raised text-faint border-border';
     }
   };
 
   const getSeverityIcon = (s: BugSeverity) => {
-    if (s === 'Critical') return <AlertCircle className="w-3 h-3 fill-white text-red-600" />;
+    if (s === 'Critical') return <AlertCircle className="w-3 h-3 fill-white text-danger" />;
     return <AlertCircle className="w-3 h-3" />;
   };
 
@@ -412,7 +419,7 @@ const KanbanBoard: React.FC<EditorProps> = ({ initialContent, onSave, fileName, 
             e.stopPropagation();
             onOpenFile?.(fileId);
           }}
-          className={`underline underline-offset-2 ${linkedName ? 'text-cyan-400 hover:text-cyan-300' : 'text-faint line-through'}`}
+          className={`underline underline-offset-2 ${linkedName ? 'text-accent hover:text-accent-hover' : 'text-faint line-through'}`}
           title={linkedName ? `Open ${linkedName}` : 'Linked file not found'}
         >
           {label}
@@ -563,10 +570,10 @@ const KanbanBoard: React.FC<EditorProps> = ({ initialContent, onSave, fileName, 
 
             <button
                 onClick={handleOpenCreate}
-                className="flex items-center gap-2 bg-surface-raised hover:bg-surface-hover text-content px-4 py-2 rounded-md text-sm font-medium transition-colors border border-border-strong"
+                className="flex h-8 items-center gap-2 rounded-lg bg-accent px-3 text-[0.8125rem] font-medium text-accent-content transition-colors hover:bg-accent-hover"
             >
                 <Plus className="w-4 h-4" />
-                Report Bug
+                Report bug
             </button>
           </div>
         </div>
@@ -579,20 +586,20 @@ const KanbanBoard: React.FC<EditorProps> = ({ initialContent, onSave, fileName, 
                 type="text"
                 value={searchQuery}
                 onChange={(e) => setSearchQuery(e.target.value)}
-                placeholder="Search bugs..."
+                placeholder="Search bugs"
                 className="w-full bg-bg border border-border rounded-md py-1.5 pl-9 pr-3 text-sm text-content focus:outline-none focus:border-border-strong"
               />
          </div>
          <div className="h-6 w-px bg-surface-raised hidden lg:block"></div>
          <div className="flex items-center gap-2 text-sm text-muted">
             <Filter className="w-4 h-4" />
-            <span>Severity:</span>
+            <span>Severity</span>
             <div className="flex gap-1 bg-bg p-1 rounded-lg border border-border">
                {(['All', 'Low', 'Medium', 'High', 'Critical'] as const).map(sev => (
                  <button
                    key={sev}
                    onClick={() => setFilterSeverity(sev)}
-                   className={`px-2 py-0.5 rounded text-xs font-medium transition-all ${
+                   className={`px-2 py-0.5 rounded text-xs font-medium transition-colors ${
                      filterSeverity === sev 
                        ? 'bg-surface-raised text-content shadow-sm' 
                        : 'text-faint hover:text-content'
@@ -633,7 +640,7 @@ const KanbanBoard: React.FC<EditorProps> = ({ initialContent, onSave, fileName, 
            onClick={resetBoardFilters}
            className="px-2.5 py-1.5 rounded-md border border-border bg-bg text-xs text-content hover:text-content"
          >
-           Reset Filters
+           Reset filters
          </button>
           <div className="ml-auto text-xs text-faint">
              Showing {filteredBugs.length} of {bugs.length} bugs
@@ -642,8 +649,8 @@ const KanbanBoard: React.FC<EditorProps> = ({ initialContent, onSave, fileName, 
 
       {selectedBugIds.length > 0 && (
         <div className="border-b border-border bg-surface px-6 py-3">
-          <div className="flex flex-wrap items-center gap-2 rounded-lg border border-blue-500/30 bg-blue-500/5 p-3">
-            <span className="text-xs font-medium text-blue-200">
+          <div className="flex flex-wrap items-center gap-2 rounded-lg border border-accent/30 bg-accent/5 p-3">
+            <span className="text-xs font-medium text-accent">
               {selectedBugIds.length} selected
             </span>
             <button
@@ -654,7 +661,7 @@ const KanbanBoard: React.FC<EditorProps> = ({ initialContent, onSave, fileName, 
             </button>
             <button
               onClick={deleteSelectedBugs}
-              className="ml-auto rounded-md border border-red-500/40 bg-red-500/10 px-2.5 py-1 text-[11px] text-red-300 hover:bg-red-500/20"
+              className="ml-auto rounded-md border border-danger/40 bg-danger/10 px-2.5 py-1 text-[11px] text-danger hover:bg-danger/20"
             >
               Delete Selected
             </button>
@@ -683,15 +690,16 @@ const KanbanBoard: React.FC<EditorProps> = ({ initialContent, onSave, fileName, 
                   onDragOver={(e) => handleDragOver(e, status)}
                   onDrop={(e) => handleDrop(e, status)}
                   className={`
-                    flex-1 flex flex-col min-w-[300px] h-full rounded-xl overflow-hidden transition-all duration-200
+                    flex-1 flex flex-col min-w-[300px] h-full rounded-xl overflow-hidden transition-colors
                     ${isActiveDrop 
-                       ? 'bg-surface border-2 border-blue-500/50 shadow-[0_0_30px_-5px_rgba(59,130,246,0.2)]' 
+                       ? 'bg-surface border-2 border-accent/50' 
                        : 'bg-bg/60 border border-border'}
                   `}
                >
-                 <div className={`p-4 border-b flex justify-between items-center sticky top-0 ${isActiveDrop ? 'bg-surface border-border' : 'bg-surface border-border'}`}>
-                    <h4 className={`font-semibold transition-colors ${isActiveDrop ? 'text-blue-400' : 'text-content'}`}>{status}</h4>
-                    <span className="text-xs bg-surface-raised text-muted px-2 py-1 rounded-full">{colBugs.length}</span>
+                 <div className="sticky top-0 flex h-11 items-center gap-2 border-b border-border bg-surface px-4">
+                    <span className={`h-2 w-2 shrink-0 rounded-full ${BUG_STATUS_DOT[status] || 'bg-faint'}`} />
+                    <h4 className={`text-sm font-medium transition-colors ${isActiveDrop ? 'text-accent' : 'text-content'}`}>{status}</h4>
+                    <span className="count">{colBugs.length}</span>
                  </div>
                  
                  <div
@@ -709,10 +717,10 @@ const KanbanBoard: React.FC<EditorProps> = ({ initialContent, onSave, fileName, 
                           draggable
                           onDragStart={(e) => handleDragStart(e, bug.id)}
                           onDragEnd={handleDragEnd}
-                          className={`border bg-surface p-4 rounded-lg shadow-sm transition-colors group cursor-grab active:cursor-grabbing ${draggedBugIds.includes(bug.id) ? 'opacity-40 grayscale border-dashed border-border-strong' : 'opacity-100'} ${isSelected ? 'border-blue-500/60 ring-2 ring-blue-500/20 shadow-[0_0_0_1px_rgba(59,130,246,0.15)]' : 'border-border hover:border-border-strong'}`}
+                          className={`border bg-surface p-4 rounded-lg shadow-sm transition-colors group cursor-grab active:cursor-grabbing ${draggedBugIds.includes(bug.id) ? 'opacity-40 grayscale border-dashed border-border-strong' : 'opacity-100'} ${isSelected ? 'border-accent/60 ring-2 ring-accent/20' : 'border-border hover:border-border-strong'}`}
                         >
                          <div className="flex justify-between items-start mb-2 relative">
-                            <span className={`text-[10px] font-bold px-2 py-0.5 rounded border flex items-center gap-1 pointer-events-none ${getSeverityColor(bug.severity)}`}>
+                            <span className={`text-[11px] font-medium px-2 py-0.5 rounded border flex items-center gap-1 pointer-events-none ${getSeverityColor(bug.severity)}`}>
                               {getSeverityIcon(bug.severity)}
                               {bug.severity}
                             </span>
@@ -726,14 +734,14 @@ const KanbanBoard: React.FC<EditorProps> = ({ initialContent, onSave, fileName, 
                                     className="rounded-md p-1 text-faint transition-colors hover:bg-surface-hover hover:text-content"
                                     title={isSelected ? 'Deselect bug' : 'Select bug'}
                                 >
-                                    <span className={`flex h-4 w-4 items-center justify-center rounded border ${isSelected ? 'border-blue-400 bg-blue-500 text-content' : 'border-border-strong bg-bg text-transparent group-hover:text-muted'}`}>
+                                    <span className={`flex h-4 w-4 items-center justify-center rounded border ${isSelected ? 'border-accent bg-accent text-accent-content' : 'border-border-strong bg-bg text-transparent group-hover:text-muted'}`}>
                                       <Check className="h-3 w-3" />
                                     </span>
                                 </button>
                                 <div className="flex gap-1 opacity-0 group-hover:opacity-100 transition-opacity">
                                  <button 
                                      onClick={(e) => handleOpenEdit(e, bug)}
-                                     className="p-1 text-faint hover:text-blue-400 hover:bg-surface-hover rounded cursor-pointer"
+                                     className="p-1 text-faint hover:text-accent hover:bg-surface-hover rounded cursor-pointer"
                                     title="Edit Bug"
                                 >
                                     <Pencil className="w-4 h-4" />
@@ -744,7 +752,7 @@ const KanbanBoard: React.FC<EditorProps> = ({ initialContent, onSave, fileName, 
                                         e.stopPropagation();
                                         deleteBug(bug.id);
                                     }} 
-                                    className="p-1 text-faint hover:text-red-400 hover:bg-surface-hover rounded cursor-pointer"
+                                    className="p-1 text-faint hover:text-danger hover:bg-surface-hover rounded cursor-pointer"
                                     title="Delete Bug"
                                  >
                                      <Trash2 className="w-4 h-4" />
@@ -753,7 +761,7 @@ const KanbanBoard: React.FC<EditorProps> = ({ initialContent, onSave, fileName, 
                             </div>
                          </div>
                          <h5 className="text-sm font-medium text-content mb-1 pointer-events-none">{bug.title}</h5>
-                          <div className="mb-2 flex flex-wrap items-center gap-1.5 text-[10px] text-faint">
+                          <div className="mb-2 flex flex-wrap items-center gap-1.5 text-[11px] text-faint">
                             {bug.dueDate && (
                               <span className="inline-flex items-center gap-1 rounded border border-border-strong bg-bg px-1.5 py-0.5">
                                 <Calendar className="h-3 w-3" /> {new Date(bug.dueDate).toLocaleDateString()}
@@ -766,14 +774,14 @@ const KanbanBoard: React.FC<EditorProps> = ({ initialContent, onSave, fileName, 
                          {bug.tags && bug.tags.length > 0 && (
                            <div className="mb-2 flex flex-wrap gap-1">
                              {bug.tags.map(tag => (
-                               <span key={`${bug.id}-${tag}`} className="rounded bg-surface-raised/80 px-1.5 py-0.5 text-[10px] text-content">
+                               <span key={`${bug.id}-${tag}`} className="rounded bg-surface-raised/80 px-1.5 py-0.5 text-[11px] text-content">
                                  #{tag}
                                </span>
                              ))}
                            </div>
                          )}
                          <p className="text-xs text-faint line-clamp-2 mb-3 break-words">
-                           {bug.description ? renderDescriptionWithLinks(bug.description) : "No description provided."}
+                           {bug.description ? renderDescriptionWithLinks(bug.description) : "No description"}
                          </p>
                          
                          <div className="flex justify-between items-center mt-3 pt-3 border-t border-border pointer-events-auto relative z-10">
@@ -799,8 +807,8 @@ const KanbanBoard: React.FC<EditorProps> = ({ initialContent, onSave, fileName, 
                      )})}
                     {bottomSpacerHeight > 0 && <div style={{ height: bottomSpacerHeight }} />}
                     {colBugs.length === 0 && (
-                      <div className={`text-center py-8 pointer-events-none transition-opacity ${isActiveDrop ? 'opacity-50 text-blue-400' : 'text-faint'}`}>
-                        <div className="text-sm">{isActiveDrop ? 'Drop to move here' : 'No bugs here'}</div>{!isActiveDrop && <div className="mt-1 text-[11px]">Drag a card here, or use Report Bug</div>}
+                      <div className={`text-center py-8 pointer-events-none transition-opacity ${isActiveDrop ? 'opacity-50 text-accent' : 'text-faint'}`}>
+                        <div className="text-sm">{isActiveDrop ? 'Drop to move here' : 'No bugs here'}</div>{!isActiveDrop && <div className="mt-1 text-[11px]">Drag a card here, or use Report bug</div>}
                       </div>
                     )}
                  </div>
@@ -814,7 +822,7 @@ const KanbanBoard: React.FC<EditorProps> = ({ initialContent, onSave, fileName, 
         <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/80 backdrop-blur-sm p-4">
           <div className="bg-surface border border-border rounded-xl w-full max-w-2xl p-6 shadow-2xl">
             <div className="flex justify-between items-center mb-6">
-              <h2 className="text-xl font-bold text-content">{editingBug ? 'Edit Bug Report' : 'Report Bug'}</h2>
+              <h2 className="text-lg font-medium text-content">{editingBug ? 'Edit bug report' : 'Report bug'}</h2>
               <button onClick={resetForm} className="text-faint hover:text-content">
                 <X className="w-5 h-5" />
               </button>
@@ -828,7 +836,7 @@ const KanbanBoard: React.FC<EditorProps> = ({ initialContent, onSave, fileName, 
                   required
                   value={newTitle}
                   onChange={(e) => setNewTitle(e.target.value)}
-                  className="w-full bg-bg border border-border rounded-lg p-2.5 text-content focus:ring-2 focus:ring-red-600 focus:border-transparent outline-none transition-all"
+                  className="w-full bg-bg border border-border-strong/80 rounded-lg px-3 py-2 text-[0.8125rem] text-content placeholder:text-faint hover:border-border-strong focus:border-accent focus:ring-2 focus:ring-accent/25 outline-none transition-[border-color,box-shadow]"
                   placeholder="e.g., Crash on startup"
                 />
               </div>
@@ -840,7 +848,7 @@ const KanbanBoard: React.FC<EditorProps> = ({ initialContent, onSave, fileName, 
                       key={sev}
                       type="button"
                       onClick={() => setNewSeverity(sev)}
-                      className={`py-2 px-1 rounded-lg text-xs font-medium border transition-all ${
+                      className={`py-2 px-1 rounded-lg text-xs font-medium border transition-colors ${
                         newSeverity === sev
                           ? 'bg-surface-raised border-border-strong text-content ring-1 ring-accent'
                           : 'bg-bg border-border text-muted hover:bg-surface-hover'
@@ -857,7 +865,7 @@ const KanbanBoard: React.FC<EditorProps> = ({ initialContent, onSave, fileName, 
                   <select
                     value={newStatus}
                     onChange={(e) => setNewStatus(e.target.value as BugStatus)}
-                    className="w-full bg-bg border border-border rounded-lg p-2.5 text-content focus:ring-2 focus:ring-red-600 focus:border-transparent outline-none transition-all"
+                    className="w-full bg-bg border border-border-strong/80 rounded-lg px-3 py-2 text-[0.8125rem] text-content placeholder:text-faint hover:border-border-strong focus:border-accent focus:ring-2 focus:ring-accent/25 outline-none transition-[border-color,box-shadow]"
                   >
                       {BUG_COLUMNS.map(status => (
                         <option key={status} value={status}>{status}</option>
@@ -870,7 +878,7 @@ const KanbanBoard: React.FC<EditorProps> = ({ initialContent, onSave, fileName, 
                     type="date"
                     value={newDueDate}
                     onChange={(e) => setNewDueDate(e.target.value)}
-                    className="w-full bg-bg border border-border rounded-lg p-2.5 text-content focus:ring-2 focus:ring-red-600 focus:border-transparent outline-none transition-all [color-scheme:dark]"
+                    className="w-full bg-bg border border-border-strong/80 rounded-lg px-3 py-2 text-[0.8125rem] text-content placeholder:text-faint hover:border-border-strong focus:border-accent focus:ring-2 focus:ring-accent/25 outline-none transition-[border-color,box-shadow] [color-scheme:dark]"
                   />
                 </div>
               </div>
@@ -880,7 +888,7 @@ const KanbanBoard: React.FC<EditorProps> = ({ initialContent, onSave, fileName, 
                   type="text"
                   value={newTags}
                   onChange={(e) => setNewTags(e.target.value)}
-                  className="w-full bg-bg border border-border rounded-lg p-2.5 text-content focus:ring-2 focus:ring-red-600 focus:border-transparent outline-none transition-all"
+                  className="w-full bg-bg border border-border-strong/80 rounded-lg px-3 py-2 text-[0.8125rem] text-content placeholder:text-faint hover:border-border-strong focus:border-accent focus:ring-2 focus:ring-accent/25 outline-none transition-[border-color,box-shadow]"
                   placeholder="rendering, crash, multiplayer"
                 />
                 <p className="mt-1 text-[11px] text-faint">Comma-separated. Up to 8 tags.</p>
@@ -916,7 +924,7 @@ const KanbanBoard: React.FC<EditorProps> = ({ initialContent, onSave, fileName, 
                       type="button"
                       onClick={toggleLinkPicker}
                       disabled={linkableFiles.length === 0}
-                      className="text-xs text-cyan-400 hover:text-cyan-300 disabled:text-faint disabled:cursor-not-allowed flex items-center gap-1"
+                      className="text-xs text-accent hover:text-accent disabled:text-faint disabled:cursor-not-allowed flex items-center gap-1"
                       title={linkableFiles.length === 0 ? 'No files available to link' : 'Insert File Link'}
                     >
                       <LinkIcon className="w-3 h-3" /> Link File
@@ -944,7 +952,7 @@ const KanbanBoard: React.FC<EditorProps> = ({ initialContent, onSave, fileName, 
                                 title={file.id}
                               >
                                 <span className="truncate pr-2">{file.name}</span>
-                                <span className="text-[10px] text-faint">{file.id.slice(0, 8)}</span>
+                                <span className="text-[11px] text-faint">{file.id.slice(0, 8)}</span>
                               </button>
                             ))
                           )}
@@ -958,7 +966,7 @@ const KanbanBoard: React.FC<EditorProps> = ({ initialContent, onSave, fileName, 
                   onChange={(e) => setNewDesc(e.target.value)}
                   onDragOver={handleDescriptionDragOver}
                   onDrop={handleDescriptionDrop}
-                  className="w-full bg-bg border border-border rounded-lg p-3 text-content focus:ring-2 focus:ring-red-600 focus:border-transparent outline-none transition-all min-h-[100px]"
+                  className="w-full bg-bg border border-border-strong/80 rounded-lg px-3 py-2 text-[0.8125rem] text-content placeholder:text-faint hover:border-border-strong focus:border-accent focus:ring-2 focus:ring-accent/25 outline-none transition-[border-color,box-shadow] min-h-[100px]"
                   placeholder="Steps to reproduce..."
                 />
               </div>
@@ -966,7 +974,7 @@ const KanbanBoard: React.FC<EditorProps> = ({ initialContent, onSave, fileName, 
               <div className="pt-4 border-t border-border">
                 <button
                   type="submit"
-                  className="w-full bg-red-600 hover:bg-red-700 text-content px-4 py-2.5 rounded-lg text-sm font-medium transition-colors"
+                  className="w-full h-10 bg-accent hover:bg-accent-hover text-accent-content px-4 rounded-lg text-sm font-medium transition-colors"
                 >
                   {editingBug ? 'Save Changes' : 'Create Ticket'}
                 </button>

@@ -70,7 +70,7 @@ const Highlighted: React.FC<{ text: string; indexes: number[] }> = ({ text, inde
   return (
     <>
       {Array.from(text).map((ch, i) =>
-        set.has(i) ? <span key={i} className="font-semibold text-accent">{ch}</span> : <React.Fragment key={i}>{ch}</React.Fragment>,
+        set.has(i) ? <span key={i} className="font-medium text-accent">{ch}</span> : <React.Fragment key={i}>{ch}</React.Fragment>,
       )}
     </>
   );
@@ -211,7 +211,6 @@ const CommandPalette: React.FC<CommandPaletteProps> = ({
           label: p.name,
           indexes: match.indexes,
           sub: 'Switch project',
-          hint: p.type,
           icon: LayoutGrid,
           run: () => onSelectProject(p.id),
         });
@@ -334,14 +333,14 @@ const CommandPalette: React.FC<CommandPaletteProps> = ({
                     </div>
                     {row.sub && <div className="truncate text-[11px] text-faint">{row.sub}</div>}
                   </div>
-                  {row.hint && <span className={cn('shrink-0 text-[11px]', mode === 'commands' ? 'kbd' : 'text-faint')}>{row.hint}</span>}
+                  {row.hint && <span className={cn('shrink-0', mode === 'commands' ? 'kbd' : 'count')}>{row.hint}</span>}
                 </div>
               );
             })
           )}
         </div>
 
-        <div className="flex flex-wrap items-center gap-x-4 gap-y-1 border-t border-border bg-chrome px-3 py-1.5 text-[11px] text-faint">
+        <div className="flex flex-wrap items-center gap-x-4 gap-y-1 border-t border-border bg-chrome px-3 py-2 text-[11px] text-faint">
           <span><span className="kbd">↑↓</span> to navigate</span>
           <span><span className="kbd">↵</span> to {mode === 'files' ? 'open' : mode === 'templates' ? 'insert' : 'use'}</span>
           {mode === 'files' && activeProject && <span><span className="kbd">shift ↵</span> to create</span>}

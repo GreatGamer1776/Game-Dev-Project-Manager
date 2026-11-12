@@ -171,8 +171,8 @@ const AdminUsersModal: React.FC<AdminUsersModalProps> = ({ open, onClose }) => {
                       {isSelf && <span className="text-faint"> (you)</span>}
                     </span>
                     {user.isAdmin && (
-                      <span className="inline-flex items-center gap-1 rounded-full bg-accent/15 text-accent px-2 py-0.5 text-[10px] font-semibold uppercase tracking-wide">
-                        <ShieldCheck className="w-3 h-3" /> admin
+                      <span className="inline-flex items-center gap-1 text-xs text-faint">
+                        <ShieldCheck className="h-3.5 w-3.5" /> Admin
                       </span>
                     )}
                   </div>

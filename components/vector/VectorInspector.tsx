@@ -19,7 +19,7 @@ interface Props {
 const Section: React.FC<{ title: string; action?: React.ReactNode; children: React.ReactNode }> = ({ title, action, children }) => (
   <section className="border-b border-border/70 px-3 py-3">
     <div className="mb-2 flex items-center justify-between">
-      <h3 className="text-[11px] font-semibold uppercase tracking-wide text-faint">{title}</h3>
+      <h3 className="eyebrow">{title}</h3>
       {action}
     </div>
     {children}
@@ -64,7 +64,7 @@ const VectorInspector: React.FC<Props> = ({ doc, commit, activeLayerId, onActive
   return (
     <aside className="flex w-64 shrink-0 flex-col overflow-y-auto border-l border-border bg-chrome text-[12px]" aria-label="Vector inspector">
       <div className="flex h-9 shrink-0 items-center justify-between border-b border-border/70 pl-3 pr-1.5">
-        <span className="text-[12px] font-semibold text-content">Inspector</span>
+        <span className="text-[12px] font-medium text-content">Inspector</span>
         <button type="button" className="icon-btn" title="Close panel" aria-label="Close panel" onClick={onClose}><X className="h-4 w-4" /></button>
       </div>
 
@@ -119,7 +119,7 @@ const VectorInspector: React.FC<Props> = ({ doc, commit, activeLayerId, onActive
                   onChange={e => commit(updateLayer(doc, layer.id, { name: e.target.value }))}
                   className={cn('h-6 min-w-0 flex-1 rounded bg-transparent px-1 text-[12px] outline-none focus:bg-bg focus:ring-1 focus:ring-accent', !layer.visible && 'text-faint')}
                 />
-                <span className="w-5 text-right text-[10px] tabular-nums text-faint group-hover:hidden">{counts.get(layer.id) || ''}</span>
+                <span className="w-5 text-right text-[11px] tabular-nums text-faint group-hover:hidden">{counts.get(layer.id) || ''}</span>
                 <div className="hidden items-center group-hover:flex">
                   <button type="button" className="icon-btn h-6 w-5" title="Move layer up" aria-label="Move layer up" disabled={i === doc.layers.length - 1} onClick={e => { e.stopPropagation(); commit(reorderLayer(doc, layer.id, 1)); }}>
                     <ArrowUp className="h-3 w-3" />

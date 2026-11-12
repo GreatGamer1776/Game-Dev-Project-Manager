@@ -5,7 +5,7 @@ import { cn } from './cn';
 export const Logo: React.FC<{ size?: number; className?: string }> = ({ size = 28, className }) => (
   <span
     aria-hidden
-    className={cn('inline-flex shrink-0 items-center justify-center bg-accent text-accent-content shadow-soft', className)}
+    className={cn('inline-flex shrink-0 items-center justify-center bg-accent text-accent-content', className)}
     style={{ width: size, height: size, borderRadius: Math.round(size * 0.28) }}
   >
     <svg viewBox="0 0 24 24" width={Math.round(size * 0.64)} height={Math.round(size * 0.64)} fill="currentColor">
@@ -20,6 +20,6 @@ export const Logo: React.FC<{ size?: number; className?: string }> = ({ size = 2
 export const Wordmark: React.FC<{ size?: number; className?: string }> = ({ size = 26, className }) => (
   <span className={cn('inline-flex items-center gap-2.5', className)}>
     <Logo size={size} />
-    <span className="font-display text-[0.9375rem] font-semibold tracking-tight text-content">DevArchitect</span>
+    <span className="font-display text-base font-semibold text-content">DevArchitect</span>
   </span>
 );

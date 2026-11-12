@@ -558,7 +558,7 @@ const BaseEditor: React.FC<EditorProps> = ({ initialContent, onSave, projectFile
                     onClick={e => showMenu(e, options.map(a => ({ label: labels[a], checked: a === kind, onSelect: () => updateView({ aggregates: { ...(view.aggregates || {}), [column.id]: a } }) })), 'below')}
                     className="w-full px-2 py-1 text-right text-[11px] text-faint opacity-60 hover:bg-surface-hover hover:opacity-100"
                   >
-                    {kind === 'none' ? 'Calculate' : <><span className="mr-1 uppercase">{labels[kind]}</span><span className="text-content">{aggregate(column, rows, kind)}</span></>}
+                    {kind === 'none' ? 'Calculate' : <><span className="mr-1">{labels[kind]}</span><span className="text-content">{aggregate(column, rows, kind)}</span></>}
                   </button>
                 </td>
               );
@@ -607,7 +607,7 @@ const BaseEditor: React.FC<EditorProps> = ({ initialContent, onSave, projectFile
       >
         {cover && (
           <div className="flex h-28 items-center justify-center bg-surface-raised">
-            {coverSrc ? <img src={coverSrc} alt="" className="h-full w-full object-cover" /> : <span className="text-2xl font-semibold text-faint">{titleOf(row).slice(0, 1).toUpperCase()}</span>}
+            {coverSrc ? <img src={coverSrc} alt="" className="h-full w-full object-cover" /> : <span className="text-2xl font-medium text-faint">{titleOf(row).slice(0, 1).toUpperCase()}</span>}
           </div>
         )}
         <div className="px-3 py-2">
@@ -697,7 +697,7 @@ const BaseEditor: React.FC<EditorProps> = ({ initialContent, onSave, projectFile
     return (
       <div className="flex min-h-0 flex-1 flex-col p-3">
         <div className="mb-2 flex items-center gap-2">
-          <span className="text-[0.9375rem] font-semibold text-content">{first.toLocaleDateString(undefined, { month: 'long', year: 'numeric' })}</span>
+          <span className="text-[0.9375rem] font-medium text-content">{first.toLocaleDateString(undefined, { month: 'long', year: 'numeric' })}</span>
           <div className="ml-auto flex items-center gap-1">
             {undated > 0 && <span className="mr-2 text-[11px] text-faint">{undated} without a date</span>}
             <button type="button" className="icon-btn" onClick={() => setMonth(m => (m.m === 0 ? { y: m.y - 1, m: 11 } : { y: m.y, m: m.m - 1 }))} aria-label="Previous month"><ChevronLeft className="h-4 w-4" /></button>
@@ -831,7 +831,7 @@ const BaseEditor: React.FC<EditorProps> = ({ initialContent, onSave, projectFile
               onChange={e => setCell(openRow.id, titleColumn.id, titleColumn.type === 'number' ? Number(e.target.value) : e.target.value)}
               placeholder="Untitled"
               aria-label={titleColumn.name}
-              className="mb-4 w-full bg-transparent text-xl font-semibold text-content outline-none placeholder:text-faint"
+              className="mb-4 w-full bg-transparent text-lg font-medium text-content outline-none placeholder:text-faint"
               readOnly={titleColumn.type !== 'text' && titleColumn.type !== 'number'}
             />
             <div className="space-y-1.5">

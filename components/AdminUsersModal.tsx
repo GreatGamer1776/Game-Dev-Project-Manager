@@ -107,7 +107,6 @@ const AdminUsersModal: React.FC<AdminUsersModalProps> = ({ open, onClose }) => {
       open={open}
       onClose={onClose}
       title="Manage Users"
-      description="Accounts are invite-only — create them here."
       size="lg"
     >
       <form onSubmit={handleCreate} className="flex items-end gap-2 pb-4 border-b border-border">

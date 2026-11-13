@@ -23,7 +23,7 @@ export const BookmarksPanel: React.FC<{
 }> = ({ files, bookmarkIds, activeFileId, onOpen, onRemove }) => {
   const items = bookmarkIds.map(id => files.find(f => f.id === id)).filter((f): f is ProjectFile => Boolean(f));
   if (items.length === 0) {
-    return <Empty icon={Bookmark}>No bookmarks yet. Right-click a file or tab and choose "Bookmark".</Empty>;
+    return <Empty icon={Bookmark}>No bookmarks</Empty>;
   }
   return (
     <div className="min-h-0 overflow-y-auto px-1.5 py-2">
@@ -90,7 +90,7 @@ export const TagsPanel: React.FC<{ files: ProjectFile[]; onSelect: (tag: string)
   }, [files]);
 
   if (tree.children.size === 0) {
-    return <Empty icon={Hash}>No tags yet. Add #tags to documents (or a tags property).</Empty>;
+    return <Empty icon={Hash}>No tags</Empty>;
   }
 
   const render = (node: TagNode, depth: number): React.ReactNode =>

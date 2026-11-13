@@ -149,16 +149,3 @@ export const descendantFolderIds = (folders: ProjectFolder[], folderId: string):
   }
   return ids;
 };
-
-export const STARTER_PROJECT: Project = {
-  id: '1',
-  name: 'Cosmic Invaders',
-  icon: 'rocket',
-  description: 'A retro-style space shooter.',
-  lastModified: Date.now(),
-  files: [
-    { id: 'f1', name: 'Game Design Document', type: 'doc', content: '# Cosmic Invaders\n\n## Pitch\n\nA retro-style space shooter.\n\n## Core loop\n\n- Dodge\n- Shoot\n- Upgrade', folderId: null },
-  ],
-  folders: [],
-  assets: {},
-};

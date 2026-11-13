@@ -1,6 +1,6 @@
 import React, { useCallback, useEffect, useMemo, useRef, useState } from 'react';
 import {
-  Search, X, BookOpen, FilePlus2, FolderPlus, PanelLeft, PanelRight, ArrowLeft, ArrowRight,
+  Search, X, FilePlus2, FolderPlus, PanelLeft, PanelRight, ArrowLeft, ArrowRight,
   Pencil, Trash2, Link2, Crosshair, Pin, Settings as SettingsIcon, HelpCircle, LayoutGrid, Download, LogOut, Users,
   SunMoon, ListTree, FileSearch, Waypoints, CalendarDays, Bookmark, Hash, FileInput, Columns2, Rows2, Plus,
 } from 'lucide-react';
@@ -8,7 +8,6 @@ import JSZip from 'jszip';
 import Dashboard from './components/Dashboard';
 import CommandPalette, { PaletteCommand, PaletteMode } from './components/CommandPalette';
 import HelpModal from './components/HelpModal';
-import GuideView, { GuideSectionId } from './components/GuideView';
 import { Project, ViewState, ProjectFile, FileType, EditorProps, ProjectFolder, TaskNavigationTarget } from './types';
 import { useProjectStore } from './stores/useProjectStore';
 import { api, setUnauthorizedHandler, getAuthToken, PersistedAppState } from './services/api';
@@ -25,7 +24,7 @@ import { getFileTypeMeta, SINGLE_INSTANCE_FILE_TYPES, MANDATORY_SINGLETON_FILES,
 import { resolveWikilink, renameWikilinks, extractTags, applyTemplateVariables, formatDate } from './utils/markdown';
 import { INSERT_TEXT_EVENT, InsertTextDetail } from './utils/events';
 import {
-  normalizeProject, createProjectFile, uniqueName, folderChain, descendantFolderIds, STARTER_PROJECT,
+  normalizeProject, createProjectFile, uniqueName, folderChain, descendantFolderIds,
 } from './utils/projectModel';
 import { uid } from './utils/id';
 import { useWorkspace, PersistedLeaf, PersistedWorkspace, Edge, OpenMode, currentFileOf } from './hooks/useWorkspace';
@@ -118,7 +117,7 @@ const useMediaQuery = (query: string) => {
 const EditorLoadingFallback = () => (
   <div className="flex h-full items-center justify-center bg-bg">
     <div className="h-1 w-24 overflow-hidden rounded-full bg-surface-hover">
-      <div className="h-full w-1/3 animate-pulse rounded-full bg-accent/60" />
+      <div className="h-full w-1/3 animate-pulse rounded-full bg-faint" />
     </div>
   </div>
 );
@@ -153,7 +152,6 @@ const App: React.FC = () => {
   const [paletteMode, setPaletteMode] = useState<PaletteMode | null>(null);
   const [isHelpOpen, setIsHelpOpen] = useState(false);
   const [showAdminUsers, setShowAdminUsers] = useState(false);
-  const [guide, setGuide] = useState<{ open: boolean; section: GuideSectionId }>({ open: false, section: 'overview' });
 
   const [leftOpen, setLeftOpen] = useState(true);
   const [rightOpen, setRightOpen] = useState(false);
@@ -267,11 +265,8 @@ const App: React.FC = () => {
       try {
         const [loaded, savedAppState] = await Promise.all([api.listProjects(), api.loadAppState()]);
         if (cancelled) return;
-        const normalizedLoaded = loaded.map(normalizeProject);
-        // When the database is empty, seed the starter project. The diff-save
-        // effect below persists it on first run.
-        const hydratedProjects = normalizedLoaded.length > 0 ? normalizedLoaded : [normalizeProject({ ...STARTER_PROJECT, lastModified: Date.now() })];
-        persistedProjectsRef.current = normalizedLoaded;
+        const hydratedProjects = loaded.map(normalizeProject);
+        persistedProjectsRef.current = hydratedProjects;
         setProjects(hydratedProjects);
 
         const project = savedAppState?.activeProjectId
@@ -437,7 +432,6 @@ const App: React.FC = () => {
   const enterProject = (project: Project) => {
     setActiveProjectId(project.id);
     setCurrentView(ViewState.PROJECT);
-    setGuide(g => ({ ...g, open: false }));
     const fileId = defaultFileOf(project);
     ws.resetTabs(fileId ? [{ fileId, pinned: false }] : [], 0);
     if (!isMobile) setLeftOpen(true);
@@ -449,7 +443,6 @@ const App: React.FC = () => {
   };
 
   const goToDashboard = () => {
-    setGuide(g => ({ ...g, open: false }));
     setActiveProjectId(null);
     setCurrentView(ViewState.DASHBOARD);
     ws.reset(null);
@@ -591,7 +584,6 @@ const App: React.FC = () => {
 
   const openFile = (fileId: string, mode: OpenMode = 'current') => {
     setTaskNavigationTarget(null);
-    setGuide(g => (g.open ? { ...g, open: false } : g));
     if ((mode === 'split-right' || mode === 'split-down') && !canDuplicate(fileId)) {
       // Move the existing tab into the split instead of opening a second editor.
       const existing = ws.findLeaf(fileId);
@@ -1055,7 +1047,6 @@ const App: React.FC = () => {
     setLeftTab('search');
     setSearchFocusSignal(n => n + 1);
   };
-  const openGuide = (section: GuideSectionId = 'overview') => setGuide({ open: true, section });
 
   const commands: PaletteCommand[] = [
     { id: 'switcher', group: 'Quick switcher', label: 'Open', hotkey: 'Ctrl O', icon: FileSearch, run: () => setPaletteMode('files') },
@@ -1111,7 +1102,6 @@ const App: React.FC = () => {
     { id: 'projects', group: 'Project', label: 'Manage projects', icon: LayoutGrid, run: goToDashboard },
     { id: 'theme', group: 'Appearance', label: 'Toggle light/dark mode', icon: SunMoon, run: toggleTheme },
     { id: 'settings', group: 'App', label: 'Open settings', hotkey: 'Ctrl ,', icon: SettingsIcon, run: openSettings },
-    { id: 'guide', group: 'App', label: 'Open guide', icon: BookOpen, run: () => openGuide() },
     { id: 'help', group: 'App', label: 'Show keyboard shortcuts', icon: HelpCircle, run: () => setIsHelpOpen(true) },
     ...(authUser?.isAdmin ? [{ id: 'users', group: 'App', label: 'Manage users', icon: Users, run: () => setShowAdminUsers(true) }] : []),
     { id: 'logout', group: 'App', label: 'Sign out', icon: LogOut, run: () => void handleLogout() },
@@ -1220,7 +1210,7 @@ const App: React.FC = () => {
   if (!authReady) {
     return (
       <div className="flex h-full items-center justify-center bg-chrome" role="status" aria-label="Loading DevArchitect">
-        <Logo size={44} className="animate-fade-in" />
+        <Logo size={32} className="animate-fade-in" />
       </div>
     );
   }
@@ -1274,7 +1264,6 @@ const App: React.FC = () => {
         onOpenGraph={() => openFile(GRAPH_VIEW_ID)}
         onOpenDailyNote={openDailyNote}
         onHome={goToDashboard}
-        onOpenGuide={() => openGuide()}
         onOpenHelp={() => setIsHelpOpen(true)}
         onOpenSettings={openSettings}
         onOpenAdmin={() => setShowAdminUsers(true)}
@@ -1478,8 +1467,8 @@ const App: React.FC = () => {
   const renderWorkspace = () => activeProject && (
     <div className="relative flex min-w-0 flex-1">
       {renderLeftDock()}
-      <div className={cn('flex min-w-0 flex-1 flex-col', !isMobile && 'pb-1.5 pt-1.5', !isMobile && (leftOpen ? 'pl-0' : 'pl-1.5'), !isMobile && (rightOpen ? 'pr-0' : 'pr-1.5'))}>
-        <div className={cn('flex min-h-0 min-w-0 flex-1 flex-col overflow-hidden bg-bg', !isMobile && 'rounded-xl border border-border shadow-soft')}>
+      <div className="flex min-w-0 flex-1 flex-col">
+        <div className={cn('flex min-h-0 min-w-0 flex-1 flex-col overflow-hidden bg-bg', !isMobile && leftOpen && 'border-l border-border', !isMobile && rightOpen && 'border-r border-border')}>
         {isMobile ? (
           // Phones show one pane at a time; the rest stay in the layout.
           <div className="flex min-h-0 flex-1 flex-col">{renderPane(ws.activePaneId)}</div>
@@ -1513,37 +1502,7 @@ const App: React.FC = () => {
         </div>
       )}
       <div className="flex min-h-0 flex-1">
-        {guide.open ? (
-          <div className={cn('flex min-w-0 flex-1 flex-col', !isMobile && 'p-1.5 pb-0')}>
-            <div className={cn('flex min-h-0 flex-1 flex-col overflow-hidden bg-bg', !isMobile && 'rounded-xl border border-border shadow-soft')}>
-              <div className="flex h-[var(--header-h)] shrink-0 items-center gap-2 border-b border-border px-2">
-                <button
-                  type="button"
-                  className="icon-btn"
-                  data-tip={inProject ? 'Back to the project' : 'Back to projects'}
-                  aria-label="Close guide"
-                  onClick={() => setGuide(g => ({ ...g, open: false }))}
-                >
-                  <ArrowLeft className="h-4 w-4" />
-                </button>
-                <BookOpen className="h-4 w-4 text-faint" />
-                <span className="text-[0.8125rem] font-medium text-content">Guide</span>
-                <button
-                  type="button"
-                  className="icon-btn ml-auto"
-                  data-tip="Close guide"
-                  aria-label="Close guide"
-                  onClick={() => setGuide(g => ({ ...g, open: false }))}
-                >
-                  <X className="h-4 w-4" />
-                </button>
-              </div>
-              <div className="min-h-0 flex-1">
-                <GuideView initialSection={guide.section} />
-              </div>
-            </div>
-          </div>
-        ) : inProject ? (
+        {inProject ? (
           renderWorkspace()
         ) : (
           <div className="min-w-0 flex-1">
@@ -1556,7 +1515,6 @@ const App: React.FC = () => {
               onUpdateProject={handleUpdateProject}
               onExportProject={p => void handleExportProject(p)}
               onDeleteProject={id => void handleDeleteProject(id)}
-              onOpenGuide={() => openGuide()}
               onOpenHelp={() => setIsHelpOpen(true)}
               onOpenSettings={openSettings}
               onOpenAdmin={() => setShowAdminUsers(true)}
@@ -1570,7 +1528,7 @@ const App: React.FC = () => {
       {(inProject || saveState === 'error') && (
         <StatusBar
           saveState={saveState}
-          file={inProject && !guide.open ? activeFile : undefined}
+          file={inProject ? activeFile : undefined}
           files={activeProject?.files || []}
           projectName={inProject ? activeProject?.name : undefined}
           onOpenLinks={() => { setRightOpen(true); setRightTab('links'); }}

@@ -16,8 +16,8 @@
     root.classList.add('dark');
   }
   // Retired accent schemes fall back to the default.
-  var scheme = get('devarchitect-scheme', 'ember');
-  if (['ember', 'blue', 'cyan', 'teal', 'emerald', 'rose', 'amber'].indexOf(scheme) < 0) scheme = 'ember';
+  var scheme = get('devarchitect-scheme', 'blue');
+  if (['blue', 'cyan', 'teal', 'emerald', 'rose', 'amber'].indexOf(scheme) < 0) scheme = 'blue';
   root.setAttribute('data-scheme', scheme);
   root.setAttribute('data-tint', get('devarchitect-tint', 'neutral'));
   root.setAttribute('data-corners', get('devarchitect-corners', 'precise'));

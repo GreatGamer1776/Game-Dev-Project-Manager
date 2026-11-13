@@ -57,7 +57,7 @@ const ToolbarButton: React.FC<{
     aria-label={title}
     className={cn(
       'flex h-7 w-7 shrink-0 items-center justify-center rounded-md transition-colors disabled:opacity-35',
-      active ? 'bg-accent/15 text-accent' : 'text-faint hover:bg-surface-hover hover:text-content',
+      active ? 'bg-surface-hover text-content' : 'text-faint hover:bg-surface-hover hover:text-content',
     )}
   >
     <Icon className="h-4 w-4" />
@@ -500,13 +500,10 @@ const DocEditor: React.FC<EditorProps> = ({
                   onToggleTask={toggleTaskAt}
                 />
               ) : (
-                <div className="mx-auto mt-10 max-w-sm rounded-lg border border-border bg-surface px-4 py-3 text-center text-[12px] leading-relaxed text-muted">
-                  <div className="mb-1 text-[13px] font-medium text-content">Nothing to read yet</div>
-                  This document is empty. Start writing — type <kbd className="rounded bg-surface-hover px-1">/</kbd> for blocks or <kbd className="rounded bg-surface-hover px-1">[[</kbd> to link another file.
+                <div className="empty-line">
+                  <span>Empty document</span>
                   {viewMode === 'preview' && (
-                    <div className="mt-2">
-                      <button type="button" onClick={() => setViewMode('edit')} className="rounded-md bg-accent px-2.5 py-1 text-[12px] font-medium text-accent-content hover:bg-accent-hover">Start writing</button>
-                    </div>
+                    <button type="button" onClick={() => setViewMode('edit')} className="link-action">Start writing</button>
                   )}
                 </div>
               )}

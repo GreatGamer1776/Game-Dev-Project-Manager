@@ -451,16 +451,16 @@ const AssetBrowser: React.FC<EditorProps> = ({ initialContent, assets = {}, onAd
         <button
           onClick={handleUploadFiles}
           disabled={isUploading || !onAddAsset}
-          className="flex h-7 shrink-0 items-center gap-1.5 rounded-md bg-accent px-2.5 text-[12px] font-medium text-accent-content hover:bg-accent-hover disabled:opacity-60"
-          title="Upload images, video, or audio (or drop files onto the grid)"
+          className="btn-tool"
+          title="Upload images, video or audio"
         >
           <Upload className="w-3.5 h-3.5" /> Upload
         </button>
         <button
           onClick={handleUploadFolder}
           disabled={isUploading || !onAddAsset}
-          className="flex h-7 shrink-0 items-center gap-1.5 rounded-md px-2.5 text-[12px] text-muted hover:bg-surface-hover hover:text-content disabled:opacity-60"
-          title="Upload every media file in a folder"
+          className="btn-tool"
+          title="Upload a folder"
         >
           <FolderOpen className="w-3.5 h-3.5" /> Folder
         </button>
@@ -508,7 +508,7 @@ const AssetBrowser: React.FC<EditorProps> = ({ initialContent, assets = {}, onAd
           <div>
             {sortedRootFolders.map(folder => renderFolderTree(folder))}
             {sortedRootFolders.length === 0 && (
-              <div className="px-2 py-3 text-[11px] leading-relaxed text-faint">No folders yet. Use <FolderPlus className="inline h-3 w-3" /> above to make one, then drag assets onto it.</div>
+              <div className="px-2 py-3 text-[11px] text-faint">No folders</div>
             )}
           </div>
         </aside>
@@ -521,34 +521,24 @@ const AssetBrowser: React.FC<EditorProps> = ({ initialContent, assets = {}, onAd
           onClick={(e) => { if (e.target === e.currentTarget) setSelectedAssetId(null); }}
         >
           {assetList.length === 0 ? (
-            <div className="flex justify-center px-4 pt-10">
-              <div className="max-w-md rounded-lg border border-border bg-surface px-4 py-3 text-[12px] leading-relaxed text-muted">
-                <div className="mb-1 flex items-center gap-1.5 text-[13px] font-medium text-content"><ImagePlus className="h-4 w-4 text-faint" /> Your asset library is empty</div>
-                Upload sprites, concept art, video, or audio — or drop files anywhere here. Then drag an asset into a document or whiteboard to use it; every file in the project shares this library.
-                <div className="mt-2 flex flex-wrap gap-1.5">
-                  <button type="button" onClick={handleUploadFiles} disabled={!onAddAsset} className="rounded-md bg-accent px-2 py-1 text-[12px] font-medium text-accent-content hover:bg-accent-hover disabled:opacity-60">Upload files</button>
-                  <button type="button" onClick={handleUploadFolder} disabled={!onAddAsset} className="rounded-md px-2 py-1 text-[12px] text-muted ring-1 ring-border hover:bg-surface-hover disabled:opacity-60">Upload a folder</button>
-                </div>
-              </div>
+            <div className="empty-line">
+              <span>No assets</span>
+              <button type="button" onClick={handleUploadFiles} disabled={!onAddAsset} className="link-action">Upload files</button>
+              <button type="button" onClick={handleUploadFolder} disabled={!onAddAsset} className="link-action">Upload a folder</button>
             </div>
           ) : filteredAssets.length === 0 ? (
-            <div className="flex justify-center px-4 pt-10">
-              <div className="max-w-sm rounded-lg border border-border bg-surface px-4 py-3 text-center text-[12px] leading-relaxed text-muted">
-                {searchQuery ? (
-                  <>
-                    No assets here match <b className="text-content">{searchQuery}</b>.
-                    <button type="button" onClick={() => setSearchQuery('')} className="ml-1 text-accent hover:underline">Clear filter</button>
-                  </>
-                ) : (
-                  <>
-                    <div className="mb-1 text-[13px] font-medium text-content">This folder is empty</div>
-                    Drag assets from another folder onto it in the sidebar, or upload straight into it.
-                    <div className="mt-2">
-                      <button type="button" onClick={handleUploadFiles} disabled={!onAddAsset} className="rounded-md bg-accent px-2 py-1 text-[12px] font-medium text-accent-content hover:bg-accent-hover disabled:opacity-60">Upload here</button>
-                    </div>
-                  </>
-                )}
-              </div>
+            <div className="empty-line">
+              {searchQuery ? (
+                <>
+                  <span>No assets match “{searchQuery}”</span>
+                  <button type="button" onClick={() => setSearchQuery('')} className="link-action">Clear filter</button>
+                </>
+              ) : (
+                <>
+                  <span>Empty folder</span>
+                  <button type="button" onClick={handleUploadFiles} disabled={!onAddAsset} className="link-action">Upload here</button>
+                </>
+              )}
             </div>
           ) : (
             <div className="grid grid-cols-[repeat(auto-fill,minmax(150px,1fr))] gap-3">

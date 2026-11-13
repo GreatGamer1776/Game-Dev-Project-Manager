@@ -18,7 +18,7 @@ The app keeps project documents, task planning, bug tracking, roadmaps, flowchar
 - Daily notes (`Alt+D`), templates, bookmarks, and a tags panel
 - Project picker for creating, opening, updating, exporting, and deleting projects
 - Nested project folders with drag-and-drop for files and folders, and inline renaming
-- In-app guide and keyboard-shortcut reference
+- Keyboard-shortcut reference
 - Username/password accounts — no email or PII collected
 - Server-side persistence in PostgreSQL via a Fastify REST API, with per-user data isolation
 - ZIP export for portable project backups

@@ -551,10 +551,10 @@ const DataGridEditor: React.FC<EditorProps> = ({ initialContent, onSave, fileNam
         <button onClick={() => { const prev = undoRedo.undo(); if (prev !== undefined) { setColumns(prev.columns); setRows(prev.rows); } }} disabled={!undoRedo.canUndo} className="icon-btn" title="Undo (Ctrl+Z)" aria-label="Undo"><Undo2 className="w-4 h-4" /></button>
         <button onClick={() => { const next = undoRedo.redo(); if (next !== undefined) { setColumns(next.columns); setRows(next.rows); } }} disabled={!undoRedo.canRedo} className="icon-btn" title="Redo (Ctrl+Y)" aria-label="Redo"><Redo2 className="w-4 h-4" /></button>
         <span className="mx-1 h-4 w-px shrink-0 bg-border" />
-        <button onClick={addRow} className="flex h-7 shrink-0 items-center gap-1.5 rounded-md bg-accent px-2.5 text-[12px] font-medium text-accent-content hover:bg-accent-hover">
+        <button onClick={addRow} className="btn-tool">
           <Plus className="w-3.5 h-3.5" /> Row
         </button>
-        <button onClick={() => addColumn()} className="flex h-7 shrink-0 items-center gap-1.5 rounded-md px-2.5 text-[12px] text-muted hover:bg-surface-hover hover:text-content" title="Add a column">
+        <button onClick={() => addColumn()} className="btn-tool" title="Add a column">
           <Plus className="w-3.5 h-3.5" /> Column
         </button>
         {selectedRowIds.size > 0 && (
@@ -727,7 +727,7 @@ const DataGridEditor: React.FC<EditorProps> = ({ initialContent, onSave, fileNam
                   <tr>
                     <td colSpan={columns.length + 3} className="px-6 py-10 text-center text-sm text-faint">
                       {rows.length === 0 ? (
-                        <>No rows yet. <button type="button" onClick={addRow} className="text-accent hover:underline">Add the first row</button></>
+                        <>No rows. <button type="button" onClick={addRow} className="text-accent hover:underline">Add row</button></>
                       ) : (
                         <>No rows match “{searchQuery}”. <button type="button" onClick={() => setSearchQuery('')} className="text-accent hover:underline">Clear filter</button></>
                       )}

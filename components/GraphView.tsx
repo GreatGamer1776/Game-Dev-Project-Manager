@@ -416,7 +416,7 @@ const GraphView: React.FC<GraphViewProps> = ({ files, activeFileId, onOpenFile, 
       )}
       {graph.nodes.length <= 1 && (
         <div className="pointer-events-none absolute inset-x-0 bottom-8 text-center text-[12px] text-faint">
-          {local ? 'No links to or from this file yet.' : 'Link files with [[wikilinks]] to see connections.'}
+          {local ? 'No links to or from this file' : 'No links between files'}
         </div>
       )}
       <Popover anchor={settingsAnchor} onClose={() => setSettingsAnchor(null)} className="w-60">

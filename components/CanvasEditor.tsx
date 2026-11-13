@@ -534,17 +534,12 @@ const CanvasInner: React.FC<EditorProps> = ({ initialContent, onSave, projectFil
         </ReactFlow>
 
         {nodes.length === 0 && (
-          <div className="pointer-events-none absolute inset-x-0 top-6 flex justify-center px-4">
-            <div className="pointer-events-auto max-w-md rounded-lg border border-border bg-surface/95 px-4 py-3 text-[12px] text-muted shadow-raised">
-              <div className="mb-1 text-[13px] font-medium text-content">Empty canvas</div>
-              <p className="leading-relaxed">
-                <b className="text-content">Double-click</b> anywhere to add a markdown card, or drag files in from the sidebar. Drag from the dot on a card's edge to another card to connect them; right-click a connection to label it.
-              </p>
-              <div className="mt-2 flex flex-wrap gap-1.5">
-                <button type="button" onClick={() => addNode({ type: 'text', width: 260, height: 140, text: '' })} className="rounded-md bg-accent px-2 py-1 text-[12px] font-medium text-accent-content hover:bg-accent-hover">Add a card</button>
-                <button type="button" onClick={e => setFilePicker(e.currentTarget)} disabled={projectFiles.length < 2} className="rounded-md px-2 py-1 text-[12px] text-muted ring-1 ring-border hover:bg-surface-hover disabled:opacity-40">Embed a file</button>
-                <button type="button" onClick={() => void addLink()} className="rounded-md px-2 py-1 text-[12px] text-muted ring-1 ring-border hover:bg-surface-hover">Add a web link</button>
-              </div>
+          <div className="pointer-events-none absolute inset-x-0 top-4 flex justify-center px-4">
+            <div className="empty-line pointer-events-auto">
+              <span>Empty canvas</span>
+              <button type="button" onClick={() => addNode({ type: 'text', width: 260, height: 140, text: '' })} className="link-action">Add a card</button>
+              <button type="button" onClick={e => setFilePicker(e.currentTarget)} disabled={projectFiles.length < 2} className="link-action">Embed a file</button>
+              <button type="button" onClick={() => void addLink()} className="link-action">Add a web link</button>
             </div>
           </div>
         )}
@@ -556,7 +551,7 @@ const CanvasInner: React.FC<EditorProps> = ({ initialContent, onSave, projectFil
           <button type="button" className="icon-btn h-8 w-8" title="Add card (or double-click the canvas)" aria-label="Add card" onClick={() => addNode({ type: 'text', width: 260, height: 140, text: '' })}><StickyNote className="h-4 w-4" /></button>
           <button type="button" className="icon-btn h-8 w-8" title="Embed a project file (or drag one in from the sidebar)" aria-label="Add file" onClick={e => setFilePicker(e.currentTarget)}><FileSymlink className="h-4 w-4" /></button>
           <button type="button" className="icon-btn h-8 w-8" title="Add web link" aria-label="Add web link" onClick={() => void addLink()}><Link2 className="h-4 w-4" /></button>
-          <button type="button" className="icon-btn h-8 w-8" title="Add group — wraps the selected cards (drag across empty space to select several)" aria-label="Add group" onClick={addGroup}><BoxSelect className="h-4 w-4" /></button>
+          <button type="button" className="icon-btn h-8 w-8" title="Group selected cards" aria-label="Add group" onClick={addGroup}><BoxSelect className="h-4 w-4" /></button>
           <span className="mx-1 h-5 w-px bg-border" />
           <button type="button" className="icon-btn h-8 w-8" title="Zoom to fit" aria-label="Zoom to fit" onClick={() => flow.fitView({ padding: 0.2, duration: 250 })}><Maximize className="h-4 w-4" /></button>
           <button type="button" className="icon-btn h-8 w-8" title="Undo (Ctrl+Z)" aria-label="Undo" disabled={!history.canUndo} onClick={() => restore(history.undo())}><Undo2 className="h-4 w-4" /></button>

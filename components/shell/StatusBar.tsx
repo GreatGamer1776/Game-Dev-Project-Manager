@@ -34,13 +34,13 @@ const StatusBar: React.FC<StatusBarProps> = ({ saveState, file, files, projectNa
   }, [file, files]);
 
   return (
-    <footer className="flex h-[var(--statusbar-h)] shrink-0 items-center gap-4 bg-chrome px-4 text-[11px] text-faint">
+    <footer className="flex h-[var(--statusbar-h)] shrink-0 items-center gap-4 border-t border-border bg-chrome px-4 text-[11px] text-faint">
       <span className="flex min-w-0 items-center gap-1.5" role="status" aria-live="polite">
         <span
           className={cn(
             'h-1.5 w-1.5 shrink-0 rounded-full',
             saveState === 'saved' && 'bg-success',
-            (saveState === 'pending' || saveState === 'saving') && 'bg-warning animate-pulse-dot',
+            (saveState === 'pending' || saveState === 'saving') && 'bg-faint',
             saveState === 'error' && 'bg-danger',
           )}
         />

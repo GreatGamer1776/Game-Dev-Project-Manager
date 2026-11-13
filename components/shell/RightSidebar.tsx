@@ -127,7 +127,7 @@ const RightSidebar: React.FC<RightSidebarProps> = ({ project, file, tab, onTabCh
               <span className="ml-auto text-faint">{backlinks.length}</span>
             </div>
             {backlinks.length === 0
-              ? <p className="px-2 pb-3 text-xs text-faint">No files link here yet.</p>
+              ? <p className="px-2 pb-3 text-xs text-faint">No backlinks</p>
               : backlinks.map(f => <FileLinkRow key={f.id} file={f} onOpen={() => onOpenFile(f.id)} />)}
             <div className="mt-3 flex items-center gap-1.5 px-2 pb-1 pt-1 text-xs font-medium text-muted">
               <ArrowUpRight className="h-3.5 w-3.5" /> Outgoing links

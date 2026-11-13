@@ -305,7 +305,7 @@ const CommandPalette: React.FC<CommandPaletteProps> = ({
           {rows.length === 0 ? (
             <div className="px-3 py-6 text-center text-[0.8125rem] text-faint">
               {mode === 'templates' && templates.length === 0
-                ? 'No templates yet. Put documents in a "Templates" folder (configurable in Settings → General).'
+                ? 'No templates'
                 : 'No matches.'}
             </div>
           ) : (

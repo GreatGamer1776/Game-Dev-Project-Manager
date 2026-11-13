@@ -347,7 +347,7 @@ const FlowchartEditorContent: React.FC<EditorProps> = ({ initialContent, onSave,
       const existingLabel = typeof edge.label === 'string' ? edge.label : edge.label != null ? String(edge.label) : '';
       const newLabel = await promptDialog({
         title: 'Edit connection label',
-        label: "Label (e.g., 'Yes', 'No', 'True') — empty clears it",
+        label: "Label",
         defaultValue: existingLabel,
         confirmText: 'Save',
         allowEmpty: true,
@@ -396,10 +396,7 @@ const FlowchartEditorContent: React.FC<EditorProps> = ({ initialContent, onSave,
             <Trash2 className="w-3.5 h-3.5" /> Delete {selectedCount} selected
           </button>
         )}
-        <span className="ml-auto hidden truncate pl-2 text-[11px] text-faint md:block">
-          Drag between the dots on shapes to connect · double-click to rename · double-click a connection to label it
-        </span>
-        <SaveIndicator status={saveStatus} onSaveNow={handleManualSave} className="ml-auto md:ml-0" />
+        <SaveIndicator status={saveStatus} onSaveNow={handleManualSave} className="ml-auto" />
       </div>
 
       <div className="flex-1 flex overflow-hidden">
@@ -452,14 +449,6 @@ const FlowchartEditorContent: React.FC<EditorProps> = ({ initialContent, onSave,
             />
             </ReactFlow>
             </EditCtx.Provider>
-            {nodes.length === 0 && (
-              <div className="pointer-events-none absolute inset-0 flex items-center justify-center p-6">
-                <div className="max-w-sm rounded-lg border border-border bg-surface/95 px-4 py-3 text-center text-[12px] leading-relaxed text-muted shadow-raised">
-                  <div className="mb-1 text-[13px] font-medium text-content">Empty flowchart</div>
-                  Click a shape on the left (or drag it here) to add it. Then drag from the small dots on a shape's edge to another shape to connect them.
-                </div>
-              </div>
-            )}
          </div>
       </div>
     </div>

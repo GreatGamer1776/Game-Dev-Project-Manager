@@ -66,7 +66,7 @@ function Dropdown<T extends string>({
     >
       {options.map(o => (
         <option key={o.id} value={o.id}>
-          {o.hint ? `${o.label} — ${o.hint}` : o.label}
+          {o.label}
         </option>
       ))}
     </select>
@@ -140,18 +140,18 @@ export const SettingsModal: React.FC = () => {
         return (
           <>
             <Heading>General</Heading>
-            <SettingItem name="Confirm destructive actions" description="Ask before deleting files, folders, projects, or clearing content.">
+            <SettingItem name="Confirm destructive actions">
               <Toggle label="Confirm destructive actions" checked={prefs.confirmActions} onChange={v => setPref('confirmActions', v)} />
             </SettingItem>
-            <SettingItem name="Reduce motion" description="Turn off panel and menu animations.">
+            <SettingItem name="Reduce motion">
               <Toggle label="Reduce motion" checked={theme.motion === 'reduced'} onChange={v => theme.setMotion(v ? 'reduced' : 'full')} />
             </SettingItem>
 
             <Heading>Daily notes &amp; templates</Heading>
-            <SettingItem name="Daily notes folder" description={<>"Open today's daily note" (Alt+D) creates YYYY-MM-DD documents here. A template whose name contains "daily" is used for new notes.</>}>
+            <SettingItem name="Daily notes folder">
               <TextSetting value={prefs.dailyNotesFolder} onCommit={v => setPref('dailyNotesFolder', v)} label="Daily notes folder" />
             </SettingItem>
-            <SettingItem name="Templates folder" description={<>Documents in this folder appear in "Insert template" and the editor's / menu. {'{{date}}'}, {'{{time}}'} and {'{{title}}'} are filled in.</>}>
+            <SettingItem name="Templates folder">
               <TextSetting value={prefs.templatesFolder} onCommit={v => setPref('templatesFolder', v)} label="Templates folder" />
             </SettingItem>
           </>
@@ -160,19 +160,19 @@ export const SettingsModal: React.FC = () => {
         return (
           <>
             <Heading>Editor</Heading>
-            <SettingItem name="Default view for new tabs" description="How documents open. The toolbar toggle still switches per file and updates this.">
+            <SettingItem name="Default view for new tabs">
               <Dropdown label="Default document view" options={DOC_VIEW_OPTIONS} value={prefs.docViewMode} onChange={v => setPref('docViewMode', v)} />
             </SettingItem>
-            <SettingItem name="Live preview" description="Render markdown while you type and show raw markup only on the line you're editing. Off = source mode.">
+            <SettingItem name="Live preview">
               <Toggle label="Live preview" checked={prefs.livePreview} onChange={v => setPref('livePreview', v)} />
             </SettingItem>
-            <SettingItem name="Spellcheck" description="Underline misspelled words while editing documents.">
+            <SettingItem name="Spellcheck">
               <Toggle label="Spellcheck" checked={prefs.spellcheck} onChange={v => setPref('spellcheck', v)} />
             </SettingItem>
-            <SettingItem name="Readable line length" description="Limit the maximum line length of documents so they're easier to read.">
+            <SettingItem name="Readable line length">
               <Toggle label="Readable line length" checked={theme.lineWidth === 'readable'} onChange={v => theme.setLineWidth(v ? 'readable' : 'full')} />
             </SettingItem>
-            <SettingItem name="Editor font size" description="Text size of the document source and reading views.">
+            <SettingItem name="Editor font size">
               <Dropdown label="Editor font size" options={EDITOR_TEXT_SIZES} value={theme.editorText} onChange={theme.setEditorText} />
             </SettingItem>
           </>
@@ -181,10 +181,10 @@ export const SettingsModal: React.FC = () => {
         return (
           <>
             <Heading>Appearance</Heading>
-            <SettingItem name="Base color scheme" description="Choose the app's color scheme.">
+            <SettingItem name="Base color scheme">
               <Dropdown label="Base color scheme" options={THEME_OPTIONS} value={theme.preference} onChange={theme.setPreference} />
             </SettingItem>
-            <SettingItem name="Accent color" description="Used for links, the active file, and primary buttons.">
+            <SettingItem name="Accent color">
               <div className="flex flex-wrap gap-1.5" role="radiogroup" aria-label="Accent color">
                 {COLOR_SCHEMES.map(({ id, label, swatch }) => {
                   const active = theme.scheme === id;
@@ -209,30 +209,30 @@ export const SettingsModal: React.FC = () => {
                 })}
               </div>
             </SettingItem>
-            <SettingItem name="Surface tint" description="Shift the temperature of the grey surfaces.">
+            <SettingItem name="Surface tint">
               <Dropdown label="Surface tint" options={SURFACE_TINTS} value={theme.tint} onChange={theme.setTint} />
             </SettingItem>
 
             <Heading>Interface</Heading>
-            <SettingItem name="Heading font" description="Typeface for titles and headings. Body text always uses Geist.">
+            <SettingItem name="Heading font">
               <Dropdown label="Heading font" options={TYPEFACES} value={theme.typeface} onChange={theme.setTypeface} />
             </SettingItem>
-            <SettingItem name="Zoom level" description="Scales the whole interface.">
+            <SettingItem name="Zoom level">
               <Dropdown label="Zoom level" options={TEXT_SCALES} value={theme.textScale} onChange={theme.setTextScale} />
             </SettingItem>
-            <SettingItem name="Density" description="Row heights and spacing in lists, tabs, and controls.">
+            <SettingItem name="Density">
               <Dropdown label="Density" options={DENSITIES} value={theme.density} onChange={theme.setDensity} />
             </SettingItem>
-            <SettingItem name="Corners" description="Corner radius of panels, menus, and controls.">
+            <SettingItem name="Corners">
               <Dropdown label="Corners" options={CORNER_STYLES} value={theme.corners} onChange={theme.setCorners} />
             </SettingItem>
-            <SettingItem name="Animations" description="Full or minimal motion.">
+            <SettingItem name="Animations">
               <Dropdown label="Animations" options={MOTION_MODES} value={theme.motion} onChange={theme.setMotion} />
             </SettingItem>
-            <SettingItem name="Line width" description="Document column width.">
+            <SettingItem name="Line width">
               <Dropdown label="Line width" options={LINE_WIDTHS} value={theme.lineWidth} onChange={theme.setLineWidth} />
             </SettingItem>
-            <SettingItem name="Reset appearance" description="Restore every appearance option above to its default.">
+            <SettingItem name="Reset appearance">
               <Button variant="secondary" size="sm" icon={RotateCcw} onClick={theme.resetAppearance}>Reset</Button>
             </SettingItem>
           </>
@@ -254,7 +254,7 @@ export const SettingsModal: React.FC = () => {
         return (
           <>
             <Heading>Account</Heading>
-            <SettingItem name="Signed in as" description="Accounts are username + password only — no email or personal data.">
+            <SettingItem name="Signed in as">
               <span className="flex items-center gap-1.5 text-[0.8125rem] font-medium text-content">
                 {user?.username}
                 {user?.isAdmin && (
@@ -264,10 +264,10 @@ export const SettingsModal: React.FC = () => {
                 )}
               </span>
             </SettingItem>
-            <SettingItem name="Password" description="Ask an administrator to reset your password from Manage users.">
+            <SettingItem name="Password">
               <span className="text-xs text-faint">Managed by admins</span>
             </SettingItem>
-            <SettingItem name="Sign out" description="Ends this session on this device. Your projects stay on the server.">
+            <SettingItem name="Sign out">
               <Button variant="danger" size="sm" icon={LogOut} onClick={() => { closeSettings(); void logout(); }}>Sign out</Button>
             </SettingItem>
           </>
@@ -276,10 +276,10 @@ export const SettingsModal: React.FC = () => {
         return (
           <>
             <Heading>About</Heading>
-            <SettingItem name="DevArchitect" description="Project planning workspace for software, web, and game projects.">
+            <SettingItem name="DevArchitect">
               <span className="text-xs text-faint">v1.0.0</span>
             </SettingItem>
-            <SettingItem name="Storage" description="Projects live in your server's PostgreSQL database. The browser only keeps your session token and appearance preferences.">
+            <SettingItem name="Storage">
               <span className="text-xs text-faint">Self-hosted</span>
             </SettingItem>
           </>

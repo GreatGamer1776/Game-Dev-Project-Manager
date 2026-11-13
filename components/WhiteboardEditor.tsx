@@ -982,7 +982,7 @@ const WhiteboardEditor: React.FC<EditorProps> = ({ initialContent, onSave, fileN
           <div className="flex bg-surface-raised p-1 rounded-lg border border-border-strong">
             <button
               onClick={() => setActiveTool('pen')}
-              className={`p-2 rounded transition-colors ${activeTool === 'pen' ? 'bg-accent text-accent-content' : 'text-muted hover:text-content'}`}
+              className={`p-2 rounded transition-colors ${activeTool === 'pen' ? 'bg-surface-hover text-content' : 'text-muted hover:text-content'}`}
               title="Pen (P)"
               aria-label="Pen"
               aria-pressed={activeTool === 'pen'}
@@ -991,7 +991,7 @@ const WhiteboardEditor: React.FC<EditorProps> = ({ initialContent, onSave, fileN
             </button>
             <button
               onClick={() => setActiveTool('highlighter')}
-              className={`p-2 rounded transition-colors ${activeTool === 'highlighter' ? 'bg-accent text-accent-content' : 'text-muted hover:text-content'}`}
+              className={`p-2 rounded transition-colors ${activeTool === 'highlighter' ? 'bg-surface-hover text-content' : 'text-muted hover:text-content'}`}
               title="Highlighter (H)"
               aria-label="Highlighter"
               aria-pressed={activeTool === 'highlighter'}
@@ -1000,7 +1000,7 @@ const WhiteboardEditor: React.FC<EditorProps> = ({ initialContent, onSave, fileN
             </button>
             <button
               onClick={() => setActiveTool('eraser')}
-              className={`p-2 rounded transition-colors ${activeTool === 'eraser' ? 'bg-accent text-accent-content' : 'text-muted hover:text-content'}`}
+              className={`p-2 rounded transition-colors ${activeTool === 'eraser' ? 'bg-surface-hover text-content' : 'text-muted hover:text-content'}`}
               title="Eraser (E)"
               aria-label="Eraser"
               aria-pressed={activeTool === 'eraser'}
@@ -1009,7 +1009,7 @@ const WhiteboardEditor: React.FC<EditorProps> = ({ initialContent, onSave, fileN
             </button>
             <button
               onClick={() => setActiveTool('text')}
-              className={`p-2 rounded transition-colors ${activeTool === 'text' ? 'bg-accent text-accent-content' : 'text-muted hover:text-content'}`}
+              className={`p-2 rounded transition-colors ${activeTool === 'text' ? 'bg-surface-hover text-content' : 'text-muted hover:text-content'}`}
               title="Text (T) — click the board to type"
               aria-label="Text"
               aria-pressed={activeTool === 'text'}
@@ -1019,7 +1019,7 @@ const WhiteboardEditor: React.FC<EditorProps> = ({ initialContent, onSave, fileN
             <div className="w-px h-full bg-surface-raised mx-1"></div>
             <button
               onClick={() => setIsAssetMenuOpen(!isAssetMenuOpen)}
-              className={`p-2 rounded transition-colors ${isAssetMenuOpen ? 'bg-accent text-accent-content' : 'text-muted hover:text-content'}`}
+              className={`p-2 rounded transition-colors ${isAssetMenuOpen ? 'bg-surface-hover text-content' : 'text-muted hover:text-content'}`}
               title="Insert from the asset library"
               aria-label="Insert from the asset library"
             >
@@ -1105,7 +1105,7 @@ const WhiteboardEditor: React.FC<EditorProps> = ({ initialContent, onSave, fileN
                     updateTextById(selectedText.id, prev => ({ ...prev, fontWeight: prev.fontWeight === 'bold' ? 'normal' : 'bold' }));
                     commitCanvasSnapshot(true);
                   }}
-                  className={`px-2 py-1 text-xs rounded ${selectedText.fontWeight === 'bold' ? 'bg-accent text-accent-content' : 'bg-surface-raised text-content'}`}
+                  className={`px-2 py-1 text-xs rounded ${selectedText.fontWeight === 'bold' ? 'bg-content text-bg' : 'bg-surface-raised text-content'}`}
                   title="Bold"
                 >
                   B
@@ -1115,7 +1115,7 @@ const WhiteboardEditor: React.FC<EditorProps> = ({ initialContent, onSave, fileN
                     updateTextById(selectedText.id, prev => ({ ...prev, fontStyle: prev.fontStyle === 'italic' ? 'normal' : 'italic' }));
                     commitCanvasSnapshot(true);
                   }}
-                  className={`px-2 py-1 text-xs rounded ${selectedText.fontStyle === 'italic' ? 'bg-accent text-accent-content' : 'bg-surface-raised text-content'}`}
+                  className={`px-2 py-1 text-xs rounded ${selectedText.fontStyle === 'italic' ? 'bg-content text-bg' : 'bg-surface-raised text-content'}`}
                   title="Italic"
                 >
                   I
@@ -1250,7 +1250,7 @@ const WhiteboardEditor: React.FC<EditorProps> = ({ initialContent, onSave, fileN
                         finishTextEditing(text.id, true);
                       }
                     }}
-                    className="absolute z-20 min-w-[220px] max-w-[500px] min-h-[90px] bg-surface/95 border border-accent rounded-md p-2 text-content resize-y focus:outline-none"
+                    className="absolute z-20 min-w-[220px] max-w-[500px] min-h-[88px] bg-surface/95 border border-accent rounded-md p-2 text-content resize-y focus:outline-none"
                     style={{ left: text.x, top: text.y, color: text.color, fontSize: `${text.fontSize}px`, fontWeight: text.fontWeight, fontStyle: text.fontStyle, lineHeight: `${lineHeight}px` }}
                   />
                 );

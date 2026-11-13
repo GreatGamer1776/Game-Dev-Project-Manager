@@ -82,7 +82,7 @@ const TILE = {
 };
 const GLYPH = { sm: 'h-4 w-4', md: 'h-[18px] w-[18px]', lg: 'h-5 w-5' };
 
-/** A neutral tile with the project's icon. Ember stays reserved for actions. */
+/** A neutral tile with the project's icon. */
 const ProjectIcon: React.FC<{
   project: Pick<Project, 'type' | 'icon'>;
   size?: 'sm' | 'md' | 'lg';
@@ -98,7 +98,7 @@ const ProjectIcon: React.FC<{
         className,
       )}
     >
-      <Icon className={GLYPH[size]} strokeWidth={1.75} />
+      <Icon className={GLYPH[size]} strokeWidth={1.5} />
     </span>
   );
 };

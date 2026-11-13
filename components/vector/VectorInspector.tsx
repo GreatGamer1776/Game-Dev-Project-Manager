@@ -82,7 +82,6 @@ const VectorInspector: React.FC<Props> = ({ doc, commit, activeLayerId, onActive
           </button>
         }
       >
-        <p className="mb-2 text-[11px] leading-snug text-faint">New shapes go on the highlighted layer. The top of the list draws on top.</p>
         <div className="flex flex-col gap-0.5">
           {[...doc.layers].reverse().map(layer => {
             const i = doc.layers.findIndex(l => l.id === layer.id);
@@ -166,7 +165,7 @@ const VectorInspector: React.FC<Props> = ({ doc, commit, activeLayerId, onActive
         }
       >
         {doc.referenceImages.length === 0 ? (
-          <p className="text-[11px] leading-snug text-faint">Drop a sketch or screenshot behind your drawing to trace it. It's never exported.</p>
+          <p className="text-[11px] text-faint">No reference images</p>
         ) : (
           <div className="flex flex-col gap-0.5">
             {doc.referenceImages.map(img => (
@@ -200,7 +199,7 @@ const VectorInspector: React.FC<Props> = ({ doc, commit, activeLayerId, onActive
           value={notes}
           onChange={e => setNotes(e.target.value)}
           onBlur={() => { if (notes !== doc.notes) commit({ ...doc, notes }); }}
-          placeholder="What is this piece for? Sizes, palette, where it's used…"
+          placeholder="Notes"
           rows={5}
           className="w-full resize-y rounded-md border border-border bg-bg px-2 py-1.5 text-[12px] leading-relaxed text-content outline-none placeholder:text-faint focus:border-accent"
         />

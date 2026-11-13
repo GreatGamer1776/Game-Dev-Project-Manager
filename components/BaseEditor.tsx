@@ -468,28 +468,18 @@ const BaseEditor: React.FC<EditorProps> = ({ initialContent, onSave, projectFile
   const clearFilters = () => { setSearch(''); if ((view.filters || []).length) updateView({ filters: [] }); };
 
   const renderEmpty = () => (
-    <div className="flex justify-center px-4 py-10">
-      <div className="max-w-sm rounded-lg border border-border bg-surface px-4 py-3 text-center text-[12px] leading-relaxed text-muted">
-        {data.rows.length === 0 ? (
-          <>
-            <div className="mb-1 text-[13px] font-medium text-content">No rows yet</div>
-            Each row is one record — a character, a level, an asset to make. Click a column header to rename it or change its type, and use the view tabs above to see the rows as a board, gallery, or calendar.
-            <div className="mt-2">
-              <button type="button" onClick={() => addRow({}, true)} className="rounded-md bg-accent px-2.5 py-1 text-[12px] font-medium text-accent-content hover:bg-accent-hover">Add the first row</button>
-            </div>
-          </>
-        ) : (
-          <>
-            <div className="mb-1 text-[13px] font-medium text-content">No rows match</div>
-            {data.rows.length} row{data.rows.length === 1 ? ' is' : 's are'} hidden by the search or filters in this view.
-            {filtersActive && (
-              <div className="mt-2">
-                <button type="button" onClick={clearFilters} className="rounded-md px-2.5 py-1 text-[12px] text-muted ring-1 ring-border hover:bg-surface-hover">Clear search and filters</button>
-              </div>
-            )}
-          </>
-        )}
-      </div>
+    <div className="empty-line">
+      {data.rows.length === 0 ? (
+        <>
+          <span>No rows</span>
+          <button type="button" onClick={() => addRow({}, true)} className="link-action">Add row</button>
+        </>
+      ) : (
+        <>
+          <span>{data.rows.length} {data.rows.length === 1 ? 'row' : 'rows'} hidden by search or filters</span>
+          {filtersActive && <button type="button" onClick={clearFilters} className="link-action">Clear</button>}
+        </>
+      )}
     </div>
   );
 

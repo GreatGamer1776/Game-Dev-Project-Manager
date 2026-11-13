@@ -140,11 +140,6 @@ const SearchPanel: React.FC<SearchPanelProps> = ({ files, onOpenFile, focusSigna
             </div>
           );
         })}
-        {!deferredQuery && (
-          <p className="px-3 py-6 text-center text-xs text-faint">
-            Search names and contents of every document, task, bug, roadmap item, and grid in this project.
-          </p>
-        )}
       </div>
     </div>
   );

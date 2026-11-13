@@ -2,7 +2,6 @@ import { create } from 'zustand';
 
 export type ThemePreference = 'light' | 'dark' | 'system';
 export type ColorScheme =
-  | 'ember'
   | 'blue'
   | 'cyan'
   | 'teal'
@@ -20,8 +19,7 @@ export type EditorText = 'small' | 'default' | 'large';
 
 /** Accent schemes offered in Settings. `swatch` is a solid color for the chip. */
 export const COLOR_SCHEMES: { id: ColorScheme; label: string; swatch: string }[] = [
-  { id: 'ember', label: 'Ember', swatch: '#f0682f' },
-  { id: 'blue', label: 'Azure', swatch: '#3b82f6' },
+  { id: 'blue', label: 'Cobalt', swatch: '#3d82f0' },
   { id: 'cyan', label: 'Cyan', swatch: '#06b6d4' },
   { id: 'teal', label: 'Teal', swatch: '#14b8a6' },
   { id: 'emerald', label: 'Emerald', swatch: '#10b981' },
@@ -89,7 +87,7 @@ const KEYS = {
 } as const;
 
 const DEFAULTS = {
-  scheme: 'ember' as ColorScheme,
+  scheme: 'blue' as ColorScheme,
   tint: 'neutral' as SurfaceTint,
   corners: 'precise' as CornerStyle,
   density: 'comfortable' as Density,

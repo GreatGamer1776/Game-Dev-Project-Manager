@@ -1,7 +1,7 @@
 import React, { useMemo, useState } from 'react';
 import {
   ChevronsUpDown, PanelLeftClose, Search, Plus, Waypoints, CalendarDays, ChevronRight, Files, Bookmark, Hash,
-  Settings as SettingsIcon, HelpCircle, Users, LogOut, BookOpen, ShieldCheck, LayoutGrid, Command,
+  Settings as SettingsIcon, HelpCircle, Users, LogOut, ShieldCheck, LayoutGrid, Command,
 } from 'lucide-react';
 import { Project, ProjectFile, FileType, TodoData, KanbanData } from '../../types';
 import { getFileTypeMeta } from '../fileTypes';
@@ -77,7 +77,6 @@ interface SidebarProps {
   onOpenGraph: () => void;
   onOpenDailyNote: () => void;
   onHome: () => void;
-  onOpenGuide: () => void;
   onOpenHelp: () => void;
   onOpenSettings: () => void;
   onOpenAdmin: () => void;
@@ -106,7 +105,6 @@ const Sidebar: React.FC<SidebarProps> = ({
   onOpenGraph,
   onOpenDailyNote,
   onHome,
-  onOpenGuide,
   onOpenHelp,
   onOpenSettings,
   onOpenAdmin,
@@ -137,8 +135,7 @@ const Sidebar: React.FC<SidebarProps> = ({
       { label: 'All projects', icon: LayoutGrid, onSelect: onHome },
       ...(user?.isAdmin ? [{ label: 'Manage users', icon: Users, onSelect: onOpenAdmin }] : []),
       { label: 'Settings', icon: SettingsIcon, hint: 'Ctrl+,', onSelect: onOpenSettings },
-      { label: 'Guide', icon: BookOpen, onSelect: onOpenGuide },
-      { label: 'Help & shortcuts', icon: HelpCircle, onSelect: onOpenHelp },
+      { label: 'Keyboard shortcuts', icon: HelpCircle, onSelect: onOpenHelp },
       { kind: 'separator' },
       { label: 'Sign out', icon: LogOut, danger: true, onSelect: onLogout },
     ], 'below');
@@ -252,7 +249,7 @@ const Sidebar: React.FC<SidebarProps> = ({
         <button type="button" className="icon-btn" onClick={onCommandPalette} aria-label="Command palette" data-tip="Command palette" data-tip-kbd="Ctrl P" data-tip-side="top">
           <Command className="h-4 w-4" />
         </button>
-        <button type="button" className="icon-btn" onClick={onOpenHelp} aria-label="Help and shortcuts" data-tip="Help & shortcuts" data-tip-side="top">
+        <button type="button" className="icon-btn" onClick={onOpenHelp} aria-label="Keyboard shortcuts" data-tip="Keyboard shortcuts" data-tip-side="top">
           <HelpCircle className="h-4 w-4" />
         </button>
         <button type="button" className="icon-btn" onClick={onOpenSettings} aria-label="Settings" data-tip="Settings" data-tip-kbd="Ctrl ," data-tip-side="top">

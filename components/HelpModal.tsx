@@ -1,6 +1,5 @@
 import React from 'react';
 import { Modal } from './ui';
-import { FILE_TYPES } from './fileTypes';
 
 interface HelpModalProps {
   isOpen: boolean;
@@ -35,56 +34,17 @@ export const SHORTCUTS: { keys: string; desc: string }[] = [
   { keys: 'Ctrl + Y', desc: 'Redo (inside editors)' },
 ];
 
-const TIPS = [
-  'Split screen: drag a tab (or a file from the sidebar) onto the edge of a pane, or use the split button at the right of the tab bar. Drag the line between panes to resize.',
-  'Hover any sidebar row for its + and ⋯ buttons, or right-click it.',
-  'Deleted something by mistake? Click Undo on the notification.',
-  'In documents: type [[ to link a file, # for tags, and / at the start of a line for blocks (callouts, tables, diagrams, templates).',
-  'Paste or drop images straight into a document to add them to the asset library.',
-  "Clicking a [[link]] to a note that doesn't exist yet creates it. Renaming a file updates every [[link]] to it.",
-  'Right-click files, folders, and tabs for more actions.',
-  'Drag a file from the sidebar into a document to insert a link to it.',
-  'Clicking a file opens it in the current tab; pinned tabs are never replaced.',
-  'Type ">" in the quick switcher to run a command instead.',
-  'Middle-click a tab to close it. Drag tabs to reorder them.',
-];
-
 const HelpModal: React.FC<HelpModalProps> = ({ isOpen, onClose }) => (
-  <Modal open={isOpen} onClose={onClose} title="Help" description="Keyboard shortcuts, file types, and tips." size="lg">
-    <div className="space-y-6">
-      <section>
-        <h3 className="eyebrow mb-2">Keyboard shortcuts</h3>
-        <div className="divide-y divide-border rounded-lg border border-border">
-          {SHORTCUTS.map(({ keys, desc }) => (
-            <div key={keys} className="flex items-center gap-4 px-3 py-2">
-              <span className="flex w-40 shrink-0 gap-1">
-                {keys.split(' + ').map(k => <kbd key={k} className="kbd h-5 px-1.5">{k}</kbd>)}
-              </span>
-              <span className="text-[0.8125rem] text-muted">{desc}</span>
-            </div>
-          ))}
+  <Modal open={isOpen} onClose={onClose} title="Keyboard shortcuts" size="lg">
+    <div className="divide-y divide-border rounded-lg border border-border">
+      {SHORTCUTS.map(({ keys, desc }) => (
+        <div key={keys} className="flex items-center gap-4 px-3 py-2">
+          <span className="flex w-40 shrink-0 gap-1">
+            {keys.split(' + ').map(k => <kbd key={k} className="kbd h-5 px-1.5">{k}</kbd>)}
+          </span>
+          <span className="text-[0.8125rem] text-muted">{desc}</span>
         </div>
-      </section>
-
-      <section>
-        <h3 className="eyebrow mb-2">File types</h3>
-        <div className="grid grid-cols-1 gap-x-6 gap-y-2 sm:grid-cols-2">
-          {FILE_TYPES.map(({ type, label, blurb, icon: Icon }) => (
-            <div key={type} className="flex items-center gap-2.5">
-              <Icon className="h-4 w-4 shrink-0 text-faint" />
-              <span className="text-[0.8125rem] text-content">{label}</span>
-              <span className="truncate text-xs text-faint">{blurb}</span>
-            </div>
-          ))}
-        </div>
-      </section>
-
-      <section>
-        <h3 className="eyebrow mb-2">Tips</h3>
-        <ul className="list-disc space-y-1 pl-5 text-[0.8125rem] text-muted marker:text-faint">
-          {TIPS.map(tip => <li key={tip}>{tip}</li>)}
-        </ul>
-      </section>
+      ))}
     </div>
   </Modal>
 );

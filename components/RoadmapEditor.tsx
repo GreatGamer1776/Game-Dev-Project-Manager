@@ -466,10 +466,10 @@ const RoadmapEditor: React.FC<EditorProps> = ({ initialContent, onSave, fileName
         <button onClick={() => { const prev = undoRedo.undo(); if (prev !== undefined) setItems(prev); }} disabled={!undoRedo.canUndo} className="icon-btn" title="Undo (Ctrl+Z)" aria-label="Undo"><Undo2 className="w-4 h-4" /></button>
         <button onClick={() => { const next = undoRedo.redo(); if (next !== undefined) setItems(next); }} disabled={!undoRedo.canRedo} className="icon-btn" title="Redo (Ctrl+Y)" aria-label="Redo"><Redo2 className="w-4 h-4" /></button>
         <span className="mx-1 h-4 w-px shrink-0 bg-border" />
-        <button onClick={() => openCreate('phase')} className="flex h-7 shrink-0 items-center gap-1.5 rounded-md bg-accent px-2.5 text-[12px] font-medium text-accent-content hover:bg-accent-hover" title="New phase — a stretch of time like Alpha or Beta (N)">
+        <button onClick={() => openCreate('phase')} className="btn-tool" title="New phase (N)">
           <Plus className="w-3.5 h-3.5" /> Phase
         </button>
-        <button onClick={() => openCreate('milestone')} className="flex h-7 shrink-0 items-center gap-1.5 rounded-md px-2.5 text-[12px] text-muted hover:bg-surface-hover hover:text-content" title="New milestone — a single date like Launch (M)">
+        <button onClick={() => openCreate('milestone')} className="btn-tool" title="New milestone (M)">
           <Flag className="w-3.5 h-3.5" /> Milestone
         </button>
         <div className="relative ml-2 w-44 shrink-0">
@@ -531,13 +531,10 @@ const RoadmapEditor: React.FC<EditorProps> = ({ initialContent, onSave, fileName
 
             <div className="flex-1 min-h-0 overflow-auto custom-scrollbar p-2">
               {items.length === 0 && (
-                <div className="m-2 rounded-lg border border-border bg-surface px-4 py-3 text-[12px] leading-relaxed text-muted">
-                  <div className="mb-1 text-[13px] font-medium text-content">Plan your roadmap</div>
-                  Add <b className="text-content">phases</b> for stretches of work (Prototype, Alpha, Beta) and <b className="text-content">milestones</b> for single dates (Demo day, Launch). They show up on the calendar on the right.
-                  <div className="mt-2 flex flex-wrap gap-1.5">
-                    <button type="button" onClick={() => openCreate('phase')} className="rounded-md bg-accent px-2 py-1 text-[12px] font-medium text-accent-content hover:bg-accent-hover">Add a phase</button>
-                    <button type="button" onClick={() => openCreate('milestone')} className="rounded-md px-2 py-1 text-[12px] text-muted ring-1 ring-border hover:bg-surface-hover">Add a milestone</button>
-                  </div>
+                <div className="empty-line">
+                  <span>No phases or milestones</span>
+                  <button type="button" onClick={() => openCreate('phase')} className="link-action">Add a phase</button>
+                  <button type="button" onClick={() => openCreate('milestone')} className="link-action">Add a milestone</button>
                 </div>
               )}
               {items.length > 0 && visibleItems.length === 0 && (
@@ -578,7 +575,7 @@ const RoadmapEditor: React.FC<EditorProps> = ({ initialContent, onSave, fileName
                         <span className="inline-block w-2 h-2 rounded-full" style={{ backgroundColor: colors.solid }} />
                         <span className="truncate">{formatDisplayDate(item.startDate)} - {formatDisplayDate(endDateText)} • {duration} day{duration === 1 ? '' : 's'} • {item.progress}%</span>
                       </div>
-                      <p className="mt-1 text-[11px] text-faint truncate">{shortDescription || 'No description'}</p>
+                      {shortDescription && <p className="mt-1 text-[11px] text-faint truncate">{shortDescription}</p>}
                     </button>
 
                     {isSelected && (
@@ -800,7 +797,7 @@ const RoadmapEditor: React.FC<EditorProps> = ({ initialContent, onSave, fileName
                 <textarea
                   value={formData.description}
                   onChange={(event) => setFormData(prev => ({ ...prev, description: event.target.value }))}
-                  className="w-full bg-bg border border-border-strong/80 rounded-lg px-3 py-2 text-[0.8125rem] text-content placeholder:text-faint hover:border-border-strong focus:border-accent focus:ring-2 focus:ring-accent/25 outline-none transition-[border-color,box-shadow] min-h-[110px]"
+                  className="w-full bg-bg border border-border-strong/80 rounded-lg px-3 py-2 text-[0.8125rem] text-content placeholder:text-faint hover:border-border-strong focus:border-accent focus:ring-2 focus:ring-accent/25 outline-none transition-[border-color,box-shadow] min-h-[112px]"
                   placeholder="Context, risks, dependencies..."
                 />
               </div>
@@ -815,7 +812,7 @@ const RoadmapEditor: React.FC<EditorProps> = ({ initialContent, onSave, fileName
                 <button type="button" onClick={closeModal} className="px-4 py-2 text-sm font-medium text-muted hover:text-content">
                   Cancel
                 </button>
-                <button type="submit" className="px-5 py-2 rounded-md bg-accent hover:bg-accent-hover text-accent-content text-sm font-medium">
+                <button type="submit" className="btn-ink">
                   {editingId ? 'Save changes' : formData.type === 'milestone' ? 'Add milestone' : 'Add phase'}
                 </button>
               </div>

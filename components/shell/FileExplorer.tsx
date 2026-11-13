@@ -452,12 +452,9 @@ const FileExplorer: React.FC<FileExplorerProps> = ({
         {renderTree(null)}
 
         {regularCount === 0 && project.folders.length === 0 && (
-          <div className="mt-2 rounded-xl border border-dashed border-border-strong px-4 py-6 text-center">
-            <p className="text-[0.8125rem] font-medium text-content">No files yet</p>
-            <p className="mt-1 text-xs text-faint">Start with a design doc or a spec</p>
-            <button type="button" onClick={() => onCreateFile('doc', null)} className="mt-3 h-7 rounded-md bg-accent/10 px-3 text-xs font-medium text-accent transition-colors hover:bg-accent/20">
-              New document
-            </button>
+          <div className="empty-line py-4">
+            <span>No files</span>
+            <button type="button" onClick={() => onCreateFile('doc', null)} className="link-action">New document</button>
           </div>
         )}
         {/* Spacer keeps a right-click / drop target below the last row. */}

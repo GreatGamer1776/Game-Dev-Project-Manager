@@ -42,19 +42,6 @@ const TOOLS: { id: Tool; label: string; key: string; icon: React.ComponentType<{
   { id: 'pan', label: 'Pan (or hold Space, or drag with the middle mouse button)', key: 'H', icon: Hand },
 ];
 
-/** One-line instructions shown at the bottom of the canvas for the current tool. */
-const TOOL_HINTS: Record<Tool, string> = {
-  select: 'Click to select · Shift-click to add · drag empty space to box-select · Alt-drag a point to tear a line off it',
-  pen: 'Click to place points · click the first point to close the shape · Enter or Esc to finish',
-  vertex: 'Click to place a point (on a line to split it) · drag from a point to draw a connected one',
-  edge: 'Click where the line starts, then where it ends — existing points and lines snap',
-  circle: 'Click to place a circle, or drag to size it',
-  text: 'Click for a text box or drag to size it, then type',
-  fill: 'Click inside a closed shape to fill it · click a filled area to recolor it',
-  eyedropper: 'Click a line, fill, circle or text to copy its style',
-  axis: 'Drag to draw a guide line that points snap to',
-  pan: 'Drag to move around · Ctrl+scroll to zoom',
-};
 
 const SAVE_DEBOUNCE_MS = 300;
 const GRID = 20;
@@ -1288,7 +1275,7 @@ const VectorEditor: React.FC<EditorProps> = ({ initialContent, onSave, fileName,
               aria-label={t.label}
               aria-pressed={tool === t.id && !viewMode}
               onClick={() => { setTool(t.id); setViewMode(false); }}
-              className={cn('icon-btn', tool === t.id && !viewMode && '!bg-accent/15 !text-accent')}
+              className={cn('icon-btn', tool === t.id && !viewMode && '!bg-surface-hover !text-content')}
             >
               <t.icon className="h-4 w-4" />
             </button>
@@ -1691,17 +1678,12 @@ const VectorEditor: React.FC<EditorProps> = ({ initialContent, onSave, fileName,
 
           {/* Empty state */}
           {isEmpty && !viewMode && chain.length === 0 && !dragRef.current && (
-            <div className="pointer-events-none absolute inset-x-0 top-6 flex justify-center px-4">
-              <div className="pointer-events-auto max-w-md rounded-lg border border-border bg-surface/95 px-4 py-3 text-[12px] text-muted shadow-raised">
-                <div className="mb-1 text-[13px] font-medium text-content">Start drawing</div>
-                <p className="leading-relaxed">
-                  With the <b className="text-content">Pen</b> (L), click to drop points — each click joins a line to the last. Click the first point again to close the shape, then use <b className="text-content">Fill</b> (F) to color inside it.
-                </p>
-                <div className="mt-2 flex flex-wrap gap-1.5">
-                  <button type="button" onClick={() => setTool('pen')} className="rounded-md bg-accent px-2 py-1 text-[12px] font-medium text-accent-content hover:bg-accent-hover">Use the Pen</button>
-                  <button type="button" onClick={() => setTool('circle')} className="rounded-md px-2 py-1 text-[12px] text-muted ring-1 ring-border hover:bg-surface-hover">Draw a circle</button>
-                  <button type="button" onClick={addImageMenu} className="rounded-md px-2 py-1 text-[12px] text-muted ring-1 ring-border hover:bg-surface-hover">Trace an image</button>
-                </div>
+            <div className="pointer-events-none absolute inset-x-0 top-4 flex justify-center px-4">
+              <div className="empty-line pointer-events-auto">
+                <span>Empty drawing</span>
+                <button type="button" onClick={() => setTool('pen')} className="link-action">Use the Pen</button>
+                <button type="button" onClick={() => setTool('circle')} className="link-action">Draw a circle</button>
+                <button type="button" onClick={addImageMenu} className="link-action">Trace an image</button>
               </div>
             </div>
           )}
@@ -1742,7 +1724,7 @@ const VectorEditor: React.FC<EditorProps> = ({ initialContent, onSave, fileName,
           {/* Status line */}
           <div className="pointer-events-none absolute inset-x-0 bottom-0 flex items-center gap-3 truncate px-3 py-1.5 text-[11px] text-faint">
             <span className="tabular-nums">{pointer ? `${Math.round(pointer.x)}, ${Math.round(pointer.y)}` : `${doc.canvas.width} × ${doc.canvas.height}`}</span>
-            <span className="truncate">{viewMode ? 'Preview — drag to pan, Esc to edit' : TOOL_HINTS[tool]}</span>
+            {viewMode && <span className="truncate">Preview</span>}
             {!viewMode && doc.layers.length > 1 && <span className="ml-auto shrink-0">Layer: {layer.name}</span>}
           </div>
         </div>

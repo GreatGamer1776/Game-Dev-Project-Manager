@@ -18,10 +18,9 @@ interface EmptyViewProps {
 const EmptyView: React.FC<EmptyViewProps> = ({ recentFiles, onNewFile, onQuickSwitch, onCommandPalette, onOpenFile, onClosePane }) => (
   <div className="flex h-full overflow-y-auto bg-bg">
     <div className="m-auto w-full max-w-2xl px-6 py-10 animate-fade-in-up">
-      <h2 className="font-display text-2xl font-medium text-content">Start something new</h2>
-      <p className="mt-2 text-[0.875rem] text-muted">Pick a file type, open a recent file, or drag a file from the sidebar into this pane</p>
+      <h2 className="font-display text-xl font-semibold text-content">New file</h2>
 
-      <div className="mt-6 grid grid-cols-2 gap-2 sm:grid-cols-4">
+      <div className="mt-4 grid grid-cols-2 gap-2 sm:grid-cols-3">
         {CREATABLE_TYPES.map(type => {
           const meta = getFileTypeMeta(type);
           const Icon = meta.icon;
@@ -30,15 +29,12 @@ const EmptyView: React.FC<EmptyViewProps> = ({ recentFiles, onNewFile, onQuickSw
               key={type}
               type="button"
               onClick={() => onNewFile(type)}
-              className="card-link group flex flex-col items-start gap-3 p-3 text-left"
+              className="card-link group flex items-center gap-3 p-3 text-left"
             >
               <span className="flex h-8 w-8 items-center justify-center rounded-lg border border-border bg-surface-raised text-muted transition-colors group-hover:text-content">
                 <Icon className="h-4 w-4" />
               </span>
-              <span className="min-w-0">
-                <span className="block text-[0.8125rem] font-medium text-content">{meta.label}</span>
-                <span className="mt-1 line-clamp-2 block text-xs leading-4 text-faint">{meta.blurb}</span>
-              </span>
+              <span className="min-w-0 truncate text-[0.8125rem] font-medium text-content">{meta.label}</span>
             </button>
           );
         })}

@@ -18,8 +18,9 @@ const base =
   'disabled:opacity-50 disabled:pointer-events-none';
 
 const variants: Record<ButtonVariant, string> = {
+  // Ink: the text color as a fill. The accent stays for selection and links.
   primary:
-    'bg-accent text-accent-content hover:bg-accent-hover',
+    'bg-content text-bg hover:bg-content/85',
   secondary:
     'bg-surface-raised text-content border border-border shadow-soft hover:bg-surface-hover hover:border-border-strong',
   subtle:

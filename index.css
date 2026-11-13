@@ -3,17 +3,18 @@
 @tailwind utilities;
 
 /*
- * DevArchitect design tokens — "Workbench"
- * ----------------------------------------
- * The app frame (sidebar, status bar) sits on `chrome`; the work itself lives
- * in an inset panel on `bg`, one step lighter in dark mode and white in light
- * mode. One warm accent ("Ember") marks the active thing and the main action.
+ * DevArchitect design tokens — "Graphite"
+ * ---------------------------------------
+ * One flat plane: the docks (sidebar, status bar) sit on `chrome`, a hair
+ * darker than the work area on `bg`, split by 1px borders. Greys lean slightly
+ * cool. One cobalt accent marks the active thing and the main action; status
+ * colors stay out of the way until something needs attention.
  *
  * Everything visual is a CSS variable so the whole app can be re-themed live
  * from Settings. Independent axes:
  *
  *   theme     light / dark / system   -> :root vs .dark
- *   accent    7 schemes               -> [data-scheme]      (accent ramp only)
+ *   accent    6 schemes               -> [data-scheme]      (accent ramp only)
  *   tint      neutral / warm / cool   -> [data-tint]        (grey ramp temperature)
  *   corners   sharp / precise / round -> [data-corners]     (radius scale)
  *   density   comfortable / compact   -> [data-density]     (spacing/height scale)
@@ -25,31 +26,31 @@
  */
 @layer base {
   :root {
-    /* Surfaces — neutral, light (default tint) */
-    --color-bg: 255 255 255;            /* the work panel, dialogs */
-    --color-chrome: 243 244 246;        /* app frame: sidebars, status bar */
-    --color-surface: 250 250 251;       /* cards and panels inside editors */
-    --color-surface-raised: 246 247 249;
-    --color-surface-hover: 236 237 240;
-    --color-overlay: 15 16 20;
+    /* Surfaces — light (default tint) */
+    --color-bg: 255 255 255;            /* the work area, dialogs */
+    --color-chrome: 246 247 249;        /* docks: sidebars, status bar */
+    --color-surface: 249 250 251;       /* cards and panels inside editors */
+    --color-surface-raised: 243 245 247;
+    --color-surface-hover: 234 237 241;
+    --color-overlay: 12 14 18;
     /* Borders */
-    --color-border: 228 229 233;
-    --color-border-strong: 209 211 217;
+    --color-border: 226 229 234;
+    --color-border-strong: 206 211 218;
     /* Text */
-    --color-content: 23 24 28;
-    --color-muted: 86 90 100;
-    --color-faint: 124 128 139;
-    /* Accent — default (Ember). Overridden per color scheme below. */
-    --color-accent: 201 66 16;
-    --color-accent-grad: 234 88 12;
-    --color-accent-hover: 176 56 12;
-    --color-accent-muted: 254 234 223;
+    --color-content: 20 23 28;
+    --color-muted: 80 87 99;
+    --color-faint: 116 124 137;
+    /* Accent — default (Cobalt). Overridden per color scheme below. */
+    --color-accent: 29 100 216;
+    --color-accent-grad: 37 117 235;
+    --color-accent-hover: 22 82 184;
+    --color-accent-muted: 225 236 252;
     --color-accent-content: 255 255 255;
     /* Status */
-    --color-success: 22 163 74;
-    --color-warning: 202 110 4;
-    --color-danger: 220 38 38;
-    --color-info: 37 99 235;
+    --color-success: 26 140 82;
+    --color-warning: 181 105 8;
+    --color-danger: 208 52 52;
+    --color-info: 29 100 216;
 
     /* Typography roles (typeface axis swaps --font-display) */
     --font-display: 'Geist', 'Inter', system-ui, -apple-system, 'Segoe UI', sans-serif;
@@ -88,32 +89,32 @@
   }
 
   .dark {
-    /* Surfaces — neutral, dark (default tint). The frame is the darkest
-       plane; the work panel sits one step above it. */
-    --color-bg: 24 25 28;
-    --color-chrome: 16 17 19;
-    --color-surface: 30 31 35;
-    --color-surface-raised: 37 38 43;
-    --color-surface-hover: 46 48 54;
+    /* Surfaces — dark (default tint). Docks are the darkest plane; the work
+       area sits one small step above, split from them by a border. */
+    --color-bg: 23 25 29;
+    --color-chrome: 18 20 23;
+    --color-surface: 28 31 36;
+    --color-surface-raised: 33 36 42;
+    --color-surface-hover: 41 45 52;
     --color-overlay: 0 0 0;
     /* Borders */
-    --color-border: 44 46 52;
-    --color-border-strong: 62 65 73;
+    --color-border: 39 43 50;
+    --color-border-strong: 56 61 70;
     /* Text */
-    --color-content: 233 234 237;
-    --color-muted: 164 167 176;
-    --color-faint: 128 132 142;
-    /* Accent — default (Ember, brighter on dark). Overridden per scheme below. */
-    --color-accent: 255 125 71;
-    --color-accent-grad: 251 146 60;
-    --color-accent-hover: 255 150 106;
-    --color-accent-muted: 74 38 24;
-    --color-accent-content: 26 12 6;
+    --color-content: 228 231 236;
+    --color-muted: 157 164 175;
+    --color-faint: 116 124 136;
+    /* Accent — default (Cobalt, lifted for dark). Overridden per scheme below. */
+    --color-accent: 92 154 255;
+    --color-accent-grad: 110 168 255;
+    --color-accent-hover: 125 175 255;
+    --color-accent-muted: 27 45 77;
+    --color-accent-content: 8 14 26;
     /* Status */
-    --color-success: 74 201 136;
-    --color-warning: 232 182 72;
-    --color-danger: 240 108 100;
-    --color-info: 96 165 250;
+    --color-success: 76 190 130;
+    --color-warning: 226 172 72;
+    --color-danger: 236 104 98;
+    --color-info: 92 154 255;
 
     /* Depth — dark: surface steps and hairlines, a faint top highlight on
        controls, and a soft neutral shadow only for things that float. */
@@ -243,24 +244,14 @@
    * light values; `.dark[data-scheme]` hold the brighter dark-mode values.
    */
 
-  /* Ember (default) */
-  [data-scheme="ember"] {
-    --color-accent: 201 66 16; --color-accent-grad: 234 88 12;
-    --color-accent-hover: 176 56 12; --color-accent-muted: 254 234 223; --color-accent-content: 255 255 255;
-  }
-  .dark[data-scheme="ember"] {
-    --color-accent: 255 125 71; --color-accent-grad: 251 146 60;
-    --color-accent-hover: 255 150 106; --color-accent-muted: 74 38 24; --color-accent-content: 26 12 6;
-  }
-
-  /* Azure */
+  /* Cobalt (default) */
   [data-scheme="blue"] {
-    --color-accent: 37 99 235; --color-accent-grad: 14 165 233;
-    --color-accent-hover: 29 78 216; --color-accent-muted: 219 234 254; --color-accent-content: 255 255 255;
+    --color-accent: 29 100 216; --color-accent-grad: 37 117 235;
+    --color-accent-hover: 22 82 184; --color-accent-muted: 225 236 252; --color-accent-content: 255 255 255;
   }
   .dark[data-scheme="blue"] {
-    --color-accent: 96 165 250; --color-accent-grad: 56 189 248;
-    --color-accent-hover: 125 181 252; --color-accent-muted: 30 58 138; --color-accent-content: 9 9 11;
+    --color-accent: 92 154 255; --color-accent-grad: 110 168 255;
+    --color-accent-hover: 125 175 255; --color-accent-muted: 27 45 77; --color-accent-content: 8 14 26;
   }
 
   /* Cyan */
@@ -445,6 +436,34 @@
     transform: scale(0.995);
   }
 
+  /* Ink button: the one main action in a form or dialog. */
+  .btn-ink {
+    @apply inline-flex items-center justify-center gap-2 rounded-lg bg-content px-4 text-[0.8125rem] font-medium text-bg disabled:opacity-50;
+    height: var(--ctl-h);
+    transition: background-color 150ms cubic-bezier(0.22, 1, 0.36, 1), transform 120ms cubic-bezier(0.22, 1, 0.36, 1);
+  }
+  .btn-ink:hover:not(:disabled) { background-color: rgb(var(--color-content) / 0.85); }
+  .btn-ink:active:not(:disabled) { transform: scale(0.98); }
+
+  /* Toolbar button: "New task", "Upload", "Report bug". Outlined, never filled. */
+  .btn-tool {
+    @apply inline-flex h-7 shrink-0 items-center gap-1.5 rounded-md border border-border bg-surface-raised px-2.5 text-xs font-medium text-content disabled:opacity-50;
+    transition: background-color 150ms cubic-bezier(0.22, 1, 0.36, 1), border-color 150ms cubic-bezier(0.22, 1, 0.36, 1), transform 120ms cubic-bezier(0.22, 1, 0.36, 1);
+  }
+  .btn-tool:hover:not(:disabled) { @apply border-border-strong bg-surface-hover; }
+  .btn-tool:active:not(:disabled) { transform: scale(0.98); }
+  .btn-tool svg { @apply h-3.5 w-3.5 text-muted; }
+
+  /* Inline action inside an empty state or a sentence. */
+  .link-action {
+    @apply font-medium text-accent underline-offset-4 hover:underline disabled:opacity-50 disabled:no-underline;
+  }
+
+  /* Empty state: one muted line, optionally followed by link actions. */
+  .empty-line {
+    @apply flex flex-wrap items-center justify-center gap-x-3 gap-y-1 py-8 text-center text-[0.8125rem] text-faint;
+  }
+
   /* Keyboard hint keycap. */
   .kbd {
     @apply inline-flex h-4 items-center rounded-sm border border-border bg-surface-raised px-1 font-mono text-[11px] leading-none text-faint;
@@ -494,13 +513,6 @@
   animation: fade-in-up 320ms cubic-bezier(0.22, 1, 0.36, 1) both;
 }
 
-@keyframes pulse-dot {
-  0%, 100% { opacity: 1; }
-  50% { opacity: 0.35; }
-}
-.animate-pulse-dot {
-  animation: pulse-dot 1s ease-in-out infinite;
-}
 
 /* ---------------------------------------------------------------------------
    Markdown — reading view (.doc-md) and live preview (.cm-md-*) share one

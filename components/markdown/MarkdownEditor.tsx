@@ -11,6 +11,7 @@ import { syntaxHighlighting, HighlightStyle, indentOnInput, bracketMatching } fr
 import { autocompletion, completionKeymap, closeBrackets, closeBracketsKeymap, CompletionContext, CompletionResult, snippet } from '@codemirror/autocomplete';
 import { search, searchKeymap, highlightSelectionMatches } from '@codemirror/search';
 import { tags as t } from '@lezer/highlight';
+import type { MarkdownConfig } from '@lezer/markdown';
 import { livePreview, markdownContext, MarkdownContext, refreshDecorations, sourceLinkClicks } from './livePreview';
 import { formatDate, formatTime } from '../../utils/markdown';
 
@@ -140,36 +141,109 @@ const sourceHighlight = HighlightStyle.define([
 
 const sourceTheme = EditorView.theme({ '.cm-scroller': { fontFamily: 'var(--font-mono)', lineHeight: '1.65' } });
 
+// --- Grammar ----------------------------------------------------------------
+
+const PUNCTUATION_RE = /[\p{P}\p{S}]/u;
+// Its own delimiter type, so "~" only closes "~" and "~~" only closes "~~" (as in GFM).
+const SingleTildeDelim = { resolve: 'Strikethrough', mark: 'StrikethroughMark' };
+
+/**
+ * GFM (and the reading view's remark-gfm) treat `~text~` as strikethrough too,
+ * but the stock grammar reads it as Pandoc subscript, which nothing renders.
+ * Swap that parser for one that produces the same Strikethrough nodes as `~~`.
+ */
+const singleTildeStrikethrough: MarkdownConfig = {
+  remove: ['Subscript'],
+  parseInline: [{
+    name: 'SingleTildeStrikethrough',
+    parse(cx, next, pos) {
+      // "~~" belongs to the GFM parser; "~~~" is nothing.
+      if (next !== 126 || cx.char(pos + 1) === 126 || cx.char(pos - 1) === 126) return -1;
+      const before = cx.slice(pos - 1, pos);
+      const after = cx.slice(pos + 1, pos + 2);
+      const sBefore = /\s|^$/.test(before);
+      const sAfter = /\s|^$/.test(after);
+      const pBefore = PUNCTUATION_RE.test(before);
+      const pAfter = PUNCTUATION_RE.test(after);
+      return cx.addDelimiter(
+        SingleTildeDelim, pos, pos + 1,
+        !sAfter && (!pAfter || sBefore || pBefore),
+        !sBefore && (!pBefore || sAfter || pAfter),
+      );
+    },
+    after: 'Emphasis',
+  }],
+};
+
 // --- Commands ---------------------------------------------------------------
+
+const LINE_PREFIX_RE = /^(\s*)(#{1,6} |[-*+] \[[ xX]\] |[-*+] |\d+[.)] |> )?/;
+
+/**
+ * The parts of a selection that inline markup can wrap: one per line, without
+ * the line's list/heading/quote prefix or surrounding whitespace. Markers that
+ * enclose a line break or sit next to a space ("~~text ~~") don't parse, which
+ * is what a triple-clicked line (it includes the newline) or a sloppy drag
+ * would otherwise produce.
+ */
+const wrappableSegments = (state: EditorState, from: number, to: number) => {
+  const segments: { from: number; to: number }[] = [];
+  for (let n = state.doc.lineAt(from).number; n <= state.doc.lineAt(to).number; n++) {
+    const line = state.doc.line(n);
+    const prefix = LINE_PREFIX_RE.exec(line.text)![0].length;
+    let start = Math.max(from, line.from + prefix);
+    let end = Math.min(to, line.to);
+    while (start < end && /\s/.test(state.sliceDoc(start, start + 1))) start++;
+    while (end > start && /\s/.test(state.sliceDoc(end - 1, end))) end--;
+    if (start < end) segments.push({ from: start, to: end });
+  }
+  return segments;
+};
 
 const wrapSelection = (view: EditorView, before: string, after = before, placeholder = '') => {
   const { state } = view;
+  const outerWrapped = (from: number, to: number) =>
+    from - before.length >= 0 && state.sliceDoc(from - before.length, from) === before && state.sliceDoc(to, to + after.length) === after;
+  const innerWrapped = (from: number, to: number) => {
+    const text = state.sliceDoc(from, to);
+    return text.length >= before.length + after.length && text.startsWith(before) && text.endsWith(after);
+  };
+
   view.dispatch(state.changeByRange(range => {
-    const selected = state.sliceDoc(range.from, range.to);
-    // Toggle off when the selection is already wrapped.
-    const outerFrom = range.from - before.length;
-    const outerTo = range.to + after.length;
-    if (outerFrom >= 0 && state.sliceDoc(outerFrom, range.from) === before && state.sliceDoc(range.to, outerTo) === after) {
+    const segments = range.empty ? [] : wrappableSegments(state, range.from, range.to);
+    if (segments.length === 0) {
+      // Nothing to wrap: toggle off markers around the cursor, or insert a placeholder.
+      if (range.empty && outerWrapped(range.from, range.to) && before.length > 0) {
+        return {
+          changes: [{ from: range.from - before.length, to: range.from }, { from: range.to, to: range.to + after.length }],
+          range: EditorSelection.cursor(range.from - before.length),
+        };
+      }
+      const at = range.empty ? range.from : range.to;
       return {
-        changes: [{ from: outerFrom, to: range.from }, { from: range.to, to: outerTo }],
-        range: EditorSelection.range(outerFrom, range.to - before.length),
+        changes: { from: at, insert: `${before}${placeholder}${after}` },
+        range: EditorSelection.range(at + before.length, at + before.length + placeholder.length),
       };
     }
-    if (selected.startsWith(before) && selected.endsWith(after) && selected.length >= before.length + after.length) {
-      const inner = selected.slice(before.length, selected.length - after.length);
-      return { changes: { from: range.from, to: range.to, insert: inner }, range: EditorSelection.range(range.from, range.from + inner.length) };
+
+    // Toggle off when every segment is already wrapped; otherwise wrap them all.
+    const specs: { from: number; to?: number; insert?: string }[] = [];
+    if (segments.every(s => outerWrapped(s.from, s.to) || innerWrapped(s.from, s.to))) {
+      for (const s of segments) {
+        if (outerWrapped(s.from, s.to)) specs.push({ from: s.from - before.length, to: s.from }, { from: s.to, to: s.to + after.length });
+        else specs.push({ from: s.from, to: s.from + before.length }, { from: s.to - after.length, to: s.to });
+      }
+    } else {
+      for (const s of segments) specs.push({ from: s.from, insert: before }, { from: s.to, insert: after });
     }
-    const text = selected || placeholder;
-    return {
-      changes: { from: range.from, to: range.to, insert: `${before}${text}${after}` },
-      range: EditorSelection.range(range.from + before.length, range.from + before.length + text.length),
-    };
+    const changes = state.changes(specs);
+    const first = segments[0].from;
+    const last = segments[segments.length - 1].to;
+    return { changes, range: EditorSelection.range(changes.mapPos(first, 1), changes.mapPos(last, -1)) };
   }));
   view.focus();
   return true;
 };
-
-const LINE_PREFIX_RE = /^(\s*)(#{1,6} |[-*+] \[[ xX]\] |[-*+] |\d+[.)] |> )?/;
 
 const toggleLinePrefix = (view: EditorView, prefix: string) => {
   const { state } = view;
@@ -349,7 +423,7 @@ const MarkdownEditor = forwardRef<MarkdownEditorHandle, MarkdownEditorProps>(({
         highlightActiveLine(),
         highlightSelectionMatches(),
         search({ top: true }),
-        markdown({ base: markdownLanguage, codeLanguages: languages, addKeymap: true }),
+        markdown({ base: markdownLanguage, codeLanguages: languages, addKeymap: true, extensions: [singleTildeStrikethrough] }),
         autocompletion({ override: [buildCompletion(ctxRef)], icons: false, activateOnTyping: true }),
         placeholderExt(placeholder),
         editorTheme,

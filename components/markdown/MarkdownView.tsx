@@ -60,6 +60,32 @@ const sanitizeSchema = {
   },
 };
 
+interface HastNode {
+  type: string;
+  tagName?: string;
+  properties?: Record<string, unknown>;
+  children?: HastNode[];
+}
+
+const SPAN_COLOR_RE = /(?:^|;)\s*color\s*:\s*(#[0-9a-fA-F]{3,8})\s*(?:;|$)/i;
+
+/**
+ * User-written `<span style>` may only set a hex text colour. This runs after
+ * sanitizing and before KaTeX, so KaTeX's own layout styles (the `top` offsets
+ * that place superscripts, fractions, …) are left alone.
+ */
+const rehypeSpanColorOnly = () => (tree: HastNode) => {
+  const visit = (node: HastNode) => {
+    if (node.type === 'element' && node.tagName === 'span' && node.properties && 'style' in node.properties) {
+      const color = SPAN_COLOR_RE.exec(String(node.properties.style ?? ''))?.[1];
+      if (color) node.properties.style = `color: ${color}`;
+      else delete node.properties.style;
+    }
+    node.children?.forEach(visit);
+  };
+  visit(tree);
+};
+
 const CALLOUTS: Record<string, { icon: React.ComponentType<{ className?: string }>; color: string; label: string }> = {
   note: { icon: Info, color: 'var(--color-info)', label: 'Note' },
   info: { icon: Info, color: 'var(--color-info)', label: 'Info' },
@@ -327,15 +353,6 @@ const MarkdownView: React.FC<MarkdownViewProps> = ({
       cls ? <code className={String(cls)}>{children}</code> : <code className="md-inline-code">{children}</code>,
     table: ({ children }) => <div className="my-4 overflow-x-auto"><table className="md-table">{children}</table></div>,
     mark: ({ children }) => <mark className="md-highlight">{children}</mark>,
-    span: ({ children, style, className: cls }) => {
-      // KaTeX output (added after sanitizing) carries classes + layout styles;
-      // user-written spans can't have classes, so they only get a hex colour.
-      if (cls) return <span className={String(cls)} style={style}>{children}</span>;
-      const color = (style as React.CSSProperties | undefined)?.color;
-      return typeof color === 'string' && /^#[0-9a-fA-F]{3,8}$/.test(color.trim())
-        ? <span style={{ color: color.trim() }}>{children}</span>
-        : <span>{children}</span>;
-    },
     ['md-tag' as string]: ({ children }: { children?: React.ReactNode }) => {
       const tag = String(React.Children.toArray(children).join('')).replace(/^#/, '');
       return <a href={`tag:${tag}`} onClick={e => open(`tag:${tag}`, e)} className="md-tag-pill">#{tag}</a>;
@@ -391,7 +408,7 @@ const MarkdownView: React.FC<MarkdownViewProps> = ({
       {!hideProperties && <Properties data={data} onTag={tag => onOpenHref?.(`tag:${tag}`, false)} />}
       <ReactMarkdown
         remarkPlugins={[remarkGfm, remarkMath, remarkObsidian]}
-        rehypePlugins={[rehypeRaw, [rehypeSanitize, sanitizeSchema], rehypeKatex]}
+        rehypePlugins={[rehypeRaw, [rehypeSanitize, sanitizeSchema], rehypeSpanColorOnly, rehypeKatex]}
         urlTransform={urlTransform}
         components={components}
       >

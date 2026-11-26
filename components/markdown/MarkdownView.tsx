@@ -190,12 +190,47 @@ const CodeBlock: React.FC<{ language?: string; code: string; children: React.Rea
   );
 };
 
-const renderValue = (value: FrontmatterValue, onTag: (tag: string) => void, isTags: boolean): React.ReactNode => {
+interface PropertyLinks {
+  exists: (target: string) => boolean;
+  open: (target: string, e: React.MouseEvent) => void;
+}
+
+const PROPERTY_LINK_RE = /\[\[([^\]|#]*)(?:#[^\]|]*)?(?:\|([^\]]*))?\]\]/g;
+
+/** "[[Iron Guild]]" (and "Text [[A]], [[B]]") in a property value become links; empty "[[ ]]" placeholders vanish. */
+const renderLinkedText = (str: string, links: PropertyLinks): React.ReactNode => {
+  const parts: React.ReactNode[] = [];
+  let last = 0;
+  for (const m of str.matchAll(PROPERTY_LINK_RE)) {
+    const index = m.index ?? 0;
+    if (index > last) parts.push(str.slice(last, index));
+    last = index + m[0].length;
+    const target = m[1].trim();
+    if (!target) continue;
+    const label = m[2]?.trim() || target;
+    parts.push(
+      <a
+        key={index}
+        href={`wikilink:${encodeURIComponent(target)}`}
+        onClick={e => links.open(target, e)}
+        className={cn('md-internal-link', !links.exists(target) && 'is-unresolved')}
+      >
+        {label}
+      </a>,
+    );
+  }
+  if (last < str.length) parts.push(str.slice(last));
+  const visible = parts.filter(p => typeof p !== 'string' || p.trim());
+  return visible.length ? <span>{parts}</span> : <span className="text-faint">—</span>;
+};
+
+const renderValue = (value: FrontmatterValue, onTag: (tag: string) => void, isTags: boolean, links: PropertyLinks): React.ReactNode => {
   if (Array.isArray(value)) {
+    if (value.length === 0) return <span className="text-faint">—</span>;
     return (
       <span className="flex flex-wrap gap-1">
         {value.map((v, i) => (
-          <span key={i}>{renderValue(v, onTag, isTags)}</span>
+          <span key={i}>{renderValue(v, onTag, isTags, links)}</span>
         ))}
       </span>
     );
@@ -203,6 +238,7 @@ const renderValue = (value: FrontmatterValue, onTag: (tag: string) => void, isTa
   if (value === null) return <span className="text-faint">—</span>;
   if (typeof value === 'boolean') return <input type="checkbox" checked={value} readOnly className="accent-accent" />;
   const str = String(value);
+  if (str.includes('[[')) return renderLinkedText(str, links);
   if (isTags) {
     return (
       <button type="button" onClick={() => onTag(str.replace(/^#/, ''))} className="md-tag-pill">
@@ -214,7 +250,7 @@ const renderValue = (value: FrontmatterValue, onTag: (tag: string) => void, isTa
   return <span>{str}</span>;
 };
 
-const Properties: React.FC<{ data: Record<string, FrontmatterValue>; onTag: (tag: string) => void }> = ({ data, onTag }) => {
+const Properties: React.FC<{ data: Record<string, FrontmatterValue>; onTag: (tag: string) => void; links: PropertyLinks }> = ({ data, onTag, links }) => {
   const entries = Object.entries(data);
   if (entries.length === 0) return null;
   return (
@@ -223,7 +259,7 @@ const Properties: React.FC<{ data: Record<string, FrontmatterValue>; onTag: (tag
       {entries.map(([key, value]) => (
         <div key={key} className="flex gap-3 border-t border-border/60 py-1.5 first:border-t-0">
           <span className="w-32 shrink-0 truncate text-muted">{key}</span>
-          <span className="min-w-0 flex-1 break-words text-content">{renderValue(value, onTag, key === 'tags' || key === 'tag')}</span>
+          <span className="min-w-0 flex-1 break-words text-content">{renderValue(value, onTag, key === 'tags' || key === 'tag', links)}</span>
         </div>
       ))}
     </div>
@@ -405,7 +441,16 @@ const MarkdownView: React.FC<MarkdownViewProps> = ({
 
   return (
     <div className={cn('doc-md', className)} onClick={handleClick}>
-      {!hideProperties && <Properties data={data} onTag={tag => onOpenHref?.(`tag:${tag}`, false)} />}
+      {!hideProperties && (
+        <Properties
+          data={data}
+          onTag={tag => onOpenHref?.(`tag:${tag}`, false)}
+          links={{
+            exists: target => Boolean(resolveWikilink(target, files)),
+            open: (target, e) => open(`wikilink:${encodeURIComponent(target)}`, e),
+          }}
+        />
+      )}
       <ReactMarkdown
         remarkPlugins={[remarkGfm, remarkMath, remarkObsidian]}
         rehypePlugins={[rehypeRaw, [rehypeSanitize, sanitizeSchema], rehypeSpanColorOnly, rehypeKatex]}

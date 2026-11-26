@@ -3,6 +3,8 @@ import { ASSET_LIBRARY_TYPE, MANDATORY_SINGLETON_FILES, SINGLE_INSTANCE_FILE_TYP
 import { uid } from './id';
 import { createDefaultBase } from './baseModel';
 import { emptyVector } from './vectorModel';
+import { createDefaultTimeline } from './timelineModel';
+import { createDefaultPlot } from './plotModel';
 
 // Pure project-shape helpers: default content, legacy migrations, and the
 // normalization every loaded/updated project passes through.
@@ -19,6 +21,8 @@ export const createDefaultContent = (type: FileType): any => {
     case 'base': return createDefaultBase();
     case 'canvas': return { nodes: [], edges: [] };
     case 'vector': return emptyVector();
+    case 'timeline': return createDefaultTimeline();
+    case 'plot': return createDefaultPlot();
     case ASSET_LIBRARY_TYPE: return {};
     default: return '';
   }

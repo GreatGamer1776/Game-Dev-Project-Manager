@@ -91,7 +91,7 @@ export const MenuHost: React.FC = () => {
       ref={ref}
       role="menu"
       onContextMenu={e => e.preventDefault()}
-      className="fixed z-[200] min-w-[200px] max-w-[320px] rounded-lg bg-surface-raised p-1 shadow-menu animate-menu-in"
+      className="fixed z-[200] max-h-[calc(100vh-16px)] min-w-[200px] max-w-[320px] overflow-y-auto rounded-lg bg-surface-raised p-1 shadow-menu animate-menu-in"
       style={{
         left: coords?.left ?? position.x,
         top: coords?.top ?? position.y,

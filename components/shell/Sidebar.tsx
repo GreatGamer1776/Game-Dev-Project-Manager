@@ -1,7 +1,7 @@
 import React, { useMemo, useState } from 'react';
 import {
   ChevronsUpDown, PanelLeftClose, Search, Plus, Waypoints, CalendarDays, ChevronRight, Files, Bookmark, Hash,
-  Settings as SettingsIcon, HelpCircle, Users, LogOut, ShieldCheck, LayoutGrid, Command,
+  Settings as SettingsIcon, HelpCircle, Users, LogOut, ShieldCheck, LayoutGrid, Command, Library,
 } from 'lucide-react';
 import { Project, ProjectFile, FileType, TodoData, KanbanData } from '../../types';
 import { getFileTypeMeta } from '../fileTypes';
@@ -10,6 +10,7 @@ import { showMenu, MenuEntry } from '../../stores/useMenuStore';
 import { AuthUser } from '../../services/api';
 import ProjectIcon from './ProjectIcon';
 import { cn } from '../ui';
+import { ENTRY_KINDS, EntryKind } from '../../utils/worldModel';
 
 export type LeftTab = 'files' | 'search' | 'bookmarks' | 'tags';
 
@@ -64,6 +65,7 @@ interface SidebarProps {
   systemFiles: ProjectFile[];
   activeFileId: string | null;
   graphActive: boolean;
+  codexActive: boolean;
   tab: LeftTab;
   onTabChange: (tab: LeftTab) => void;
   /** The active panel (file tree, search, bookmarks, tags). */
@@ -75,6 +77,8 @@ interface SidebarProps {
   onNewFile: (type: FileType) => void;
   onOpenFile: (fileId: string) => void;
   onOpenGraph: () => void;
+  onOpenCodex: () => void;
+  onNewWorldEntry: (kind: EntryKind) => void;
   onOpenDailyNote: () => void;
   onHome: () => void;
   onOpenHelp: () => void;
@@ -93,6 +97,7 @@ const Sidebar: React.FC<SidebarProps> = ({
   systemFiles,
   activeFileId,
   graphActive,
+  codexActive,
   tab,
   onTabChange,
   children,
@@ -103,6 +108,8 @@ const Sidebar: React.FC<SidebarProps> = ({
   onNewFile,
   onOpenFile,
   onOpenGraph,
+  onOpenCodex,
+  onNewWorldEntry,
   onOpenDailyNote,
   onHome,
   onOpenHelp,
@@ -127,6 +134,8 @@ const Sidebar: React.FC<SidebarProps> = ({
         const meta = getFileTypeMeta(type);
         return { label: meta.label, icon: meta.icon, hint: type === 'doc' ? 'Alt+N' : undefined, onSelect: () => onNewFile(type) };
       }),
+      { kind: 'heading', label: 'World entry' },
+      ...ENTRY_KINDS.map((meta): MenuEntry => ({ label: meta.label, icon: meta.icon, onSelect: () => onNewWorldEntry(meta.kind) })),
     ], 'below');
 
   const accountMenu = (e: React.MouseEvent) =>
@@ -205,6 +214,7 @@ const Sidebar: React.FC<SidebarProps> = ({
               />
             ))}
             <NavItem icon={Waypoints} label="Graph view" active={graphActive} kbd="Ctrl G" onClick={onOpenGraph} />
+            <NavItem icon={Library} label="Codex" active={codexActive} kbd="Alt C" onClick={onOpenCodex} />
             <NavItem icon={CalendarDays} label="Today's note" kbd="Alt D" onClick={onOpenDailyNote} />
           </div>
         )}

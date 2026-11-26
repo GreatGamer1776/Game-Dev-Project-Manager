@@ -74,12 +74,17 @@ export const parseFrontmatter = (source: string): Frontmatter => {
 
 // --- Code-aware scanning -----------------------------------------------------
 
-/** Blanks out fenced code, inline code, and math so scanners skip them (offsets preserved). */
+/**
+ * Blanks out fenced code, inline code, math, and HTML tags (e.g. the
+ * `<span style="color: #ef4444">` the text-color tool writes) so scanners skip
+ * them. Offsets are preserved.
+ */
 export const maskCode = (source: string): string =>
   source
     .replace(/(^|\n)(```|~~~)[^\n]*\n[\s\S]*?(\n\2[^\n]*(?=\n|$)|$)/g, m => m.replace(/[^\n]/g, ' '))
     .replace(/`[^`\n]+`/g, m => ' '.repeat(m.length))
-    .replace(/\$\$[\s\S]*?\$\$/g, m => m.replace(/[^\n]/g, ' '));
+    .replace(/\$\$[\s\S]*?\$\$/g, m => m.replace(/[^\n]/g, ' '))
+    .replace(/<\/?[a-zA-Z][^<>\n]*>/g, m => ' '.repeat(m.length));
 
 // --- Tags --------------------------------------------------------------------
 

@@ -297,7 +297,7 @@ const buildDecorations = (view: EditorView): DecorationSet => {
     const inCode = (pos: number) => {
       const n = syntaxTree(state).resolveInner(pos, 1);
       for (let cur: typeof n | null = n; cur; cur = cur.parent) {
-        if (cur.name === 'InlineCode' || cur.name === 'FencedCode' || cur.name === 'CodeBlock') return true;
+        if (cur.name === 'InlineCode' || cur.name === 'FencedCode' || cur.name === 'CodeBlock' || cur.name === 'HTMLTag') return true;
       }
       return false;
     };

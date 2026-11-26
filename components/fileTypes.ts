@@ -1,6 +1,6 @@
 import type React from 'react';
-import { FileText, Network, CheckSquare, Bug, Map as MapIcon, Table, PenTool, Image as ImageIcon, File, Database, LayoutDashboard, Spline, Waypoints } from 'lucide-react';
-import type { FileType } from '../types';
+import { FileText, Network, CheckSquare, Bug, Map as MapIcon, Table, PenTool, Image as ImageIcon, File, Database, LayoutDashboard, Spline, Waypoints, History, Clapperboard, Library } from 'lucide-react';
+import type { FileType, ProjectFile } from '../types';
 
 // Display metadata for every file type, shared by the shell (explorer, tabs,
 // switcher, sidebar) so icons and labels never drift between surfaces.
@@ -18,6 +18,8 @@ export const FILE_TYPES: FileTypeMeta[] = [
   { type: 'doc', label: 'Document', pluralLabel: 'Documents', icon: FileText, blurb: 'Markdown notes and specs' },
   { type: 'base', label: 'Base', pluralLabel: 'Bases', icon: Database, blurb: 'Database with table, board, gallery, and calendar views' },
   { type: 'canvas', label: 'Canvas', pluralLabel: 'Canvases', icon: LayoutDashboard, blurb: 'Infinite board of cards, files, and links' },
+  { type: 'timeline', label: 'Timeline', pluralLabel: 'Timelines', icon: History, blurb: 'World history on a fictional calendar' },
+  { type: 'plot', label: 'Plot Board', pluralLabel: 'Plot Boards', icon: Clapperboard, blurb: 'Plot lines and story beats' },
   { type: 'vector', label: 'Vector Art', pluralLabel: 'Vector Art', icon: Spline, blurb: 'Vertex/edge drawing that exports to SVG' },
   { type: 'flowchart', label: 'Flowchart', pluralLabel: 'Flowcharts', icon: Network, blurb: 'Nodes and edges' },
   { type: 'todo', label: 'Task List', pluralLabel: 'Task Lists', icon: CheckSquare, blurb: 'Production tasks' },
@@ -35,10 +37,24 @@ export const getFileTypeMeta = (type: FileType): FileTypeMeta =>
 
 export const ASSET_LIBRARY_TYPE: FileType = 'asset-gallery';
 
-/** Pseudo-file for the project graph view (not stored in the project). */
+// Virtual views open in tabs like files but aren't stored in the project.
+
+/** Pseudo-file for the project graph view. */
 export const GRAPH_VIEW_ID = '__graph__';
 export const GRAPH_VIEW_META: FileTypeMeta = { type: 'graph', label: 'Graph view', pluralLabel: 'Graph views', icon: Waypoints, blurb: 'How files link together' };
 META_BY_TYPE.set('graph', GRAPH_VIEW_META);
+
+/** Pseudo-file for the world codex (every world entry, plus unwritten links). */
+export const CODEX_VIEW_ID = '__codex__';
+export const CODEX_VIEW_META: FileTypeMeta = { type: 'codex', label: 'Codex', pluralLabel: 'Codex', icon: Library, blurb: 'Every character, place, and piece of lore' };
+META_BY_TYPE.set('codex', CODEX_VIEW_META);
+
+export const VIRTUAL_VIEW_FILES: Record<string, ProjectFile> = {
+  [GRAPH_VIEW_ID]: { id: GRAPH_VIEW_ID, name: 'Graph view', type: 'graph', content: null, folderId: null },
+  [CODEX_VIEW_ID]: { id: CODEX_VIEW_ID, name: 'Codex', type: 'codex', content: null, folderId: null },
+};
+
+export const isVirtualView = (id: string | null | undefined): id is string => Boolean(id && VIRTUAL_VIEW_FILES[id]);
 
 /** Project "systems": one per project, always at the root, never renamed/deleted. */
 export const SINGLE_INSTANCE_FILE_TYPES = new Set<FileType>([ASSET_LIBRARY_TYPE, 'todo', 'kanban', 'roadmap']);

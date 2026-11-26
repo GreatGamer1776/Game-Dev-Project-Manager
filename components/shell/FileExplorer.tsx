@@ -9,6 +9,7 @@ import { FILE_TYPES, getFileTypeMeta, SINGLE_INSTANCE_FILE_TYPES } from '../file
 import { showMenu, MenuEntry } from '../../stores/useMenuStore';
 import InlineRename from './InlineRename';
 import { cn } from '../ui';
+import { ENTRY_KINDS, EntryKind } from '../../utils/worldModel';
 
 export const FILE_LINK_DRAG_MIME = 'application/x-gdpm-file-id';
 const FOLDER_DRAG_MIME = 'application/x-gdpm-folder-id';
@@ -76,6 +77,8 @@ interface FileExplorerProps {
   bookmarkIds: string[];
   onToggleBookmark: (fileId: string) => void;
   onCreateFile: (type: FileType, folderId: string | null) => void;
+  /** Folder given = create there; undefined = the default World/<Kind> folder. */
+  onCreateWorldEntry: (kind: EntryKind, folderId?: string) => void;
   onCreateFolder: (parentId: string | null) => void;
   onDeleteFile: (fileId: string) => void;
   onDeleteFolder: (folderId: string) => void;
@@ -105,6 +108,7 @@ const FileExplorer: React.FC<FileExplorerProps> = ({
   bookmarkIds,
   onToggleBookmark,
   onCreateFile,
+  onCreateWorldEntry,
   onCreateFolder,
   onDeleteFile,
   onDeleteFolder,
@@ -228,6 +232,11 @@ const FileExplorer: React.FC<FileExplorerProps> = ({
       return { label: `New ${meta.label.toLowerCase()}`, icon: meta.icon, onSelect: () => onCreateFile(type, folderId) };
     });
 
+  const worldEntryEntries = (folderId?: string): MenuEntry[] => [
+    { kind: 'heading', label: 'New world entry' },
+    ...ENTRY_KINDS.map((meta): MenuEntry => ({ label: meta.label, icon: meta.icon, onSelect: () => onCreateWorldEntry(meta.kind, folderId) })),
+  ];
+
   const fileMenu = (e: React.MouseEvent, file: ProjectFile) => {
     const isSystem = SINGLE_INSTANCE_FILE_TYPES.has(file.type);
     showMenu(e, [
@@ -253,6 +262,7 @@ const FileExplorer: React.FC<FileExplorerProps> = ({
     showMenu(e, [
       ...newFileEntries(folder.id),
       { label: 'New folder', icon: FolderPlus, onSelect: () => onCreateFolder(folder.id) },
+      ...worldEntryEntries(folder.id),
       { kind: 'separator' },
       { label: 'Rename', icon: Pencil, onSelect: () => onStartRename({ kind: 'folder', id: folder.id }) },
       ...(folder.parentId ? [{ label: 'Move to project root', icon: CornerLeftUp, onSelect: () => onMoveFolder(folder.id, null) }] : []),
@@ -265,6 +275,7 @@ const FileExplorer: React.FC<FileExplorerProps> = ({
     showMenu(e, [
       ...newFileEntries(null),
       { label: 'New folder', icon: FolderPlus, onSelect: () => onCreateFolder(null) },
+      ...worldEntryEntries(),
     ]);
   };
 
@@ -387,7 +398,7 @@ const FileExplorer: React.FC<FileExplorerProps> = ({
                 {!isRenaming && (
                   <RowActions
                     label={folder.name}
-                    onAdd={e => showMenu(e, [...newFileEntries(folder.id), { label: 'New folder', icon: FolderPlus, onSelect: () => onCreateFolder(folder.id) }], 'below')}
+                    onAdd={e => showMenu(e, [...newFileEntries(folder.id), { label: 'New folder', icon: FolderPlus, onSelect: () => onCreateFolder(folder.id) }, ...worldEntryEntries(folder.id)], 'below')}
                     onMore={e => folderMenu(e, folder)}
                   />
                 )}

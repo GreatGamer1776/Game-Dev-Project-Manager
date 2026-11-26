@@ -2,7 +2,7 @@ import React, { useCallback, useEffect, useMemo, useRef, useState } from 'react'
 import {
   Search, X, FilePlus2, FolderPlus, PanelLeft, PanelRight, ArrowLeft, ArrowRight,
   Pencil, Trash2, Link2, Crosshair, Pin, Settings as SettingsIcon, HelpCircle, LayoutGrid, Download, LogOut, Users,
-  SunMoon, ListTree, FileSearch, Waypoints, CalendarDays, Bookmark, Hash, FileInput, Columns2, Rows2, Plus,
+  SunMoon, ListTree, FileSearch, Waypoints, CalendarDays, Bookmark, Hash, FileInput, Columns2, Rows2, Plus, Library,
 } from 'lucide-react';
 import JSZip from 'jszip';
 import Dashboard from './components/Dashboard';
@@ -20,13 +20,14 @@ import AdminUsersModal from './components/AdminUsersModal';
 import { UiFeedback, Logo, cn } from './components/ui';
 import { SettingsModal } from './components/SettingsModal';
 import { useSettingsStore } from './stores/useSettingsStore';
-import { getFileTypeMeta, SINGLE_INSTANCE_FILE_TYPES, MANDATORY_SINGLETON_FILES, GRAPH_VIEW_ID } from './components/fileTypes';
+import { getFileTypeMeta, SINGLE_INSTANCE_FILE_TYPES, MANDATORY_SINGLETON_FILES, GRAPH_VIEW_ID, CODEX_VIEW_ID, VIRTUAL_VIEW_FILES, isVirtualView } from './components/fileTypes';
 import { resolveWikilink, renameWikilinks, extractTags, applyTemplateVariables, formatDate } from './utils/markdown';
 import { INSERT_TEXT_EVENT, InsertTextDetail } from './utils/events';
 import {
   normalizeProject, createProjectFile, uniqueName, folderChain, descendantFolderIds,
 } from './utils/projectModel';
 import { uid } from './utils/id';
+import { ENTRY_KINDS, EntryKind, WORLD_FOLDER, entryTemplate, getEntryKindMeta, mapStrings } from './utils/worldModel';
 import { useWorkspace, PersistedLeaf, PersistedWorkspace, Edge, OpenMode, currentFileOf } from './hooks/useWorkspace';
 import WorkspaceLayout, { TabDragPayload } from './components/shell/WorkspaceLayout';
 import Sidebar, { LeftTab } from './components/shell/Sidebar';
@@ -54,6 +55,9 @@ const BaseEditor = React.lazy(() => import('./components/BaseEditor'));
 const CanvasEditor = React.lazy(() => import('./components/CanvasEditor'));
 const VectorEditor = React.lazy(() => import('./components/VectorEditor'));
 const GraphView = React.lazy(() => import('./components/GraphView'));
+const TimelineEditor = React.lazy(() => import('./components/world/TimelineEditor'));
+const PlotBoardEditor = React.lazy(() => import('./components/world/PlotBoardEditor'));
+const CodexView = React.lazy(() => import('./components/world/CodexView'));
 
 // Persistence is handled by the backend API (see services/api.ts) behind
 // username/password auth. Nothing project-related is stored in the browser.
@@ -70,11 +74,10 @@ const EDITORS: Record<string, React.LazyExoticComponent<React.FC<EditorProps>>> 
   base: BaseEditor,
   canvas: CanvasEditor,
   vector: VectorEditor,
+  timeline: TimelineEditor,
+  plot: PlotBoardEditor,
 };
 
-
-/** The graph view opens in a tab like a file, but isn't stored in the project. */
-const GRAPH_FILE: ProjectFile = { id: GRAPH_VIEW_ID, name: 'Graph view', type: 'graph', content: null, folderId: null };
 
 const DOCK = {
   left: { key: 'devarchitect-left-width', fallback: 264 },
@@ -184,7 +187,7 @@ const App: React.FC = () => {
   projectsRef.current = projects;
 
   const activeProject = projects.find(p => p.id === activeProjectId);
-  const activeFile = activeFileId === GRAPH_VIEW_ID && activeProject ? GRAPH_FILE : activeProject?.files.find(f => f.id === activeFileId);
+  const activeFile = isVirtualView(activeFileId) && activeProject ? VIRTUAL_VIEW_FILES[activeFileId] : activeProject?.files.find(f => f.id === activeFileId);
   const activeLeaf = ws.activeLeaf;
   const inProject = currentView === ViewState.PROJECT && Boolean(activeProject);
 
@@ -274,7 +277,7 @@ const App: React.FC = () => {
           : undefined;
 
         if (project && savedAppState?.currentView === ViewState.PROJECT) {
-          const exists = (id: string | null) => !id || id === GRAPH_VIEW_ID || project.files.some(f => f.id === id);
+          const exists = (id: string | null) => !id || isVirtualView(id) || project.files.some(f => f.id === id);
           setCurrentView(ViewState.PROJECT);
           setActiveProjectId(project.id);
           const savedWorkspace = savedAppState.workspace as PersistedWorkspace | undefined;
@@ -398,7 +401,7 @@ const App: React.FC = () => {
   useEffect(() => {
     if (!activeFiles) return;
     const ids = new Set(activeFiles.map(f => f.id));
-    ws.pruneMissing(id => id === GRAPH_VIEW_ID || ids.has(id));
+    ws.pruneMissing(id => isVirtualView(id) || ids.has(id));
     setRecentFileIds(prev => (prev.every(id => ids.has(id)) ? prev : prev.filter(id => ids.has(id))));
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [activeFiles]);
@@ -564,7 +567,7 @@ const App: React.FC = () => {
 
   // --- Files & folders -------------------------------------------------------
 
-  const isProtectedFile = (file: ProjectFile) => SINGLE_INSTANCE_FILE_TYPES.has(file.type) || file.id === GRAPH_VIEW_ID;
+  const isProtectedFile = (file: ProjectFile) => SINGLE_INSTANCE_FILE_TYPES.has(file.type) || isVirtualView(file.id);
 
   const expandChain = (folderId: string | null | undefined) => {
     const project = getActiveProject();
@@ -580,7 +583,7 @@ const App: React.FC = () => {
 
   /** Only documents and the graph re-sync live, so only they may show in two panes. */
   const canDuplicate = (fileId: string | null) =>
-    !fileId || fileId === GRAPH_VIEW_ID || getActiveProject()?.files.find(f => f.id === fileId)?.type === 'doc';
+    !fileId || isVirtualView(fileId) || getActiveProject()?.files.find(f => f.id === fileId)?.type === 'doc';
 
   const openFile = (fileId: string, mode: OpenMode = 'current') => {
     setTaskNavigationTarget(null);
@@ -671,8 +674,14 @@ const App: React.FC = () => {
     setTaskNavigationTarget({ fileId, taskId, requestKey: taskNavigationRequestRef.current });
   };
 
-  const createFile = (type: FileType, folderId: string | null = null, name?: string, content?: string) => {
-    const project = getActiveProject();
+  const createFile = (
+    type: FileType,
+    folderId: string | null = null,
+    name?: string,
+    content?: string,
+    options: { untitledName?: string; baseProject?: Project } = {},
+  ) => {
+    const project = options.baseProject ?? getActiveProject();
     if (!project) return;
     if (SINGLE_INSTANCE_FILE_TYPES.has(type)) {
       const existing = project.files.find(f => f.type === type);
@@ -681,13 +690,34 @@ const App: React.FC = () => {
     }
     const meta = getFileTypeMeta(type);
     const siblings = project.files.filter(f => (f.folderId || null) === folderId).map(f => f.name);
-    const finalName = name?.trim() || uniqueName(type === 'doc' ? 'Untitled' : `Untitled ${meta.label.toLowerCase()}`, siblings);
+    const untitled = options.untitledName || (type === 'doc' ? 'Untitled' : `Untitled ${meta.label.toLowerCase()}`);
+    const finalName = name?.trim() || uniqueName(untitled, siblings);
     const file = createProjectFile(type, finalName, folderId, content);
     updateProjectState({ ...project, lastModified: Date.now(), files: [...project.files, file] });
     expandChain(folderId);
     openFile(file.id);
     // Obsidian-style: a fresh untitled file starts with its title in edit mode.
     if (!name) setPendingTitleRename(file.id);
+  };
+
+  /**
+   * A world entry: a document from the kind's template, filed under
+   * World/<Kind> unless a folder is given. With `name` (e.g. creating an
+   * unwritten [[link]]) it takes exactly that name so the links resolve.
+   */
+  const createWorldEntry = (kind: EntryKind, name?: string, folderId?: string | null) => {
+    const project = getActiveProject();
+    if (!project) return;
+    const meta = getEntryKindMeta(kind);
+    let base = project;
+    let targetFolder = folderId ?? null;
+    if (folderId === undefined) {
+      const root = ensureRootFolder(project, WORLD_FOLDER);
+      const sub = ensureChildFolder(root.project, root.folderId, meta.plural);
+      base = sub.project;
+      targetFolder = sub.folderId;
+    }
+    createFile('doc', targetFolder, name, entryTemplate(kind, templateDocs(base)), { untitledName: `New ${meta.label.toLowerCase()}`, baseProject: base });
   };
 
   /** Search panel with a query (tags open here). */
@@ -734,6 +764,13 @@ const App: React.FC = () => {
     const existing = project.folders.find(f => f.parentId === null && f.name.toLowerCase() === name.toLowerCase());
     if (existing) return { project, folderId: existing.id };
     const folder: ProjectFolder = { id: uid(), name, parentId: null };
+    return { project: { ...project, folders: [...project.folders, folder] }, folderId: folder.id };
+  };
+
+  const ensureChildFolder = (project: Project, parentId: string, name: string): { project: Project; folderId: string } => {
+    const existing = project.folders.find(f => f.parentId === parentId && f.name.toLowerCase() === name.toLowerCase());
+    if (existing) return { project, folderId: existing.id };
+    const folder: ProjectFolder = { id: uid(), name, parentId };
     return { project: { ...project, folders: [...project.folders, folder] }, folderId: folder.id };
   };
 
@@ -823,6 +860,10 @@ const App: React.FC = () => {
         const before = updatedLinks;
         const rows = f.content.rows.map((r: { notes?: string }) => (typeof r.notes === 'string' ? { ...r, notes: rewrite(r.notes) } : r));
         return updatedLinks === before ? f : { ...f, content: { ...f.content, rows } };
+      }
+      if ((f.type === 'timeline' || f.type === 'plot') && f.content && typeof f.content === 'object') {
+        const content = mapStrings(f.content, text => (text.includes('[[') ? rewrite(text) : text));
+        return content === f.content ? f : { ...f, content };
       }
       return f;
     });
@@ -1029,7 +1070,7 @@ const App: React.FC = () => {
   }, [activeProject]);
 
   const fileById = (fileId: string | null): ProjectFile | null =>
-    fileId === GRAPH_VIEW_ID && activeProject ? GRAPH_FILE : activeProject?.files.find(f => f.id === fileId) ?? null;
+    isVirtualView(fileId) && activeProject ? VIRTUAL_VIEW_FILES[fileId] : activeProject?.files.find(f => f.id === fileId) ?? null;
   const tabItemsFor = (paneId: string): TabItem[] =>
     (ws.panes[paneId]?.leaves || []).map(leaf => ({ id: leaf.id, file: fileById(currentFileOf(leaf)), pinned: leaf.pinned }));
 
@@ -1070,9 +1111,13 @@ const App: React.FC = () => {
       { id: 'search', group: 'Search', label: 'Search in all files', hotkey: 'Ctrl Shift F', icon: Search, run: openSearch },
       { id: 'graph', group: 'Graph view', label: 'Open graph view', hotkey: 'Ctrl G', icon: Waypoints, run: () => openFile(GRAPH_VIEW_ID) },
       { id: 'local-graph', group: 'Graph view', label: 'Open local graph', icon: Waypoints, run: () => { setRightOpen(true); setRightTab('graph'); } },
+      { id: 'codex', group: 'World', label: 'Open codex', hotkey: 'Alt C', icon: Library, run: () => openFile(CODEX_VIEW_ID) },
+      ...ENTRY_KINDS.map(meta => ({
+        id: `new-entry-${meta.kind}`, group: 'World', label: `New ${meta.label.toLowerCase()}`, icon: meta.icon, run: () => createWorldEntry(meta.kind),
+      })),
       { id: 'daily', group: 'Daily notes', label: "Open today's daily note", hotkey: 'Alt D', icon: CalendarDays, run: openDailyNote },
       ...(activeFile?.type === 'doc' ? [{ id: 'template', group: 'Templates', label: 'Insert template', icon: FileInput, run: () => setPaletteMode('templates') }] : []),
-      ...(activeFile && activeFile.id !== GRAPH_VIEW_ID ? [{
+      ...(activeFile && !isVirtualView(activeFile.id) ? [{
         id: 'bookmark', group: 'Bookmarks', label: projectBookmarks.includes(activeFile.id) ? 'Remove bookmark' : 'Bookmark current file', icon: Bookmark,
         run: () => toggleBookmark(activeFile.id),
       }] : []),
@@ -1119,6 +1164,7 @@ const App: React.FC = () => {
     toggleRight: () => {},
     openSearch: () => {},
     openGraph: () => {},
+    openCodex: () => {},
     openDaily: () => {},
     split: () => {},
     nextPane: (_delta: 1 | -1) => {},
@@ -1138,6 +1184,7 @@ const App: React.FC = () => {
     openSearch,
     openSettings,
     openGraph: () => openFile(GRAPH_VIEW_ID),
+    openCodex: () => openFile(CODEX_VIEW_ID),
     openDaily: openDailyNote,
     back: () => ws.goBack(),
     forward: () => ws.goForward(),
@@ -1194,6 +1241,9 @@ const App: React.FC = () => {
       } else if (e.altKey && !mod && !e.shiftKey && e.code === 'KeyD' && !typing && h.inProject) {
         e.preventDefault();
         h.openDaily();
+      } else if (e.altKey && !mod && !e.shiftKey && e.code === 'KeyC' && !typing && h.inProject) {
+        e.preventDefault();
+        h.openCodex();
       } else if (e.key === 'F2' && !typing && h.inProject) {
         e.preventDefault();
         h.renameActive();
@@ -1253,6 +1303,7 @@ const App: React.FC = () => {
         systemFiles={systemFiles}
         activeFileId={activeFileId}
         graphActive={activeFileId === GRAPH_VIEW_ID}
+        codexActive={activeFileId === CODEX_VIEW_ID}
         tab={leftTab}
         onTabChange={id => (id === 'search' ? openSearch() : setLeftTab(id))}
         onProjectMenu={projectMenu}
@@ -1262,6 +1313,8 @@ const App: React.FC = () => {
         onNewFile={type => createFile(type)}
         onOpenFile={id => openFile(id)}
         onOpenGraph={() => openFile(GRAPH_VIEW_ID)}
+        onOpenCodex={() => openFile(CODEX_VIEW_ID)}
+        onNewWorldEntry={kind => createWorldEntry(kind)}
         onOpenDailyNote={openDailyNote}
         onHome={goToDashboard}
         onOpenHelp={() => setIsHelpOpen(true)}
@@ -1290,6 +1343,7 @@ const App: React.FC = () => {
             bookmarkIds={projectBookmarks}
             onToggleBookmark={toggleBookmark}
             onCreateFile={(type, folderId) => createFile(type, folderId)}
+            onCreateWorldEntry={(kind, folderId) => createWorldEntry(kind, undefined, folderId)}
             onCreateFolder={createFolder}
             onDeleteFile={id => void deleteFile(id)}
             onDeleteFolder={id => void deleteFolder(id)}
@@ -1299,7 +1353,7 @@ const App: React.FC = () => {
             onCopyId={copyFileId}
             revealRequest={revealRequest}
             onRevealHandled={() => setRevealRequest(null)}
-            onRevealActive={activeFileId && activeFileId !== GRAPH_VIEW_ID ? () => revealFile(activeFileId) : null}
+            onRevealActive={activeFileId && !isVirtualView(activeFileId) ? () => revealFile(activeFileId) : null}
           />
         ) : leftTab === 'search' ? (
           <SearchPanel files={activeProject.files} onOpenFile={id => openFile(id)} focusSignal={searchFocusSignal} queryRequest={searchRequest} />
@@ -1399,7 +1453,7 @@ const App: React.FC = () => {
           showLeftToggle={!leftOpen && (isMobile || paneId === topLeftPane)}
           onToggleLeft={toggleLeft}
         />
-        {file && leaf && (component || file.id === GRAPH_VIEW_ID) ? (
+        {file && leaf && (component || isVirtualView(file.id)) ? (
           <>
             <ViewHeader
               file={file}
@@ -1418,7 +1472,7 @@ const App: React.FC = () => {
               onRevealFolder={folderIndex => revealFolder(file, folderIndex)}
               onTogglePin={() => ws.togglePin(paneId, leaf.id)}
               bookmarked={projectBookmarks.includes(file.id)}
-              onToggleBookmark={file.id === GRAPH_VIEW_ID ? undefined : () => toggleBookmark(file.id)}
+              onToggleBookmark={isVirtualView(file.id) ? undefined : () => toggleBookmark(file.id)}
               onClose={() => ws.closeTab(paneId, leaf.id)}
               onSplit={edge => splitPane(paneId, edge)}
               startRename={isActivePane && pendingTitleRename === file.id}
@@ -1428,7 +1482,13 @@ const App: React.FC = () => {
               <EditorErrorBoundary key={`${leaf.id}:${file.id}`} fileName={file.name}>
                 <React.Suspense fallback={<EditorLoadingFallback />}>
                   {file.id === GRAPH_VIEW_ID ? (
-                    <GraphView files={activeProject.files} activeFileId={recentFileIds.find(id => id !== GRAPH_VIEW_ID) ?? null} onOpenFile={id => openFile(id)} onOpenTag={tag => searchFor(`#${tag}`)} />
+                    <GraphView files={activeProject.files} activeFileId={recentFileIds.find(id => !isVirtualView(id)) ?? null} onOpenFile={id => openFile(id)} onOpenTag={tag => searchFor(`#${tag}`)} />
+                  ) : file.id === CODEX_VIEW_ID ? (
+                    <CodexView
+                      files={activeProject.files}
+                      onOpenFile={(id, newTab) => openFile(id, newTab ? 'new-tab' : 'current')}
+                      onCreateEntry={(kind, name) => createWorldEntry(kind, name)}
+                    />
                   ) : component && React.createElement(component, {
                     fileName: file.name,
                     initialContent: file.content,

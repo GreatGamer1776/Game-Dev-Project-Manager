@@ -225,6 +225,9 @@
   [data-editortext="small"] { --editor-fs: 0.875rem; }
   [data-editortext="large"] { --editor-fs: 1.0625rem; }
   .doc-source, .doc-md { font-size: var(--editor-fs) !important; }
+  /* Short markdown snippets inside cards (timeline events, plot cards). */
+  .doc-md.md-compact { font-size: 0.8125rem !important; line-height: 1.55; }
+  .md-compact > :last-child { margin-bottom: 0; }
 
   /* Readable line length — caps the document column like Obsidian. */
   [data-linewidth="full"] { --editor-lw: 100rem; }

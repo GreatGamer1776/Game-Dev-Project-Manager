@@ -60,6 +60,32 @@ const sanitizeSchema = {
   },
 };
 
+interface HastNode {
+  type: string;
+  tagName?: string;
+  properties?: Record<string, unknown>;
+  children?: HastNode[];
+}
+
+const SPAN_COLOR_RE = /(?:^|;)\s*color\s*:\s*(#[0-9a-fA-F]{3,8})\s*(?:;|$)/i;
+
+/**
+ * User-written `<span style>` may only set a hex text colour. This runs after
+ * sanitizing and before KaTeX, so KaTeX's own layout styles (the `top` offsets
+ * that place superscripts, fractions, …) are left alone.
+ */
+const rehypeSpanColorOnly = () => (tree: HastNode) => {
+  const visit = (node: HastNode) => {
+    if (node.type === 'element' && node.tagName === 'span' && node.properties && 'style' in node.properties) {
+      const color = SPAN_COLOR_RE.exec(String(node.properties.style ?? ''))?.[1];
+      if (color) node.properties.style = `color: ${color}`;
+      else delete node.properties.style;
+    }
+    node.children?.forEach(visit);
+  };
+  visit(tree);
+};
+
 const CALLOUTS: Record<string, { icon: React.ComponentType<{ className?: string }>; color: string; label: string }> = {
   note: { icon: Info, color: 'var(--color-info)', label: 'Note' },
   info: { icon: Info, color: 'var(--color-info)', label: 'Info' },
@@ -164,12 +190,47 @@ const CodeBlock: React.FC<{ language?: string; code: string; children: React.Rea
   );
 };
 
-const renderValue = (value: FrontmatterValue, onTag: (tag: string) => void, isTags: boolean): React.ReactNode => {
+interface PropertyLinks {
+  exists: (target: string) => boolean;
+  open: (target: string, e: React.MouseEvent) => void;
+}
+
+const PROPERTY_LINK_RE = /\[\[([^\]|#]*)(?:#[^\]|]*)?(?:\|([^\]]*))?\]\]/g;
+
+/** "[[Iron Guild]]" (and "Text [[A]], [[B]]") in a property value become links; empty "[[ ]]" placeholders vanish. */
+const renderLinkedText = (str: string, links: PropertyLinks): React.ReactNode => {
+  const parts: React.ReactNode[] = [];
+  let last = 0;
+  for (const m of str.matchAll(PROPERTY_LINK_RE)) {
+    const index = m.index ?? 0;
+    if (index > last) parts.push(str.slice(last, index));
+    last = index + m[0].length;
+    const target = m[1].trim();
+    if (!target) continue;
+    const label = m[2]?.trim() || target;
+    parts.push(
+      <a
+        key={index}
+        href={`wikilink:${encodeURIComponent(target)}`}
+        onClick={e => links.open(target, e)}
+        className={cn('md-internal-link', !links.exists(target) && 'is-unresolved')}
+      >
+        {label}
+      </a>,
+    );
+  }
+  if (last < str.length) parts.push(str.slice(last));
+  const visible = parts.filter(p => typeof p !== 'string' || p.trim());
+  return visible.length ? <span>{parts}</span> : <span className="text-faint">—</span>;
+};
+
+const renderValue = (value: FrontmatterValue, onTag: (tag: string) => void, isTags: boolean, links: PropertyLinks): React.ReactNode => {
   if (Array.isArray(value)) {
+    if (value.length === 0) return <span className="text-faint">—</span>;
     return (
       <span className="flex flex-wrap gap-1">
         {value.map((v, i) => (
-          <span key={i}>{renderValue(v, onTag, isTags)}</span>
+          <span key={i}>{renderValue(v, onTag, isTags, links)}</span>
         ))}
       </span>
     );
@@ -177,6 +238,7 @@ const renderValue = (value: FrontmatterValue, onTag: (tag: string) => void, isTa
   if (value === null) return <span className="text-faint">—</span>;
   if (typeof value === 'boolean') return <input type="checkbox" checked={value} readOnly className="accent-accent" />;
   const str = String(value);
+  if (str.includes('[[')) return renderLinkedText(str, links);
   if (isTags) {
     return (
       <button type="button" onClick={() => onTag(str.replace(/^#/, ''))} className="md-tag-pill">
@@ -188,7 +250,7 @@ const renderValue = (value: FrontmatterValue, onTag: (tag: string) => void, isTa
   return <span>{str}</span>;
 };
 
-const Properties: React.FC<{ data: Record<string, FrontmatterValue>; onTag: (tag: string) => void }> = ({ data, onTag }) => {
+const Properties: React.FC<{ data: Record<string, FrontmatterValue>; onTag: (tag: string) => void; links: PropertyLinks }> = ({ data, onTag, links }) => {
   const entries = Object.entries(data);
   if (entries.length === 0) return null;
   return (
@@ -197,7 +259,7 @@ const Properties: React.FC<{ data: Record<string, FrontmatterValue>; onTag: (tag
       {entries.map(([key, value]) => (
         <div key={key} className="flex gap-3 border-t border-border/60 py-1.5 first:border-t-0">
           <span className="w-32 shrink-0 truncate text-muted">{key}</span>
-          <span className="min-w-0 flex-1 break-words text-content">{renderValue(value, onTag, key === 'tags' || key === 'tag')}</span>
+          <span className="min-w-0 flex-1 break-words text-content">{renderValue(value, onTag, key === 'tags' || key === 'tag', links)}</span>
         </div>
       ))}
     </div>
@@ -327,15 +389,6 @@ const MarkdownView: React.FC<MarkdownViewProps> = ({
       cls ? <code className={String(cls)}>{children}</code> : <code className="md-inline-code">{children}</code>,
     table: ({ children }) => <div className="my-4 overflow-x-auto"><table className="md-table">{children}</table></div>,
     mark: ({ children }) => <mark className="md-highlight">{children}</mark>,
-    span: ({ children, style, className: cls }) => {
-      // KaTeX output (added after sanitizing) carries classes + layout styles;
-      // user-written spans can't have classes, so they only get a hex colour.
-      if (cls) return <span className={String(cls)} style={style}>{children}</span>;
-      const color = (style as React.CSSProperties | undefined)?.color;
-      return typeof color === 'string' && /^#[0-9a-fA-F]{3,8}$/.test(color.trim())
-        ? <span style={{ color: color.trim() }}>{children}</span>
-        : <span>{children}</span>;
-    },
     ['md-tag' as string]: ({ children }: { children?: React.ReactNode }) => {
       const tag = String(React.Children.toArray(children).join('')).replace(/^#/, '');
       return <a href={`tag:${tag}`} onClick={e => open(`tag:${tag}`, e)} className="md-tag-pill">#{tag}</a>;
@@ -388,10 +441,19 @@ const MarkdownView: React.FC<MarkdownViewProps> = ({
 
   return (
     <div className={cn('doc-md', className)} onClick={handleClick}>
-      {!hideProperties && <Properties data={data} onTag={tag => onOpenHref?.(`tag:${tag}`, false)} />}
+      {!hideProperties && (
+        <Properties
+          data={data}
+          onTag={tag => onOpenHref?.(`tag:${tag}`, false)}
+          links={{
+            exists: target => Boolean(resolveWikilink(target, files)),
+            open: (target, e) => open(`wikilink:${encodeURIComponent(target)}`, e),
+          }}
+        />
+      )}
       <ReactMarkdown
         remarkPlugins={[remarkGfm, remarkMath, remarkObsidian]}
-        rehypePlugins={[rehypeRaw, [rehypeSanitize, sanitizeSchema], rehypeKatex]}
+        rehypePlugins={[rehypeRaw, [rehypeSanitize, sanitizeSchema], rehypeSpanColorOnly, rehypeKatex]}
         urlTransform={urlTransform}
         components={components}
       >

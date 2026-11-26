@@ -3,7 +3,7 @@ import {
   X, Pin, Plus, PanelRight, ChevronDown, Link2, Crosshair, File, Bookmark, BookmarkMinus, Columns2, Rows2,
   PanelRightOpen, PanelBottomOpen, PanelLeftOpen,
 } from 'lucide-react';
-import { GRAPH_VIEW_ID, getFileTypeMeta } from '../fileTypes';
+import { isVirtualView, getFileTypeMeta } from '../fileTypes';
 import { ProjectFile } from '../../types';
 import { showMenu } from '../../stores/useMenuStore';
 import { Edge } from '../../hooks/useWorkspace';
@@ -105,7 +105,7 @@ const TabBar: React.FC<TabBarProps> = ({
       { label: 'Move to split below', icon: PanelBottomOpen, onSelect: () => onMoveTabToSplit(tab.id, 'bottom') },
       { kind: 'separator' },
       { label: tab.pinned ? 'Unpin' : 'Pin', icon: Pin, onSelect: () => onTogglePin(tab.id) },
-      ...(file && file.id !== GRAPH_VIEW_ID ? [
+      ...(file && !isVirtualView(file.id) ? [
         bookmarkIds.includes(file.id)
           ? { label: 'Remove bookmark', icon: BookmarkMinus, onSelect: () => onToggleBookmark(file.id) }
           : { label: 'Bookmark', icon: Bookmark, onSelect: () => onToggleBookmark(file.id) },

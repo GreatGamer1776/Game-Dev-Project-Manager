@@ -22,6 +22,7 @@ export const SHORTCUTS: { keys: string; desc: string }[] = [
   { keys: 'Ctrl + Alt + click', desc: 'Open a file to the right (from the sidebar)' },
   { keys: 'Ctrl + G', desc: 'Open graph view' },
   { keys: 'Alt + D', desc: "Open today's daily note" },
+  { keys: 'Alt + C', desc: 'Open the world codex' },
   { keys: 'Ctrl + ,', desc: 'Open settings' },
   { keys: 'Ctrl + B', desc: 'Bold (inside documents)' },
   { keys: 'Ctrl + I', desc: 'Italic (inside documents)' },
